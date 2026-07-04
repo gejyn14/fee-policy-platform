@@ -214,7 +214,8 @@ export const useStore = create<State>((set) => ({
           counts[c.status] += 1;
           nego = nego.filter((n) => !(n.accountId === c.accountId && n.scheduleId === rule.scheduleId));
           if (c.status !== '탈락')
-            nego.push({ accountId: c.accountId, scope: rule.scope, scheduleId: rule.scheduleId, validFrom: TODAY, validTo: extendOneYear(rule.endDate) });
+            nego.push({ accountId: c.accountId, scope: rule.scope, scheduleId: rule.scheduleId, validFrom: TODAY, validTo: extendOneYear(rule.endDate),
+              status: '활성', qualify: '충족', requestId: `LEGACY-${c.accountId}`, requestedBy: '배치', requestedAt: TODAY, approvedAt: TODAY });
           resolveCache.invalidateAccount(c.accountId);
         }
       }
@@ -293,7 +294,8 @@ export const useStore = create<State>((set) => ({
           const met = evalCondition(r, a);
           const has = nego.some((n) => n.accountId === a.id && n.scheduleId === r.scheduleId);
           if (met && !has) {
-            nego.push({ accountId: a.id, scope: r.scope, scheduleId: r.scheduleId, validFrom: TODAY, validTo: extendOneYear(r.endDate) });
+            nego.push({ accountId: a.id, scope: r.scope, scheduleId: r.scheduleId, validFrom: TODAY, validTo: extendOneYear(r.endDate),
+              status: '활성', qualify: '충족', requestId: `LEGACY-${a.id}`, requestedBy: '배치', requestedAt: TODAY, approvedAt: TODAY });
             changes.push({ label: `${a.id}·${r.scope.assetClass}`, detail: '조건 충족 → 협의 grant 부여' });
             resolveCache.invalidateAccount(a.id);
           } else if (!met && has) {

@@ -34,13 +34,19 @@ export interface ScopeIndex { candidatesFor(k: FeeKey): FeeRule[] }
 export function buildScopeIndex(rules: FeeRule[], _today: string): ScopeIndex {
   // 상태만으로 인덱싱 — 기간(혜택 유효)은 resolve의 isBenefitActive가 계좌별로 판정한다
   // (상대형 혜택이 신청 마감 이후에도 후보로 남게 하기 위함).
-  const overlays = rules.filter((r) => r.type !== 'BASE' && r.status === '활성');
+  const overlays = rules.filter((r) => r.type === 'EVENT' && r.status === '활성');
   return { candidatesFor: (k) => overlays.filter((r) => scopeMatchesKey(r.scope, k)) };
 }
 
 export interface NegoException {
   accountId: string; scope: ScopeSelector; scheduleId: string;
   validFrom: string; validTo: string;
+  status: '요청' | '활성' | '반려';
+  qualify: '충족' | '예외';               // 예외 = 영업 bypass
+  reason?: string;                        // bypass/반려 사유
+  requestId: string;
+  requestedBy: string; requestedAt: string;
+  approvedAt?: string;
 }
 
 export interface ResolveCandidate {
@@ -82,7 +88,7 @@ export function resolve(
   const cands: Cand[] = [];
 
   for (const n of nego)
-    if (n.accountId === acct.id && n.validFrom <= today && today <= n.validTo && scopeMatchesKey(n.scope, key))
+    if (n.accountId === acct.id && n.status === '활성' && n.validFrom <= today && today <= n.validTo && scopeMatchesKey(n.scope, key))
       cands.push({ rule: null, schedule: schedOf(n.scheduleId), source: 'nego' });
 
   for (const r of index.candidatesFor(key))

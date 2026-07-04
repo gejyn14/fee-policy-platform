@@ -77,15 +77,21 @@ describe('resolve', () => {
     expect(r!.candidates[0].isWinner).toBe(true);
     expect(r!.candidates.map(c => c.avgCustomerFee)).toEqual([...r!.candidates.map(c => c.avgCustomerFee)].sort((a,b)=>a-b));
   });
+  const grant = (over: Partial<NegoException>): NegoException =>
+    ({ accountId: acct.id, scope: scope({ channels: '*' }), scheduleId: 'S-NEGO', validFrom: '2026-01-01', validTo: '2026-12-31',
+      status: '활성', qualify: '충족', requestId: 'R1', requestedBy: 't', requestedAt: '2026-01-01', ...over });
+
   it('nego가 최저가면 nego 승자(rule null, sourceRuleId null)', () => {
-    const nego: NegoException[] = [{ accountId: acct.id, scope: scope({ channels: '*' }), scheduleId: 'S-NEGO', validFrom: '2026-01-01', validTo: '2026-12-31' }];
-    const r = resolve(acct, key({ channel: 'MTS' }), [base, evt], schedules, nego, idx(), '2026-07-04', []);
+    const r = resolve(acct, key({ channel: 'MTS' }), [base, evt], schedules, [grant({})], idx(), '2026-07-04', []);
     expect(r!.source).toBe('nego'); expect(r!.sourceRuleId).toBeNull();
     expect(r!.scheduleId).toBe('S-NEGO');
   });
   it('다른 계좌 nego는 무시', () => {
-    const nego: NegoException[] = [{ accountId: '999999999999', scope: scope(), scheduleId: 'S-NEGO', validFrom: '2026-01-01', validTo: '2026-12-31' }];
-    const r = resolve(acct, key({ channel: 'MTS' }), [base, evt], schedules, nego, idx(), '2026-07-04', []);
+    const r = resolve(acct, key({ channel: 'MTS' }), [base, evt], schedules, [grant({ accountId: '999999999999' })], idx(), '2026-07-04', []);
+    expect(r!.source).toBe('event');
+  });
+  it('요청/반려 상태 grant는 해석에서 제외', () => {
+    const r = resolve(acct, key({ channel: 'MTS' }), [base, evt], schedules, [grant({ status: '요청' })], idx(), '2026-07-04', []);
     expect(r!.source).toBe('event');
   });
 });

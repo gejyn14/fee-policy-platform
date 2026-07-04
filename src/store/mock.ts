@@ -270,9 +270,11 @@ export const mockEnrollments: Enrollment[] = [
 export const mockNego: NegoException[] = [
   { accountId: '110000001001',
     scope: { assetClass: '해외주식', exchanges: '*', sessions: '*', channels: '*', currencies: '*', products: '*', excludeProducts: [] },
-    scheduleId: 'FS-NEGO-STOCK-US', validFrom: '2026-01-10', validTo: '2026-07-31' },
+    scheduleId: 'FS-NEGO-STOCK-US', validFrom: '2026-01-10', validTo: '2026-07-31',
+    status: '활성', qualify: '충족', requestId: 'REQ-SEED-1', requestedBy: 'PB팀-오세훈', requestedAt: '2026-01-05', approvedAt: '2026-01-10' },
   // 연장 리뷰의 '탈락' 시연: 협의 보유하나 6개월평균자산 3천만(<5억) 미충족
   { accountId: '110000001003',
     scope: { assetClass: '해외주식', exchanges: '*', sessions: '*', channels: '*', currencies: '*', products: '*', excludeProducts: [] },
-    scheduleId: 'FS-NEGO-STOCK-US', validFrom: '2026-01-10', validTo: '2026-07-31' },
+    scheduleId: 'FS-NEGO-STOCK-US', validFrom: '2026-01-10', validTo: '2026-07-31',
+    status: '활성', qualify: '충족', requestId: 'REQ-SEED-1', requestedBy: 'PB팀-오세훈', requestedAt: '2026-01-05', approvedAt: '2026-01-10' },
 ];
