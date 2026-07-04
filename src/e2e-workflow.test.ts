@@ -5,7 +5,7 @@ import type { FeeRule, FeeSchedule, Execution } from './domain/types';
 
 // README 시연 시나리오의 스토어 레벨 재현:
 // ① CME 6A 대상 신규 EVENT 룰 + 요율표 상신
-// ② 승인 전: A-1001의 CME:6A 바인딩은 아직 신규 룰이 아님
+// ② 승인 전: 110000001001의 CME:6A 바인딩은 아직 신규 룰이 아님
 // ③ 승인 후: 바인딩이 신규 룰로 교체 + calcFee로 수수료 인하 확인
 // ④ 반려 케이스: 바인딩 불변
 
@@ -31,10 +31,10 @@ const cheapRule: FeeRule = {
   log: [],
 };
 
-it('승인 전: A-1001의 CME:6A 바인딩 출처는 아직 신규 룰이 아니다', () => {
+it('승인 전: 110000001001의 CME:6A 바인딩 출처는 아직 신규 룰이 아니다', () => {
   useStore.getState().submitRule(cheapRule, cheapSchedule);
   const s = useStore.getState();
-  const binding = s.bindings.find((b) => b.accountId === 'A-1001' && b.scopeKey === 'CME:6A');
+  const binding = s.bindings.find((b) => b.accountId === '110000001001' && b.scopeKey === 'CME:6A');
   expect(binding).toBeDefined();
   expect(binding!.sourceRuleId).not.toBe('R-E2E-CHEAP');
 });
@@ -44,10 +44,10 @@ it('승인 후: 바인딩 출처가 신규 룰로 바뀌고 calcFee 수수료가
 
   // 승인 전 수수료 (기존 최저가 룰 기준)
   const before = useStore.getState();
-  const beforeBinding = before.bindings.find((b) => b.accountId === 'A-1001' && b.scopeKey === 'CME:6A')!;
+  const beforeBinding = before.bindings.find((b) => b.accountId === '110000001001' && b.scopeKey === 'CME:6A')!;
   const beforeSchedule = before.schedules.find((sc) => sc.id === beforeBinding.scheduleId)!;
   const product = before.products.find((p) => p.exchange === 'CME' && p.code === '6A')!;
-  const exec: Execution = { accountId: 'A-1001', product, session: product.sessions[0], price: 100, qty: 10, notional: 1000 };
+  const exec: Execution = { accountId: '110000001001', product, session: product.sessions[0], price: 100, qty: 10, notional: 1000 };
   const beforeFee = calcFee(beforeSchedule, exec);
 
   useStore.getState().approveRule('R-E2E-CHEAP');
@@ -56,7 +56,7 @@ it('승인 후: 바인딩 출처가 신규 룰로 바뀌고 calcFee 수수료가
   const afterRule = after.rules.find((r) => r.id === 'R-E2E-CHEAP')!;
   expect(afterRule.status).toBe('활성');
 
-  const afterBinding = after.bindings.find((b) => b.accountId === 'A-1001' && b.scopeKey === 'CME:6A')!;
+  const afterBinding = after.bindings.find((b) => b.accountId === '110000001001' && b.scopeKey === 'CME:6A')!;
   expect(afterBinding.sourceRuleId).toBe('R-E2E-CHEAP');
 
   const afterSchedule = after.schedules.find((sc) => sc.id === afterBinding.scheduleId)!;
@@ -71,13 +71,13 @@ it('반려 케이스: 반려된 룰은 바인딩에 영향을 주지 않는다',
 
   useStore.getState().submitRule(rejectedRule, rejectedSchedule);
   const beforeBinding = useStore.getState().bindings
-    .find((b) => b.accountId === 'A-1001' && b.scopeKey === 'CME:6A')!;
+    .find((b) => b.accountId === '110000001001' && b.scopeKey === 'CME:6A')!;
 
   useStore.getState().rejectRule('R-E2E-REJECTED', '검토 보류');
 
   const after = useStore.getState();
   expect(after.rules.find((r) => r.id === 'R-E2E-REJECTED')!.status).toBe('반려');
-  const afterBinding = after.bindings.find((b) => b.accountId === 'A-1001' && b.scopeKey === 'CME:6A')!;
+  const afterBinding = after.bindings.find((b) => b.accountId === '110000001001' && b.scopeKey === 'CME:6A')!;
   // rejectRule이 bindings를 건드리지 않는 store 불변식 검증
   expect(afterBinding.sourceRuleId).not.toBe('R-E2E-REJECTED');
   expect(afterBinding).toEqual(beforeBinding);

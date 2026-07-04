@@ -1,11 +1,12 @@
 import type { Account, FeeSchedule, FeeRule, Enrollment } from '../domain/types';
+import type { NegoException } from '../domain/resolve';
 
 export const mockAccounts: Account[] = [
-  { id: 'A-1001', name: '김철수', grade: 'GOLD', dormantReturned: false, metric6mAsset: 850_000_000, metric6mVolume: 2_100_000_000 },
+  { id: '110000001001', name: '김철수', grade: 'GOLD', dormantReturned: false, metric6mAsset: 850_000_000, metric6mVolume: 2_100_000_000 },
   // 배치 ② 캐스케이드 대상: nudge(+5%)로 5.145억 → 협수 문턱 5억 초과
-  { id: 'A-1002', name: '이영희', grade: 'SILVER', dormantReturned: false, metric6mAsset: 490_000_000, metric6mVolume: 300_000_000 },
-  { id: 'A-1003', name: '박민준', grade: 'SILVER', dormantReturned: true, metric6mAsset: 30_000_000, metric6mVolume: 50_000_000 },
-  { id: 'A-1004', name: '최수진', grade: 'GOLD', dormantReturned: false, metric6mAsset: 2_400_000_000, metric6mVolume: 9_800_000_000 },
+  { id: '110000001002', name: '이영희', grade: 'SILVER', dormantReturned: false, metric6mAsset: 490_000_000, metric6mVolume: 300_000_000 },
+  { id: '110000001003', name: '박민준', grade: 'SILVER', dormantReturned: true, metric6mAsset: 30_000_000, metric6mVolume: 50_000_000 },
+  { id: '110000001004', name: '최수진', grade: 'GOLD', dormantReturned: false, metric6mAsset: 2_400_000_000, metric6mVolume: 9_800_000_000 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -212,6 +213,14 @@ export const mockRules: FeeRule[] = [
 ];
 
 export const mockEnrollments: Enrollment[] = [
-  { accountId: 'A-1001', ruleId: 'RULE-NEGO-STOCK-US', enrolledAt: '2026-01-15', channel: 'HTS' },
-  { accountId: 'A-1002', ruleId: 'RULE-NEGO-STOCK-US', enrolledAt: '2026-03-02', channel: '지점' },
+  { accountId: '110000001001', ruleId: 'RULE-NEGO-STOCK-US', enrolledAt: '2026-01-15', channel: 'HTS' },
+  { accountId: '110000001002', ruleId: 'RULE-NEGO-STOCK-US', enrolledAt: '2026-03-02', channel: '지점' },
+];
+
+// v0.5 협의수수료 overlay (계좌 인덱스 예외). A-1001은 8.5억으로 조건 충족·승인된 상태.
+// A-1002는 미충족(4.9억)이라 초기 grant 없음 — 배치 ②(지표재산정)+④(조건평가)가 캐스케이드로 grant.
+export const mockNego: NegoException[] = [
+  { accountId: '110000001001',
+    scope: { assetClass: '해외주식', exchanges: '*', sessions: '*', channels: '*', currencies: '*', products: '*', excludeProducts: [] },
+    scheduleId: 'FS-NEGO-STOCK-US', validFrom: '2026-01-10', validTo: '2026-12-31' },
 ];

@@ -29,7 +29,7 @@ it('approveRule → 활성 + 바인딩 재생성으로 이벤트 요율 반영',
   useStore.getState().approveRule('R-NEW');
   const s = useStore.getState();
   expect(s.rules.find(x => x.id === 'R-NEW')!.status).toBe('활성');
-  const b = s.bindings.find(x => x.scopeKey === 'CME:6A' && x.accountId === 'A-1001');
+  const b = s.bindings.find(x => x.scopeKey === 'CME:6A' && x.accountId === '110000001001');
   expect(b!.sourceRuleId).toBe('R-NEW');   // 정액 1원이라 항상 최저가
 });
 
@@ -129,29 +129,29 @@ describe('배치 잡', () => {
     expect(res.summary).toContain('발효');
   });
 
-  it('② 지표 재산정: A-1002 자산이 5억을 넘는다', () => {
+  it('② 지표 재산정: 110000001002 자산이 5억을 넘는다', () => {
     useStore.getState().batchRecomputeMetrics();
-    const a = useStore.getState().accounts.find(x => x.id === 'A-1002')!;
+    const a = useStore.getState().accounts.find(x => x.id === '110000001002')!;
     expect(a.metric6mAsset).toBeGreaterThan(500_000_000);
   });
 
   it('④ 협수 조건 평가가 load-bearing: 충족 계좌는 자동 연장(endDate↑), 미충족 계좌는 해지 후보', () => {
-    // reset 직후: A-1001 8.5억(충족), A-1002 4.9억(미충족). ② 없이 ④만 실행해 ④의 고유 효과를 검증.
+    // reset 직후: 110000001001 8.5억(충족), 110000001002 4.9억(미충족). ② 없이 ④만 실행해 ④의 고유 효과를 검증.
     const s = useStore.getState();
     const beforeEnd = s.rules.find(r => r.id === 'RULE-NEGO-STOCK-US')!.endDate;
     const res = s.batchEvalNegotiations();
     const afterEnd = useStore.getState().rules.find(r => r.id === 'RULE-NEGO-STOCK-US')!.endDate;
     expect(afterEnd > beforeEnd).toBe(true);                                                      // 충족 계좌 존재 → 자동 연장
-    expect(res.changes.some(c => c.detail.includes('미충족'))).toBe(true);                         // A-1002 해지 후보
-    expect(res.changes.some(c => c.detail.includes('충족') && !c.detail.includes('미충족'))).toBe(true); // A-1001 자격 유지
+    expect(res.changes.some(c => c.detail.includes('미충족'))).toBe(true);                         // 110000001002 해지 후보
+    expect(res.changes.some(c => c.detail.includes('충족') && !c.detail.includes('미충족'))).toBe(true); // 110000001001 자격 유지
   });
 
-  it('④+⑤ 캐스케이드: 지표 재산정 후 A-1002가 해외주식 협수 자격을 얻어 바인딩에 반영', () => {
+  it('④+⑤ 캐스케이드: 지표 재산정 후 110000001002가 해외주식 협수 자격을 얻어 바인딩에 반영', () => {
     const s = useStore.getState();
-    s.batchRecomputeMetrics();     // A-1002 → 5.145억
+    s.batchRecomputeMetrics();     // 110000001002 → 5.145억
     s.batchEvalNegotiations();     // 조건 충족 → 자격/연장
     s.batchRebind();               // 수렴
-    const b = useStore.getState().bindings.find(x => x.accountId === 'A-1002' && x.scheduleId === 'FS-NEGO-STOCK-US');
+    const b = useStore.getState().bindings.find(x => x.accountId === '110000001002' && x.scheduleId === 'FS-NEGO-STOCK-US');
     expect(b).toBeTruthy();
   });
 

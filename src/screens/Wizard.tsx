@@ -532,7 +532,7 @@ export default function Wizard() {
               <div className="field">
                 <label>계좌번호 붙여넣기 (프로토타입: CSV)</label>
                 <textarea rows={4} value={form.accountsCsvText} onChange={(e) => update({ accountsCsvText: e.target.value })}
-                  placeholder="예: A-1001, A-1002" />
+                  placeholder="예: 110000001001, 110000001002" />
                 <p>인식된 계좌 {accountsParsed.accepted.length}건</p>
                 {accountsParsed.rejected.length > 0 && <p className="warn">무시된 계좌번호: {accountsParsed.rejected.join(', ')}</p>}
               </div>
