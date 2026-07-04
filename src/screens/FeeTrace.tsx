@@ -1,10 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useStore } from '../store/useStore';
-import { explainBinding } from '../domain/binding';
+import { deriveFeeKey } from '../domain/feeKey';
 import { calcFee } from '../domain/calc';
-import type { Execution, FeeComponent } from '../domain/types';
-import { TODAY } from '../domain/types';
-import { ruleTypeLabel } from './labels';
+import type { Execution, FeeComponent, Session, Channel } from '../domain/types';
+import type { ResolveResult } from '../domain/resolve';
 
 // AccountView.tsx의 bandLabel (로컬 복사)
 function bandLabel(c: FeeComponent, price: number): string | null {
@@ -16,56 +15,80 @@ function bandLabel(c: FeeComponent, price: number): string | null {
   return `구간 ${idx + 1} (${b.from}~${b.to ?? '∞'}) 적용`;
 }
 
+const SESSIONS: Session[] = ['프리', '정규', '애프터'];
+const CHANNELS: Channel[] = ['HTS', 'MTS', 'API', 'ARS', '센터', '반대매매'];
+const SOURCE_LABEL: Record<'nego' | 'event' | 'base', string> = { nego: '협의', event: '이벤트', base: '기본' };
+
+type Resolved = ResolveResult & { cacheHit: boolean };
+
 export default function FeeTrace() {
-  const { accounts, products, schedules, rules, enrollments, bindings } = useStore();
+  const { accounts, products, schedules, resolveFee, cacheStat } = useStore();
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
   const [productKey, setProductKey] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [step, setStep] = useState(1);
+  const [session, setSession] = useState<Session>('정규');
+  const [channel, setChannel] = useState<Channel>('MTS');
   const [price, setPrice] = useState(100);
   const [qty, setQty] = useState(10);
+  const [result, setResult] = useState<Resolved | null>(null);
+  const [hasRun, setHasRun] = useState(false);
 
   const account = accounts.find((a) => a.id === accountId);
   const product = productKey ? products.find((p) => `${p.exchange}:${p.code}` === productKey) : undefined;
-  const myEnrollments = enrollments.filter((e) => e.accountId === accountId);
-
-  const trace = useMemo(
-    () => (account && product) ? explainBinding(account, product, rules, schedules, enrollments, TODAY) : null,
-    [account, product, rules, schedules, enrollments],
-  );
-
-  const winner = trace?.candidates.find((c) => c.isWinner);
-  const exec: Execution | null = (winner && product)
-    ? { accountId, product, session: product.sessions[0], price, qty, notional: price * qty }
-    : null;
-  const result = (winner && exec) ? calcFee(winner.schedule, exec) : null;
-
-  const storedBinding = trace?.binding
-    ? bindings.find((b) => b.accountId === trace.binding!.accountId && b.scopeKey === trace.binding!.scopeKey)
-    : undefined;
-  const bindingMatches = !!(trace?.binding && storedBinding && storedBinding.scheduleId === trace.binding.scheduleId);
 
   const query = search.trim().toLowerCase();
   const searchResults = query
     ? products.filter((p) => p.code.toLowerCase().includes(query) || p.name.toLowerCase().includes(query)).slice(0, 20)
     : [];
 
+  const ready = !!account && !!product;
+  const feeKey = product ? deriveFeeKey(product, session, channel) : null;
+
+  const winnerSchedule = result
+    ? (result.candidates.find((c) => c.isWinner)?.schedule ?? schedules.find((s) => s.id === result.scheduleId))
+    : undefined;
+
+  const exec: Execution | null = (winnerSchedule && account && product)
+    ? { accountId, product, session, channel, price, qty, notional: price * qty }
+    : null;
+  const calc = (winnerSchedule && exec) ? calcFee(winnerSchedule, exec) : null;
+  const stat = cacheStat();
+
+  function resetResult() {
+    setResult(null);
+    setHasRun(false);
+  }
+
   function handleAccountChange(id: string) {
     setAccountId(id);
-    setStep(1);
+    resetResult();
   }
 
   function handleSelectProduct(key: string) {
     setProductKey(key);
-    setStep(1);
+    resetResult();
   }
 
   function handleClearProduct() {
     setProductKey(null);
-    setStep(1);
+    resetResult();
   }
 
-  const canAdvance = step < 5 && !!trace;
+  function handleSessionChange(v: Session) {
+    setSession(v);
+    resetResult();
+  }
+
+  function handleChannelChange(v: Channel) {
+    setChannel(v);
+    resetResult();
+  }
+
+  function handleResolve() {
+    if (!account || !product) return;
+    setResult(resolveFee(accountId, product, session, channel));
+    setHasRun(true);
+  }
 
   return (
     <section className="stack">
@@ -95,6 +118,20 @@ export default function FeeTrace() {
             />
           )}
         </div>
+
+        <div className="field">
+          <label>세션</label>
+          <select value={session} onChange={(e) => handleSessionChange(e.target.value as Session)}>
+            {SESSIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+
+        <div className="field">
+          <label>채널</label>
+          <select value={channel} onChange={(e) => handleChannelChange(e.target.value as Channel)}>
+            {CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
       </div>
 
       {!product && query && (
@@ -121,88 +158,81 @@ export default function FeeTrace() {
         )
       )}
 
-      {(!account || !product) ? (
+      {!ready ? (
         <p className="empty">계좌와 품목을 선택하면 결정 흐름이 단계별로 표시됩니다.</p>
       ) : (
         <>
           <div className="actions">
-            <button className="btn" type="button" onClick={() => setStep(1)}>처음부터</button>
-            <button
-              className="btn primary"
-              type="button"
-              disabled={!canAdvance}
-              onClick={() => setStep((s) => Math.min(5, s + 1))}
-            >
-              다음 단계
-            </button>
+            <button className="btn" type="button" onClick={resetResult}>처음부터</button>
+            <button className="btn primary" type="button" onClick={handleResolve}>해석</button>
+            <button className="btn" type="button" disabled={!hasRun} onClick={handleResolve}>다시 해석</button>
           </div>
 
           <div className="stack">
-            {step >= 1 && (
-              <div className={`card trace-step ${step === 1 ? 'active' : ''}`}>
-                <h2>① 대상 판정</h2>
-                <table>
-                  <thead>
-                    <tr><th>계좌번호</th><th>이름</th><th>휴면복귀</th><th>협의수수료 신청</th></tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>{account.id}</td>
-                      <td>{account.name}</td>
-                      <td>{account.dormantReturned ? '예' : '아니오'}</td>
-                      <td>{myEnrollments.length > 0 ? myEnrollments.map((e) => e.ruleId).join(', ') : '없음'}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <p className="trace-narration">As-Is처럼 등급으로 요율표를 직접 조회하지 않는다. 각 룰이 스스로 선언한 대상(전체·지정계좌·신청·휴면복귀)에 이 계좌가 걸리는지를 판정해 후보를 모은다.</p>
-              </div>
+            <div className="card trace-step active">
+              <h2>① 컨텍스트</h2>
+              <table>
+                <thead>
+                  <tr><th>계좌</th><th>assetClass</th><th>거래소</th><th>세션</th><th>채널</th><th>품목</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{account.id} {account.name}</td>
+                    <td>{feeKey!.assetClass}</td>
+                    <td>{feeKey!.exchange}</td>
+                    <td>{feeKey!.session}</td>
+                    <td>{feeKey!.channel}</td>
+                    <td>{feeKey!.product ?? '(null)'}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p className="trace-narration">주식은 품목이 붕괴(null)돼 거래소·세션·채널로만, 파생은 품목까지가 키다.</p>
+            </div>
+
+            {hasRun && result === null && (
+              <p className="empty">해석 결과 없음 — 이 feeKey에 적용 가능한 요율표 후보가 없습니다.</p>
             )}
 
-            {step >= 2 && trace && (
-              <div className={`card trace-step ${step === 2 ? 'active' : ''}`}>
-                <h2>② 후보 룰 수집</h2>
-                <table>
-                  <thead>
-                    <tr><th>룰ID</th><th>이름</th><th>유형</th><th>적용형태</th><th>기간</th></tr>
-                  </thead>
-                  <tbody>
-                    {trace.candidates.map((c) => (
-                      <tr key={c.rule.id}>
-                        <td>{c.rule.id}</td>
-                        <td>{c.rule.name}</td>
-                        <td>{ruleTypeLabel(c.rule.type)}</td>
-                        <td>{c.rule.applyMode}</td>
-                        <td>{c.rule.startDate} ~ {c.rule.endDate}</td>
-                      </tr>
-                    ))}
-                    {trace.rejected.slice(0, 3).map((r) => (
-                      <tr key={r.rule.id} className="trace-rejected">
-                        <td>{r.rule.id}</td>
-                        <td>{r.rule.name}</td>
-                        <td colSpan={3}>{r.reason}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {trace.rejected.length > 3 && (
-                  <p className="empty">외 {trace.rejected.length - 3}건</p>
+            {result && (
+              <div className="card trace-step active">
+                <h2>② 후보 수집</h2>
+                {result.cacheHit ? (
+                  <p className="check-grid">
+                    <span className="pill pill-active">캐시 적중 — 후보 재계산 생략, 저장된 답 사용</span>
+                  </p>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr><th>요율표</th><th>출처</th><th>평균 고객부과액</th></tr>
+                    </thead>
+                    <tbody>
+                      {result.candidates.map((c, i) => (
+                        <tr key={i}>
+                          <td>{c.schedule.name}</td>
+                          <td>{SOURCE_LABEL[c.source]}</td>
+                          <td>{c.avgCustomerFee.toLocaleString()}원</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
-                <p className="trace-narration">활성 + 적용범위 매칭 + 대상 조건을 통과한 룰만 후보가 된다. 탈락 룰과 그 사유도 함께 본다.</p>
+                <p className="trace-narration">이 계좌·feeKey에 걸리는 nego/event/base 후보를 모은다(전량 저장 아님).</p>
               </div>
             )}
 
-            {step >= 3 && trace && (
-              <div className={`card trace-step ${step === 3 ? 'active' : ''}`}>
+            {result && !result.cacheHit && (
+              <div className="card trace-step active">
                 <h2>③ 최저가 경쟁</h2>
                 <table>
                   <thead>
                     <tr><th>요율표</th><th>평균 고객부과액</th></tr>
                   </thead>
                   <tbody>
-                    {trace.candidates.map((c) => (
-                      <tr key={c.rule.id} className={c.isWinner ? 'trace-winner' : undefined}>
+                    {result.candidates.map((c, i) => (
+                      <tr key={i} className={c.isWinner ? 'trace-winner' : undefined}>
                         <td>
                           {c.schedule.name}
+                          <span className="badge" style={{ marginLeft: 8 }}>{SOURCE_LABEL[c.source]}</span>
                           {c.isWinner && <span className="pill pill-active" style={{ marginLeft: 8 }}>최저가</span>}
                         </td>
                         <td>{c.avgCustomerFee.toLocaleString()}원</td>
@@ -210,93 +240,72 @@ export default function FeeTrace() {
                     ))}
                   </tbody>
                 </table>
-                {trace.tieBreakApplied && (
-                  <p className="trace-narration">동률 → 협수 &gt; 이벤트 &gt; 기본 순으로 tie-break 적용</p>
-                )}
                 <p className="trace-narration">후보들의 표본 체결 평균 고객부과액을 비교해 최저가를 고른다.</p>
               </div>
             )}
 
-            {step >= 4 && trace && (
-              <div className={`card trace-step ${step === 4 ? 'active' : ''}`}>
-                <h2>④ 확정 바인딩</h2>
-                {trace.binding === null ? (
-                  <p className="empty">적용 가능한 룰 없음 (후보 0건)</p>
-                ) : (
-                  <>
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>ACCOUNT_ID</th><th>SCOPE_KEY</th><th>SCHEDULE_ID</th>
-                          <th>SOURCE_RULE_ID</th><th>VALID_FROM</th><th>VALID_TO</th><th>REASON</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td>{trace.binding.accountId}</td>
-                          <td>{trace.binding.scopeKey}</td>
-                          <td>{trace.binding.scheduleId}</td>
-                          <td>{trace.binding.sourceRuleId}</td>
-                          <td>{trace.binding.validFrom}</td>
-                          <td>{trace.binding.validTo}</td>
-                          <td>{trace.binding.reason}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                    <div className="check-grid">
-                      {bindingMatches ? (
-                        <span className="pill pill-active">실 바인딩 테이블과 일치 ✓</span>
-                      ) : (
-                        <span className="pill warn">불일치 ⚠</span>
-                      )}
-                    </div>
-                  </>
-                )}
-                <p className="trace-narration">원장 체결 경로는 이 한 행 조회로 끝난다 (index-only).</p>
+            {result && (
+              <div className="card trace-step active">
+                <h2>④ 해석 결과</h2>
+                <table>
+                  <thead>
+                    <tr><th>SOURCE</th><th>SCHEDULE_ID</th><th>SOURCE_RULE_ID</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>{SOURCE_LABEL[result.source]}</td>
+                      <td>{result.scheduleId}</td>
+                      <td>{result.sourceRuleId ?? '-'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div className="check-grid">
+                  {result.cacheHit ? (
+                    <span className="pill pill-active">캐시 적중 ✓(재계산 없음)</span>
+                  ) : (
+                    <span className="pill pill-pending">캐시 미스 → 계산 후 저장</span>
+                  )}
+                  <span className="badge">hits {stat.hits} · misses {stat.misses} · size {stat.size}</span>
+                </div>
+                <p className="trace-narration">원장은 이 해석 결과(또는 캐시된 한 행)만 쓴다. 전량 바인딩 테이블 없음.</p>
               </div>
             )}
 
-            {step >= 5 && (
-              <div className={`card trace-step ${step === 5 ? 'active' : ''}`}>
+            {result && winnerSchedule && (
+              <div className={`card trace-step active`}>
                 <h2>⑤ 체결 → 금액 계산</h2>
-                {!winner ? (
-                  <p className="empty">확정 요율표 없음</p>
-                ) : (
+                <div className="form-grid">
+                  <div className="field">
+                    <label>체결가</label>
+                    <input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
+                  </div>
+                  <div className="field">
+                    <label>수량</label>
+                    <input type="number" value={qty} onChange={(e) => setQty(Number(e.target.value))} />
+                  </div>
+                </div>
+                {calc && (
                   <>
-                    <div className="form-grid">
-                      <div className="field">
-                        <label>체결가</label>
-                        <input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
-                      </div>
-                      <div className="field">
-                        <label>수량</label>
-                        <input type="number" value={qty} onChange={(e) => setQty(Number(e.target.value))} />
-                      </div>
+                    <table>
+                      <thead>
+                        <tr><th>구성요소</th><th>종류</th><th>부담주체</th><th>구간</th><th>금액</th></tr>
+                      </thead>
+                      <tbody>
+                        {calc.lines.map((l, i) => (
+                          <tr key={i} className={l.payer === '회사부담' ? 'warn' : undefined}>
+                            <td>{l.name}</td>
+                            <td>{l.kind}</td>
+                            <td>{l.payer}</td>
+                            <td>{bandLabel(winnerSchedule.components[i], price) ?? '-'}</td>
+                            <td>{l.amount.toLocaleString()}원</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="check-grid">
+                      <span className="pill pill-active">고객부과 합계 {calc.customerTotal.toLocaleString()}원</span>
+                      <span className="pill warn">회사부담 합계 {calc.companyBorne.toLocaleString()}원</span>
                     </div>
-                    {result && (
-                      <>
-                        <table>
-                          <thead>
-                            <tr><th>구성요소</th><th>종류</th><th>부담주체</th><th>구간</th><th>금액</th></tr>
-                          </thead>
-                          <tbody>
-                            {result.lines.map((l, i) => (
-                              <tr key={i} className={l.payer === '회사부담' ? 'warn' : undefined}>
-                                <td>{l.name}</td>
-                                <td>{l.kind}</td>
-                                <td>{l.payer}</td>
-                                <td>{bandLabel(winner.schedule.components[i], price) ?? '-'}</td>
-                                <td>{l.amount.toLocaleString()}원</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        <div className="check-grid">
-                          <span className="pill pill-active">고객부과 합계 {result.customerTotal.toLocaleString()}원</span>
-                          <span className="pill warn">회사부담 합계 {result.companyBorne.toLocaleString()}원</span>
-                        </div>
-                      </>
-                    )}
                   </>
                 )}
                 <p className="trace-narration">금액은 미리 저장하지 않고 요율표 × 체결로 즉석 계산해 잔고에 내린다.</p>
