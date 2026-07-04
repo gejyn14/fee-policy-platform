@@ -1,7 +1,7 @@
-import type { Account, Execution, FeeKey, FeeRule, FeeSchedule, Product, ScopeSelector } from './types';
+import type { Account, Enrollment, Execution, FeeKey, FeeRule, FeeSchedule, Product, ScopeSelector } from './types';
 import { calcFee } from './calc';
 import { probePrices } from './dominance';
-import { isTarget } from './binding';
+import { isTarget, isBenefitActive } from './binding';
 
 export function scopeMatchesKey(s: ScopeSelector, k: FeeKey): boolean {
   if (s.assetClass !== k.assetClass) return false;
@@ -31,8 +31,10 @@ export function findBaseSchedule(
 }
 
 export interface ScopeIndex { candidatesFor(k: FeeKey): FeeRule[] }
-export function buildScopeIndex(rules: FeeRule[], today: string): ScopeIndex {
-  const overlays = rules.filter((r) => r.type !== 'BASE' && isActive(r, today));
+export function buildScopeIndex(rules: FeeRule[], _today: string): ScopeIndex {
+  // 상태만으로 인덱싱 — 기간(혜택 유효)은 resolve의 isBenefitActive가 계좌별로 판정한다
+  // (상대형 혜택이 신청 마감 이후에도 후보로 남게 하기 위함).
+  const overlays = rules.filter((r) => r.type !== 'BASE' && r.status === '활성');
   return { candidatesFor: (k) => overlays.filter((r) => scopeMatchesKey(r.scope, k)) };
 }
 
@@ -60,7 +62,8 @@ export function resolve(
   schedules: FeeSchedule[],
   nego: NegoException[],
   index: ScopeIndex,
-  today: string
+  today: string,
+  enrollments: Enrollment[]
 ): ResolveResult | null {
   const schedOf = (id: string) => schedules.find((s) => s.id === id)!;
   type Cand = { rule: FeeRule | null; schedule: FeeSchedule; source: 'nego' | 'event' | 'base' };
@@ -71,7 +74,8 @@ export function resolve(
       cands.push({ rule: null, schedule: schedOf(n.scheduleId), source: 'nego' });
 
   for (const r of index.candidatesFor(key))
-    if (isTarget(r, acct, [])) cands.push({ rule: r, schedule: schedOf(r.scheduleId), source: 'event' });
+    if (isTarget(r, acct, enrollments) && isBenefitActive(r, acct, enrollments, today))
+      cands.push({ rule: r, schedule: schedOf(r.scheduleId), source: 'event' });
 
   const b = findBaseSchedule(key, rules, schedules, today);
   if (b) cands.push({ rule: b.rule, schedule: b.schedule, source: 'base' });

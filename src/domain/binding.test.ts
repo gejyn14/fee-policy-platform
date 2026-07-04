@@ -1,5 +1,5 @@
 import { it, expect, describe } from 'vitest';
-import { scopeMatches, isTarget, rebindAccount, explainBinding } from './binding';
+import { scopeMatches, isTarget, isBenefitActive, rebindAccount, explainBinding } from './binding';
 import type { ScopeSelector, Product, FeeRule, FeeSchedule, Account, Enrollment } from './types';
 
 const p6A: Product = { assetClass: '해외파생', exchange: 'CME', code: '6A', name: 'AUD', currency: 'USD', sessions: ['주간'] };
@@ -164,5 +164,36 @@ describe('explainBinding', () => {
     const t = explainBinding(acct, p6A, [], schedules, [], '2026-07-04');
     expect(t.binding).toBeNull();
     expect(t.candidates).toEqual([]);
+  });
+});
+
+describe('isBenefitActive', () => {
+  const a: Account = { id: '110000001001', name: '김', grade: 'GOLD', dormantReturned: false, metric6mAsset: 0, metric6mVolume: 0 };
+  const mk = (over: Partial<FeeRule>): FeeRule => ({
+    id: 'R', name: 'r', type: 'EVENT', status: '활성', applyMode: '가입형',
+    startDate: '2026-04-01', endDate: '2026-06-30', scope: {
+      assetClass: '국내주식', exchanges: '*', sessions: '*', channels: '*', currencies: '*', products: '*', excludeProducts: [],
+    }, scheduleId: 'S', warnings: { dominance: true, reverseMargin: false }, createdBy: 't', log: [], ...over });
+
+  it('캘린더: 창 안이면 true', () => {
+    expect(isBenefitActive(mk({ endDate: '2026-12-31' }), a, [], '2026-07-04')).toBe(true);
+  });
+  it('캘린더: 창 밖이면 false', () => {
+    expect(isBenefitActive(mk({ endDate: '2026-06-30' }), a, [], '2026-07-04')).toBe(false);
+  });
+  it('상대: 가입일+N 안이면 true', () => {
+    const enr: Enrollment[] = [{ accountId: a.id, ruleId: 'R', enrolledAt: '2026-06-20', channel: 'MTS' }];
+    expect(isBenefitActive(mk({ benefit: { kind: '상대', months: 2 } }), a, enr, '2026-07-04')).toBe(true);
+  });
+  it('상대: 신청 마감 지나도 가입일+N 안이면 true', () => {
+    const enr: Enrollment[] = [{ accountId: a.id, ruleId: 'R', enrolledAt: '2026-06-20', channel: 'MTS' }];
+    expect(isBenefitActive(mk({ benefit: { kind: '상대', months: 2 }, endDate: '2026-06-30' }), a, enr, '2026-07-04')).toBe(true);
+  });
+  it('상대: 가입일+N 지나면 false', () => {
+    const enr: Enrollment[] = [{ accountId: a.id, ruleId: 'R', enrolledAt: '2026-04-10', channel: 'MTS' }];
+    expect(isBenefitActive(mk({ benefit: { kind: '상대', months: 2 } }), a, enr, '2026-07-04')).toBe(false);
+  });
+  it('상대: 가입 이력 없으면 false', () => {
+    expect(isBenefitActive(mk({ benefit: { kind: '상대', months: 2 } }), a, [], '2026-07-04')).toBe(false);
   });
 });

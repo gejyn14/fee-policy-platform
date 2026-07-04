@@ -2,6 +2,7 @@ import type { Account, Enrollment, Execution, FeeBinding, FeeRule, FeeSchedule, 
 import { calcFee } from './calc';
 import { probePrices } from './dominance';
 import { evalCondition } from './eligibility';
+import { addMonths } from './dateutil';
 
 export function scopeMatches(s: ScopeSelector, p: Product): boolean {
   if (s.assetClass !== p.assetClass) return false;
@@ -20,6 +21,18 @@ export function isTarget(rule: FeeRule, acct: Account, enrollments: Enrollment[]
   if (rule.applyMode === '가입형') return true;                 // 프로토타입: 전 계좌 가입 간주
   if (rule.applyMode === '휴면복귀형') return acct.dormantReturned;
   return enrollments.some((e) => e.accountId === acct.id && e.ruleId === rule.id);
+}
+
+// 혜택 유효(시간) 판정 — 멤버십은 isTarget이 담당, 여기선 "언제"만 본다.
+// 상대형은 계좌별 가입일 기준이라 신청 마감(endDate) 이후에도 가입일+N까지 유효할 수 있다.
+export function isBenefitActive(rule: FeeRule, acct: Account, enrollments: Enrollment[], today: string): boolean {
+  const benefit = rule.benefit ?? { kind: '캘린더' as const };
+  if (benefit.kind === '상대') {
+    const e = enrollments.find((x) => x.accountId === acct.id && x.ruleId === rule.id);
+    if (!e) return false;
+    return e.enrolledAt <= today && today <= addMonths(e.enrolledAt, benefit.months);
+  }
+  return rule.startDate <= today && today <= rule.endDate;
 }
 
 const TIE_ORDER: Record<FeeRule['type'], number> = { NEGOTIATED: 0, EVENT: 1, BASE: 2 };

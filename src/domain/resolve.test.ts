@@ -1,7 +1,7 @@
 import { it, expect, describe } from 'vitest';
 import { scopeMatchesKey, findBaseSchedule, buildScopeIndex, resolve } from './resolve';
 import type { NegoException } from './resolve';
-import type { Account, FeeKey, FeeRule, FeeSchedule, ScopeSelector } from './types';
+import type { Account, Enrollment, FeeKey, FeeRule, FeeSchedule, ScopeSelector } from './types';
 
 const key = (over: Partial<FeeKey> = {}): FeeKey =>
   ({ assetClass: '국내주식', exchange: 'KRX', session: '정규', channel: 'MTS', product: null, ...over });
@@ -43,19 +43,19 @@ describe('findBaseSchedule / buildScopeIndex', () => {
   const schedules = [sched('S-BASE', 100), sched('S-EVT', 50)];
   const base = rule({ id: 'R-BASE', scheduleId: 'S-BASE' });
   const evt = rule({ id: 'R-EVT', type: 'EVENT', scheduleId: 'S-EVT', scope: scope({ channels: ['MTS'] }) });
-  const expired = rule({ id: 'R-OLD', type: 'EVENT', scheduleId: 'S-EVT', endDate: '2020-12-31' });
+  const closed = rule({ id: 'R-CLOSED', type: 'EVENT', status: '종료', scheduleId: 'S-EVT' });
 
   it('활성 BASE 조회', () => {
     const r = findBaseSchedule(key(), [base, evt], schedules, '2026-07-04');
     expect(r?.rule.id).toBe('R-BASE');
     expect(r?.schedule.id).toBe('S-BASE');
   });
-  it('scope_index는 활성+매칭 이벤트만', () => {
-    const idx = buildScopeIndex([base, evt, expired], '2026-07-04');
+  it('scope_index는 활성 상태·스코프 매칭 룰(기간 게이팅은 resolve로 이동)', () => {
+    const idx = buildScopeIndex([base, evt, closed], '2026-07-04');
     const c = idx.candidatesFor(key({ channel: 'MTS' }));
     expect(c.map(r => r.id)).toContain('R-EVT');
-    expect(c.map(r => r.id)).not.toContain('R-OLD');   // 기간 밖
-    expect(c.map(r => r.id)).not.toContain('R-BASE');  // BASE는 scope_index 아님
+    expect(c.map(r => r.id)).not.toContain('R-CLOSED');  // 종료 상태 제외
+    expect(c.map(r => r.id)).not.toContain('R-BASE');    // BASE는 scope_index 아님
     expect(idx.candidatesFor(key({ channel: 'HTS' })).map(r => r.id)).not.toContain('R-EVT'); // 채널 불일치
   });
 });
@@ -68,24 +68,56 @@ describe('resolve', () => {
   const idx = (rs = [base, evt]) => buildScopeIndex(rs, '2026-07-04');
 
   it('BASE만이면 base 승자', () => {
-    const r = resolve(acct, key(), [base], schedules, [], idx([base]), '2026-07-04');
+    const r = resolve(acct, key(), [base], schedules, [], idx([base]), '2026-07-04', []);
     expect(r!.source).toBe('base'); expect(r!.scheduleId).toBe('S-BASE');
   });
   it('이벤트가 더 싸면 event 승자', () => {
-    const r = resolve(acct, key({ channel: 'MTS' }), [base, evt], schedules, [], idx(), '2026-07-04');
+    const r = resolve(acct, key({ channel: 'MTS' }), [base, evt], schedules, [], idx(), '2026-07-04', []);
     expect(r!.source).toBe('event'); expect(r!.sourceRuleId).toBe('R-EVT');
     expect(r!.candidates[0].isWinner).toBe(true);
     expect(r!.candidates.map(c => c.avgCustomerFee)).toEqual([...r!.candidates.map(c => c.avgCustomerFee)].sort((a,b)=>a-b));
   });
   it('nego가 최저가면 nego 승자(rule null, sourceRuleId null)', () => {
     const nego: NegoException[] = [{ accountId: acct.id, scope: scope({ channels: '*' }), scheduleId: 'S-NEGO', validFrom: '2026-01-01', validTo: '2026-12-31' }];
-    const r = resolve(acct, key({ channel: 'MTS' }), [base, evt], schedules, nego, idx(), '2026-07-04');
+    const r = resolve(acct, key({ channel: 'MTS' }), [base, evt], schedules, nego, idx(), '2026-07-04', []);
     expect(r!.source).toBe('nego'); expect(r!.sourceRuleId).toBeNull();
     expect(r!.scheduleId).toBe('S-NEGO');
   });
   it('다른 계좌 nego는 무시', () => {
     const nego: NegoException[] = [{ accountId: '999999999999', scope: scope(), scheduleId: 'S-NEGO', validFrom: '2026-01-01', validTo: '2026-12-31' }];
-    const r = resolve(acct, key({ channel: 'MTS' }), [base, evt], schedules, nego, idx(), '2026-07-04');
+    const r = resolve(acct, key({ channel: 'MTS' }), [base, evt], schedules, nego, idx(), '2026-07-04', []);
     expect(r!.source).toBe('event');
+  });
+});
+
+describe('resolve — 적용기간(benefit)', () => {
+  const acct: Account = { id: '110000001002', name: '이', grade: 'SILVER', dormantReturned: false, metric6mAsset: 600_000_000, metric6mVolume: 0 };
+  const schedules = [sched('S-BASE', 100), sched('S-EVT', 50)];
+  const base = rule({ id: 'R-BASE', scheduleId: 'S-BASE' });
+  const relEvt = rule({ id: 'R-REL', type: 'EVENT', applyMode: '가입형', scheduleId: 'S-EVT',
+    scope: scope({ channels: ['MTS'] }), benefit: { kind: '상대', months: 2 }, startDate: '2026-04-01', endDate: '2026-06-30' });
+  const calX = rule({ id: 'R-CALX', type: 'EVENT', applyMode: '일괄적용형', scheduleId: 'S-EVT',
+    scope: scope({ channels: ['MTS'] }), endDate: '2020-12-31' });
+  const enr = (enrolledAt: string): Enrollment[] => [{ accountId: acct.id, ruleId: 'R-REL', enrolledAt, channel: 'MTS' }];
+
+  it('상대형: 가입일+N 안이면 event 승자(신청 마감 지나도)', () => {
+    const idx = buildScopeIndex([base, relEvt], '2026-07-04');
+    const r = resolve(acct, key({ channel: 'MTS' }), [base, relEvt], schedules, [], idx, '2026-07-04', enr('2026-06-20'));
+    expect(r!.source).toBe('event'); expect(r!.sourceRuleId).toBe('R-REL');
+  });
+  it('상대형: 가입일+N 지나면 base', () => {
+    const idx = buildScopeIndex([base, relEvt], '2026-07-04');
+    const r = resolve(acct, key({ channel: 'MTS' }), [base, relEvt], schedules, [], idx, '2026-07-04', enr('2026-04-10'));
+    expect(r!.source).toBe('base');
+  });
+  it('상대형: 가입 이력 없으면 base', () => {
+    const idx = buildScopeIndex([base, relEvt], '2026-07-04');
+    const r = resolve(acct, key({ channel: 'MTS' }), [base, relEvt], schedules, [], idx, '2026-07-04', []);
+    expect(r!.source).toBe('base');
+  });
+  it('캘린더형 만료 이벤트는 제외(base)', () => {
+    const idx = buildScopeIndex([base, calX], '2026-07-04');
+    const r = resolve(acct, key({ channel: 'MTS' }), [base, calX], schedules, [], idx, '2026-07-04', []);
+    expect(r!.source).toBe('base');
   });
 });

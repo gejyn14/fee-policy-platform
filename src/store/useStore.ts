@@ -72,7 +72,7 @@ export const useStore = create<State>((set) => ({
     const hit = resolveCache.get(accountId, key);
     if (hit) return { key, scheduleId: hit.scheduleId, sourceRuleId: hit.sourceRuleId, source: hit.source, candidates: [], cacheHit: true };
     const idx = buildScopeIndex(s.rules, TODAY);
-    const r = resolve(acct, key, s.rules, s.schedules, s.nego, idx, TODAY);
+    const r = resolve(acct, key, s.rules, s.schedules, s.nego, idx, TODAY, s.enrollments);
     if (!r) return null;
     resolveCache.set(accountId, key, { scheduleId: r.scheduleId, sourceRuleId: r.sourceRuleId, source: r.source });
     return { ...r, cacheHit: false };

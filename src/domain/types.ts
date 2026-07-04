@@ -42,11 +42,17 @@ export interface NegotiatedCondition {
   action: '자동연장' | '승인후연장';
 }
 
+// 적용기간(혜택 기간) — 신청/유입 가능기간(startDate~endDate)과 별개.
+export type BenefitPeriod =
+  | { kind: '캘린더' }                    // 룰 캘린더(startDate~endDate)까지
+  | { kind: '상대'; months: number };     // 가입일 + months 개월
+
 export interface FeeRule {
   id: string; name: string;
   type: RuleType; status: RuleStatus; applyMode: ApplyMode;
-  startDate: string; endDate: string;      // 'YYYY-MM-DD'
+  startDate: string; endDate: string;      // 'YYYY-MM-DD' (신청/유입 가능기간)
   scope: ScopeSelector; scheduleId: string;
+  benefit?: BenefitPeriod;                 // 적용기간 유형. 미지정 = 캘린더(하위호환)
   condition?: NegotiatedCondition;         // NEGOTIATED 전용
   targetAccountIds?: string[];             // 일괄적용형 bulk 대상 (없으면 전체)
   warnings: { dominance: boolean; reverseMargin: boolean };
