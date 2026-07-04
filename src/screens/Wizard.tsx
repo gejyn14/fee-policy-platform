@@ -6,12 +6,11 @@ import { scopeMatches, isTarget } from '../domain/binding';
 import { buildFeeKey, isDerivative } from '../domain/feeKey';
 import { scopeMatchesKey } from '../domain/resolve';
 import { TODAY } from '../domain/types';
-import { ruleTypeLabel } from './labels';
 import InstrumentPicker from './InstrumentPicker';
 import { parseCsvCodes, summarize, type Selection } from './pickerLogic';
 import type {
   ApplyMode, AssetClass, BenefitPeriod, Channel, Execution, FeeComponent, FeeKey, FeeRule, FeeSchedule,
-  NegotiatedCondition, Payer, Product, RateBand, ScopeSelector, Session,
+  Payer, Product, RateBand, ScopeSelector, Session,
 } from '../domain/types';
 
 // ---------------------------------------------------------------------------
@@ -47,8 +46,6 @@ const APPLY_MODES: ApplyMode[] = ['신청형', '가입형', '휴면복귀형', '
 const KINDS: FeeComponent['kind'][] = ['자사', '유관기관', '세금'];
 const PAYERS: Payer[] = ['고객부과', '회사부담', '면제'];
 const RATE_TYPES: FeeComponent['rateType'][] = ['정률', '정액', '구간표'];
-const METRICS: NegotiatedCondition['metric'][] = ['6개월평균자산', '6개월약정액'];
-const ACTIONS: NegotiatedCondition['action'][] = ['자동연장', '승인후연장'];
 const STEP_LABELS = ['기본정보', '적용범위', '요율표', '대상', '시뮬레이션', '상신'];
 const STEP5_DISPLAY_CAP = 50;
 
@@ -61,13 +58,9 @@ type SimRow = { key: string; label: string; current: number | null; next: number
 
 interface WizardForm {
   name: string;
-  type: 'EVENT' | 'NEGOTIATED';
   applyMode: ApplyMode;
   startDate: string;
   endDate: string;
-  condMetric: NegotiatedCondition['metric'];
-  condThreshold: number;
-  condAction: NegotiatedCondition['action'];
 
   benefitKind: '캘린더' | '상대';   // 적용기간 유형
   benefitMonths: number;            // 상대일 때 개월 수
@@ -89,9 +82,8 @@ function makeInitialForm(products: Product[]): WizardForm {
   const assetClass: AssetClass = ASSET_CLASSES[0];
   const { exchanges, sessions } = optionsForAssetClass(products, assetClass);
   return {
-    name: '', type: 'EVENT', applyMode: '타겟추출형',
+    name: '', applyMode: '타겟추출형',
     startDate: TODAY, endDate: '2026-12-31',
-    condMetric: '6개월평균자산', condThreshold: 500_000_000, condAction: '승인후연장',
     benefitKind: '캘린더', benefitMonths: 2,
     assetClass,
     exchangesSel: exchanges, sessionsSel: sessions,
@@ -228,7 +220,7 @@ export default function Wizard() {
 
     // 대상 계좌(트리거/전체/명시) — 상품군 무관
     const previewRule: FeeRule = {
-      id: 'PREVIEW', name: form.name, type: form.type, status: '활성', applyMode: form.applyMode,
+      id: 'PREVIEW', name: form.name, type: 'EVENT', status: '활성', applyMode: form.applyMode,
       startDate: form.startDate, endDate: form.endDate, benefit: buildBenefit(), scope, scheduleId: 'PREVIEW',
       targetAccountIds: !showTrigger && form.targetMode === 'accounts' ? accountsParsed.accepted : undefined,
       warnings: { dominance: true, reverseMargin: false }, createdBy: '', log: [],
@@ -336,8 +328,7 @@ export default function Wizard() {
   // 2단계 게이트용 매칭 수 — 파생=품목 수, 주식=feeKey 구간 수.
   const matchedProductCount = sim.matchedCount;
 
-  const canProceed1 = form.name.trim() !== '' && form.startDate <= form.endDate &&
-    (form.type !== 'NEGOTIATED' || form.condThreshold > 0);
+  const canProceed1 = form.name.trim() !== '' && form.startDate <= form.endDate;
   const canProceed2 = matchedProductCount > 0 &&
     (!showSessionCheckboxes || form.sessionsSel.length > 0) &&
     (!showExchangeCheckboxes || form.exchangesSel.length > 0);
@@ -354,15 +345,12 @@ export default function Wizard() {
     const scheduleId = `S-${now}`;
     const ruleId = `R-${now}`;
     const schedule: FeeSchedule = { id: scheduleId, name: `${form.name} 요율표`, components: form.components };
-    const condition: NegotiatedCondition | undefined = form.type === 'NEGOTIATED'
-      ? { metric: form.condMetric, threshold: form.condThreshold, action: form.condAction }
-      : undefined;
     const targetAccountIds = !showTrigger && form.targetMode === 'accounts' ? accountsParsed.accepted : undefined;
     const rule: FeeRule = {
-      id: ruleId, name: form.name, type: form.type, status: '기안', applyMode: form.applyMode,
+      id: ruleId, name: form.name, type: 'EVENT', status: '기안', applyMode: form.applyMode,
       startDate: form.startDate, endDate: form.endDate, benefit: buildBenefit(),
       scope: buildScope(), scheduleId,
-      condition, targetAccountIds,
+      targetAccountIds,
       warnings: { dominance: true, reverseMargin: false },
       createdBy: '현업담당자', log: [],
     };
@@ -391,13 +379,6 @@ export default function Wizard() {
             <label>이름</label>
             <input value={form.name} onChange={(e) => update({ name: e.target.value })}
               placeholder="예: 2026 가을 해외파생 수수료 인하 이벤트" />
-          </div>
-          <div className="field">
-            <label>유형</label>
-            <select value={form.type} onChange={(e) => update({ type: e.target.value as WizardForm['type'] })}>
-              <option value="EVENT">{ruleTypeLabel('EVENT')}</option>
-              <option value="NEGOTIATED">{ruleTypeLabel('NEGOTIATED')}</option>
-            </select>
           </div>
           <div className="field">
             <label>적용형태</label>
@@ -438,31 +419,8 @@ export default function Wizard() {
             )}
           </div>
         )}
-        {form.type === 'NEGOTIATED' && (
-          <div className="form-grid">
-            <div className="field">
-              <label>지표</label>
-              <select value={form.condMetric} onChange={(e) => update({ condMetric: e.target.value as NegotiatedCondition['metric'] })}>
-                {METRICS.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label>임계값</label>
-              <input type="number" value={form.condThreshold} onChange={(e) => update({ condThreshold: Number(e.target.value) })} />
-            </div>
-            <div className="field">
-              <label>액션</label>
-              <select value={form.condAction} onChange={(e) => update({ condAction: e.target.value as NegotiatedCondition['action'] })}>
-                {ACTIONS.map((a) => <option key={a} value={a}>{a}</option>)}
-              </select>
-            </div>
-          </div>
-        )}
         {!canProceed1 && (
-          <p className="warn">
-            이름을 입력하고, 종료일이 시작일 이후인지 확인하세요.
-            {form.type === 'NEGOTIATED' ? ' (협의 임계값은 0보다 커야 합니다)' : ''}
-          </p>
+          <p className="warn">이름을 입력하고, 종료일이 시작일 이후인지 확인하세요.</p>
         )}
       </div>
     );
@@ -726,7 +684,7 @@ export default function Wizard() {
       <div className="stack">
         <div className="card">
           <h3>{form.name || '(이름 없음)'}</h3>
-          <p>{form.type} · {form.applyMode} · {form.startDate} ~ {form.endDate}</p>
+          <p>{'이벤트'} · {form.applyMode} · {form.startDate} ~ {form.endDate}</p>
         </div>
         <table>
           <tbody>
