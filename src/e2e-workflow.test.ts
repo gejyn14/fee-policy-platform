@@ -78,6 +78,7 @@ it('반려 케이스: 반려된 룰은 바인딩에 영향을 주지 않는다',
   const after = useStore.getState();
   expect(after.rules.find((r) => r.id === 'R-E2E-REJECTED')!.status).toBe('반려');
   const afterBinding = after.bindings.find((b) => b.accountId === 'A-1001' && b.scopeKey === 'CME:6A')!;
+  // rejectRule이 bindings를 건드리지 않는 store 불변식 검증
   expect(afterBinding.sourceRuleId).not.toBe('R-E2E-REJECTED');
   expect(afterBinding).toEqual(beforeBinding);
 });
