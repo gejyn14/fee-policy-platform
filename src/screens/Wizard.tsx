@@ -1,9 +1,10 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { calcFee } from '../domain/calc';
-import { dominates } from '../domain/dominance';
+import { explainDominanceFailure, type DominanceFailure } from '../domain/dominance';
 import { scopeMatches, isTarget } from '../domain/binding';
 import { TODAY } from '../domain/types';
+import { ruleTypeLabel } from './labels';
 import type {
   ApplyMode, AssetClass, Execution, FeeComponent, FeeRule, FeeSchedule,
   NegotiatedCondition, Payer, Product, RateBand, ScopeSelector,
@@ -73,7 +74,6 @@ interface WizardForm {
   itemsSel: string[];
   itemSearch: string;
   itemsCsvText: string;
-  itemsCsvWarning: string;
   excludeText: string;
 
   copyScheduleId: string;
@@ -93,7 +93,7 @@ function makeInitialForm(products: Product[]): WizardForm {
     assetClass,
     exchangesSel: exchanges, sessionsSel: sessions, currenciesSel: currencies,
     itemsSel: inClass.map((p) => p.code),
-    itemSearch: '', itemsCsvText: '', itemsCsvWarning: '', excludeText: '',
+    itemSearch: '', itemsCsvText: '', excludeText: '',
     copyScheduleId: '',
     components: [{ name: '자사 수수료', kind: '자사', payer: '고객부과', rateType: '정률', rateBp: 10 }],
     targetMode: 'all', accountsCsvText: '',
@@ -113,10 +113,18 @@ export default function Wizard() {
     return draft ? (draft.form as WizardForm) : makeInitialForm(products);
   });
   const [done, setDone] = useState(false);
+  // handleReset이 setWizardDraft(null)을 호출한 직후 form/step을 초기값으로 되돌리면
+  // 아래 동기화 effect가 재실행되어 null을 다시 { form, step }으로 덮어써 버린다.
+  // 이 ref는 그 1회 재실행만 건너뛰게 해 리셋 직후 draft가 null로 유지되도록 한다.
+  const skipNextSync = useRef(false);
 
   // 로컬 상태 → draft 단방향 동기화. wizardDraft는 의존성에 넣지 않는다(넣으면
   // draft 변경이 이 effect를 재실행시켜 다시 draft를 쓰는 무한 루프가 될 수 있음).
   useEffect(() => {
+    if (skipNextSync.current) {
+      skipNextSync.current = false;
+      return;
+    }
     setWizardDraft({ form, step });
   }, [form, step]);
 
@@ -129,6 +137,12 @@ export default function Wizard() {
     return !q || p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q);
   });
   const excludeParsed = parseCsvCodes(form.excludeText, new Set(inClass.map((p) => p.code)));
+  // 품목 CSV는 계좌 CSV(accountsParsed)와 동일하게 매 렌더 파싱한다. 파싱 결과는 별도 상태이며
+  // itemsSel(수동 선택) 안으로 다시 써넣지 않는다 — 그렇게 하면 수동으로 해제한 품목이 CSV
+  // 텍스트가 남아있는 한 다음 렌더에서 계속 되살아나는 문제가 생긴다. 최종 선택은
+  // "수동 선택 ∪ CSV 인식"을 렌더 시점에 계산해서만 사용한다.
+  const itemsCsvParsed = parseCsvCodes(form.itemsCsvText, new Set(inClass.map((p) => p.code)));
+  const effectiveItemsSel = [...new Set([...form.itemsSel, ...itemsCsvParsed.accepted])];
   const showTrigger = form.applyMode !== '일괄적용형';
   const accountsParsed = !showTrigger && form.targetMode === 'accounts'
     ? parseCsvCodes(form.accountsCsvText, new Set(accounts.map((a) => a.id)))
@@ -138,18 +152,7 @@ export default function Wizard() {
     const opt = optionsForAssetClass(products, ac);
     update({
       assetClass: ac, exchangesSel: opt.exchanges, sessionsSel: opt.sessions, currenciesSel: opt.currencies,
-      itemsSel: opt.inClass.map((p) => p.code), itemSearch: '', itemsCsvText: '', itemsCsvWarning: '', excludeText: '',
-    });
-  }
-
-  function applyItemsCsv() {
-    const valid = new Set(inClass.map((p) => p.code));
-    const { accepted, rejected } = parseCsvCodes(form.itemsCsvText, valid);
-    update({
-      itemsSel: [...new Set([...form.itemsSel, ...accepted])],
-      itemsCsvWarning: rejected.length > 0
-        ? `무시된 코드 (해당 상품군에 없음): ${rejected.join(', ')}`
-        : (accepted.length > 0 ? `${accepted.length}건 체크 반영됨` : '반영할 코드가 없습니다.'),
+      itemsSel: opt.inClass.map((p) => p.code), itemSearch: '', itemsCsvText: '', excludeText: '',
     });
   }
 
@@ -159,7 +162,7 @@ export default function Wizard() {
       exchanges: form.exchangesSel.length === exchanges.length ? '*' : form.exchangesSel,
       sessions: form.sessionsSel.length === sessions.length ? '*' : form.sessionsSel,
       currencies: form.currenciesSel.length === currencies.length ? '*' : form.currenciesSel,
-      products: form.itemsSel.length === inClass.length ? '*' : form.itemsSel,
+      products: effectiveItemsSel.length === inClass.length ? '*' : effectiveItemsSel,
       excludeProducts: excludeParsed.accepted,
     };
   }
@@ -206,10 +209,19 @@ export default function Wizard() {
     for (const inc of incumbents) {
       const incSched = schedules.find((x) => x.id === inc.scheduleId);
       if (!incSched) continue;
+      // 동일 (기존룰, price) 조합에서 실패한 품목은 품목명을 콤마로 묶어 1줄로 그룹핑한다.
+      const groups = new Map<number, { fail: DominanceFailure; names: string[] }>();
       for (const p of targetProducts) {
-        if (!dominates(schedule, incSched, sampleFor(p))) {
-          dominanceFailures.push(`${p.name}(${p.code}): 기존 '${inc.name}' 대비 일부 구간에서 더 비쌈`);
-        }
+        const fail = explainDominanceFailure(schedule, incSched, sampleFor(p));
+        if (!fail) continue;
+        const g = groups.get(fail.price);
+        if (g) g.names.push(`${p.name}(${p.code})`);
+        else groups.set(fail.price, { fail, names: [`${p.name}(${p.code})`] });
+      }
+      for (const { fail, names } of groups.values()) {
+        dominanceFailures.push(
+          `${names.join(', ')}: 가격 ${fail.price}에서 신규 ${fail.candidateFee.toLocaleString()}원 > 기존 '${inc.name}' ${fail.incumbentFee.toLocaleString()}원`,
+        );
       }
     }
     const probe = calcFee(schedule, sampleFor(targetProducts[0])(100));
@@ -243,10 +255,14 @@ export default function Wizard() {
   }
 
   const sim = computeSimulation();
+  // 2단계 매칭 품목 수 — computeSimulation()이 이미 scopeMatches 기반으로 계산한
+  // targetProducts를 그대로 재사용한다(중복 계산 방지).
+  const matchedProductCount = sim.targetProducts.length;
 
   const canProceed1 = form.name.trim() !== '' && form.startDate <= form.endDate &&
     (form.type !== 'NEGOTIATED' || form.condThreshold > 0);
-  const canProceed2 = form.exchangesSel.length > 0 && form.sessionsSel.length > 0 && form.currenciesSel.length > 0;
+  const canProceed2 = form.exchangesSel.length > 0 && form.sessionsSel.length > 0 && form.currenciesSel.length > 0 &&
+    matchedProductCount > 0;
   const canProceed3 = form.components.length > 0 && form.components.every((c) => c.name.trim() !== '');
   const canProceed4 = showTrigger || form.targetMode === 'all' || accountsParsed.accepted.length > 0;
   const canProceed5 = sim.dominanceOk;
@@ -278,6 +294,7 @@ export default function Wizard() {
   }
 
   function handleReset() {
+    skipNextSync.current = true;
     setForm(makeInitialForm(products));
     setStep(1);
     setDone(false);
@@ -300,8 +317,8 @@ export default function Wizard() {
           <div className="field">
             <label>유형</label>
             <select value={form.type} onChange={(e) => update({ type: e.target.value as WizardForm['type'] })}>
-              <option value="EVENT">EVENT</option>
-              <option value="NEGOTIATED">NEGOTIATED</option>
+              <option value="EVENT">{ruleTypeLabel('EVENT')}</option>
+              <option value="NEGOTIATED">{ruleTypeLabel('NEGOTIATED')}</option>
             </select>
           </div>
           <div className="field">
@@ -405,7 +422,7 @@ export default function Wizard() {
         <div className="check-grid">
           {filteredItems.map((p) => (
             <label key={p.code} className="check-item">
-              <input type="checkbox" checked={form.itemsSel.includes(p.code)}
+              <input type="checkbox" checked={effectiveItemsSel.includes(p.code)}
                 onChange={() => update({ itemsSel: toggle(form.itemsSel, p.code) })} />
               {p.code} ({p.name})
             </label>
@@ -417,9 +434,11 @@ export default function Wizard() {
           <label>품목 코드 붙여넣기 (프로토타입: CSV)</label>
           <textarea rows={3} value={form.itemsCsvText} onChange={(e) => update({ itemsCsvText: e.target.value })}
             placeholder="예: 6A, 6B" />
+          <p>인식 {itemsCsvParsed.accepted.length}건 / 무시 {itemsCsvParsed.rejected.length}건</p>
+          {itemsCsvParsed.rejected.length > 0 && (
+            <p className="warn">무시된 코드 (해당 상품군에 없음): {itemsCsvParsed.rejected.join(', ')}</p>
+          )}
         </div>
-        <button className="btn" type="button" onClick={applyItemsCsv}>체크 반영</button>
-        {form.itemsCsvWarning && <p className="warn">{form.itemsCsvWarning}</p>}
 
         <div className="field">
           <label>제외 품목</label>
@@ -430,7 +449,13 @@ export default function Wizard() {
           <p className="warn">무시된 코드 (해당 상품군에 없음): {excludeParsed.rejected.join(', ')}</p>
         )}
 
-        {!canProceed2 && <p className="warn">거래소/세션/통화 중 최소 1개씩은 선택해야 합니다.</p>}
+        <p className={matchedProductCount === 0 ? 'warn' : undefined}>매칭 품목 {matchedProductCount}개</p>
+        {matchedProductCount === 0 && (
+          <p className="warn">선택/제외 조건으로 매칭되는 품목이 없습니다.</p>
+        )}
+        {(form.exchangesSel.length === 0 || form.sessionsSel.length === 0 || form.currenciesSel.length === 0) && (
+          <p className="warn">거래소/세션/통화 중 최소 1개씩은 선택해야 합니다.</p>
+        )}
       </div>
     );
   }
@@ -472,12 +497,18 @@ export default function Wizard() {
                   </td>
                   <td>
                     {c.rateType === '정률' && (
-                      <input type="number" value={c.rateBp ?? 0}
-                        onChange={(e) => updateComponent(idx, { rateBp: Number(e.target.value) })} placeholder="bp" />
+                      <>
+                        <input type="number" value={c.rateBp ?? 0}
+                          onChange={(e) => updateComponent(idx, { rateBp: Number(e.target.value) })} placeholder="bp" />
+                        <span className="unit-suffix">bp</span>
+                      </>
                     )}
                     {c.rateType === '정액' && (
-                      <input type="number" value={c.flatAmount ?? 0}
-                        onChange={(e) => updateComponent(idx, { flatAmount: Number(e.target.value) })} placeholder="원" />
+                      <>
+                        <input type="number" value={c.flatAmount ?? 0}
+                          onChange={(e) => updateComponent(idx, { flatAmount: Number(e.target.value) })} placeholder="원" />
+                        <span className="unit-suffix">원/계약</span>
+                      </>
                     )}
                     {c.rateType === '구간표' && <span className="pill">아래 구간표 참조</span>}
                   </td>
@@ -485,6 +516,7 @@ export default function Wizard() {
                     <input type="number" value={c.minFee ?? ''}
                       onChange={(e) => updateComponent(idx, { minFee: e.target.value === '' ? undefined : Number(e.target.value) })}
                       placeholder="선택" />
+                    <span className="unit-suffix">원</span>
                   </td>
                   <td><button className="btn danger" type="button" onClick={() => removeComponent(idx)}>삭제</button></td>
                 </tr>
@@ -606,7 +638,7 @@ export default function Wizard() {
             <tr><td>거래소</td><td>{form.exchangesSel.length === exchanges.length ? '전체' : form.exchangesSel.join(', ')}</td></tr>
             <tr><td>세션</td><td>{form.sessionsSel.length === sessions.length ? '전체' : form.sessionsSel.join(', ')}</td></tr>
             <tr><td>통화</td><td>{form.currenciesSel.length === currencies.length ? '전체' : form.currenciesSel.join(', ')}</td></tr>
-            <tr><td>품목</td><td>{form.itemsSel.length === inClass.length ? '전체' : form.itemsSel.join(', ')}</td></tr>
+            <tr><td>품목</td><td>{effectiveItemsSel.length === inClass.length ? '전체' : effectiveItemsSel.join(', ')}</td></tr>
             <tr><td>제외 품목</td><td>{excludeParsed.accepted.length > 0 ? excludeParsed.accepted.join(', ') : '없음'}</td></tr>
             <tr><td>구성요소</td><td>{form.components.map((c) => c.name).join(', ')}</td></tr>
             <tr><td>대상</td><td>{showTrigger ? '트리거 기반 자동 대상' : (form.targetMode === 'all' ? '전체 계좌' : `지정 계좌 ${accountsParsed.accepted.length}건`)}</td></tr>

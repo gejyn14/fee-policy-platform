@@ -419,3 +419,12 @@ tbody tr.active {
   align-items: center;
   gap: 6px;
 }
+
+/* ---------- unit suffix (Task 6) ---------- */
+
+.unit-suffix {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
