@@ -12,7 +12,7 @@ const bandSched = (id: string, boundary: number, cheapFlat: number, expFlat: num
   ({ id, name: id, components: [{ name: '자사 수수료', kind: '자사', payer: '고객부과', rateType: '구간표',
     bands: [{ from: 0, to: boundary, flat: cheapFlat }, { from: boundary, to: null, flat: expFlat }] }] });
 const rule = (over: Partial<FeeRule>): FeeRule => ({
-  id: 'R', name: 'r', type: 'BASE', status: '활성', applyMode: '일괄적용형',
+  id: 'R', name: 'r', type: 'BASE', status: '활성', applyMode: '타겟추출형',
   startDate: '2026-01-01', endDate: '2026-12-31',
   scope: { assetClass: '해외파생', exchanges: '*', sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
   scheduleId: 'S', warnings: { dominance: true, reverseMargin: false }, createdBy: 't', log: [], ...over });
@@ -26,11 +26,11 @@ describe('scopeMatches', () => {
 });
 
 describe('isTarget', () => {
-  it('신청형은 Enrollment 필요, 일괄적용형은 불필요', () => {
+  it('신청형은 Enrollment 필요, 타겟추출형은 불필요', () => {
     const evt = rule({ id: 'E1', type: 'EVENT', applyMode: '신청형' });
     expect(isTarget(evt, acct, [])).toBe(false);
     expect(isTarget(evt, acct, [{ accountId: 'A-1', ruleId: 'E1', enrolledAt: '2026-07-01', channel: 'MTS' }])).toBe(true);
-    expect(isTarget(rule({ type: 'EVENT', applyMode: '일괄적용형' }), acct, [])).toBe(true);
+    expect(isTarget(rule({ type: 'EVENT', applyMode: '타겟추출형' }), acct, [])).toBe(true);
   });
   it('휴면복귀형은 dormantReturned 계좌만', () => {
     const evt = rule({ type: 'EVENT', applyMode: '휴면복귀형' });
@@ -55,7 +55,7 @@ describe('isTarget 조건 게이트', () => {
     expect(isTarget(negoCond, acctRich, [])).toBe(false);     // 신청+조건 둘 다 필요
   });
   it('condition 없는 룰은 기존 로직 그대로', () => {
-    const evt = rule({ id: 'R-NC', type: 'EVENT', applyMode: '일괄적용형' });
+    const evt = rule({ id: 'R-NC', type: 'EVENT', applyMode: '타겟추출형' });
     expect(isTarget(evt, acct, [])).toBe(true);
   });
 });

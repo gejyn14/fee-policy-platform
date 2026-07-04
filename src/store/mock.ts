@@ -117,7 +117,7 @@ export const mockSchedules: FeeSchedule[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// 룰 (FeeRule) — BASE 5개(상품군별, 활성) + EVENT 1개(활성·일괄적용형) + NEGOTIATED 1개(활성·신청형)
+// 룰 (FeeRule) — BASE 5개(상품군별, 활성) + EVENT 1개(활성·타겟추출형) + NEGOTIATED 1개(활성·신청형)
 //              + EVENT 발효/만료 대상 2개(배치 ① 검증용, 배치 실행 전까지는 바인딩에 영향 없음)
 // ---------------------------------------------------------------------------
 
@@ -125,7 +125,7 @@ export const mockRules: FeeRule[] = [
   {
     id: 'RULE-BASE-STOCK-KR',
     name: 'BASE 국내주식 표준요율',
-    type: 'BASE', status: '활성', applyMode: '일괄적용형',
+    type: 'BASE', status: '활성', applyMode: '타겟추출형',
     startDate: '2020-01-01', endDate: '2099-12-31',
     scope: { assetClass: '국내주식', exchanges: '*', sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
     scheduleId: 'FS-BASE-STOCK-KR',
@@ -136,7 +136,7 @@ export const mockRules: FeeRule[] = [
   {
     id: 'RULE-BASE-STOCK-US',
     name: 'BASE 해외주식 표준요율',
-    type: 'BASE', status: '활성', applyMode: '일괄적용형',
+    type: 'BASE', status: '활성', applyMode: '타겟추출형',
     startDate: '2020-01-01', endDate: '2099-12-31',
     scope: { assetClass: '해외주식', exchanges: '*', sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
     scheduleId: 'FS-BASE-STOCK-US',
@@ -147,7 +147,7 @@ export const mockRules: FeeRule[] = [
   {
     id: 'RULE-BASE-DERIV-KR',
     name: 'BASE 국내파생 표준요율',
-    type: 'BASE', status: '활성', applyMode: '일괄적용형',
+    type: 'BASE', status: '활성', applyMode: '타겟추출형',
     startDate: '2020-01-01', endDate: '2099-12-31',
     scope: { assetClass: '국내파생', exchanges: '*', sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
     scheduleId: 'FS-BASE-DERIV-KR',
@@ -158,7 +158,7 @@ export const mockRules: FeeRule[] = [
   {
     id: 'RULE-BASE-DERIV-US',
     name: 'BASE 해외파생 표준요율',
-    type: 'BASE', status: '활성', applyMode: '일괄적용형',
+    type: 'BASE', status: '활성', applyMode: '타겟추출형',
     startDate: '2020-01-01', endDate: '2099-12-31',
     scope: { assetClass: '해외파생', exchanges: '*', sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
     scheduleId: 'FS-BASE-DERIV-US',
@@ -169,7 +169,7 @@ export const mockRules: FeeRule[] = [
   {
     id: 'RULE-BASE-GOLD',
     name: 'BASE 금현물 표준요율',
-    type: 'BASE', status: '활성', applyMode: '일괄적용형',
+    type: 'BASE', status: '활성', applyMode: '타겟추출형',
     startDate: '2020-01-01', endDate: '2099-12-31',
     scope: { assetClass: '금현물', exchanges: '*', sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
     scheduleId: 'FS-BASE-GOLD',
@@ -180,7 +180,7 @@ export const mockRules: FeeRule[] = [
   {
     id: 'RULE-EVENT-CME-SUMMER',
     name: '2026 여름 CME 6A/6B 수수료 인하 이벤트',
-    type: 'EVENT', status: '활성', applyMode: '일괄적용형',
+    type: 'EVENT', status: '활성', applyMode: '타겟추출형',
     startDate: '2026-06-01', endDate: '2026-09-30',
     scope: { assetClass: '해외파생', exchanges: ['CME'], sessions: '*', currencies: '*', products: ['6A', '6B'], excludeProducts: [] },
     scheduleId: 'FS-EVENT-DERIV-US-CME',
@@ -206,7 +206,7 @@ export const mockRules: FeeRule[] = [
   {
     id: 'RULE-EVENT-KR-PROMO',
     name: '국내주식 여름 프로모션(발효 대기)',
-    type: 'EVENT', status: '승인대기', applyMode: '일괄적용형',
+    type: 'EVENT', status: '승인대기', applyMode: '타겟추출형',
     startDate: '2026-07-01', endDate: '2026-09-30',
     scope: { assetClass: '국내주식', exchanges: '*', sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
     scheduleId: 'FS-EVENT-KR-PROMO',
@@ -218,7 +218,7 @@ export const mockRules: FeeRule[] = [
   {
     id: 'RULE-EVENT-KR-SPRING',
     name: '국내주식 봄 이벤트(만료 대상)',
-    type: 'EVENT', status: '활성', applyMode: '일괄적용형',
+    type: 'EVENT', status: '활성', applyMode: '타겟추출형',
     startDate: '2026-03-01', endDate: '2026-06-30',
     scope: { assetClass: '국내주식', exchanges: '*', sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
     scheduleId: 'FS-EVENT-KR-PROMO',

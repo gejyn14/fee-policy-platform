@@ -1,7 +1,7 @@
 import { it, expect, describe } from 'vitest';
 import { classifyLifecycle } from './lifecycle';
 import type { FeeRule } from './types';
-const r = (over: Partial<FeeRule>): FeeRule => ({ id: 'R', name: 'r', type: 'EVENT', status: '활성', applyMode: '일괄적용형',
+const r = (over: Partial<FeeRule>): FeeRule => ({ id: 'R', name: 'r', type: 'EVENT', status: '활성', applyMode: '타겟추출형',
   startDate: '2026-01-01', endDate: '2026-12-31', scope: { assetClass: '국내주식', exchanges: '*', sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
   scheduleId: 'S', warnings: { dominance: true, reverseMargin: false }, createdBy: 't', log: [], ...over });
 

@@ -12,7 +12,7 @@ const scope = (over: Partial<ScopeSelector> = {}): ScopeSelector =>
 const sched = (id: string, flat: number): FeeSchedule =>
   ({ id, name: id, components: [{ name: '위탁', kind: '자사', payer: '고객부과', rateType: '정액', flatAmount: flat }] });
 const rule = (over: Partial<FeeRule>): FeeRule => ({
-  id: 'R', name: 'r', type: 'BASE', status: '활성', applyMode: '일괄적용형',
+  id: 'R', name: 'r', type: 'BASE', status: '활성', applyMode: '타겟추출형',
   startDate: '2020-01-01', endDate: '2099-12-31', scope: scope(), scheduleId: 'S',
   warnings: { dominance: true, reverseMargin: false }, createdBy: 't', log: [], ...over });
 
@@ -96,7 +96,7 @@ describe('resolve — 적용기간(benefit)', () => {
   const base = rule({ id: 'R-BASE', scheduleId: 'S-BASE' });
   const relEvt = rule({ id: 'R-REL', type: 'EVENT', applyMode: '가입형', scheduleId: 'S-EVT',
     scope: scope({ channels: ['MTS'] }), benefit: { kind: '상대', months: 2 }, startDate: '2026-04-01', endDate: '2026-06-30' });
-  const calX = rule({ id: 'R-CALX', type: 'EVENT', applyMode: '일괄적용형', scheduleId: 'S-EVT',
+  const calX = rule({ id: 'R-CALX', type: 'EVENT', applyMode: '타겟추출형', scheduleId: 'S-EVT',
     scope: scope({ channels: ['MTS'] }), endDate: '2020-12-31' });
   const enr = (enrolledAt: string): Enrollment[] => [{ accountId: acct.id, ruleId: 'R-REL', enrolledAt, channel: 'MTS' }];
 

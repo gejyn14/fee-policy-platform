@@ -23,7 +23,7 @@ const cheapSchedule: FeeSchedule = {
 const cheapRule: FeeRule = {
   id: 'R-E2E-CHEAP',
   name: '2026 가을 CME 6A 수수료 인하 이벤트',
-  type: 'EVENT', status: '기안', applyMode: '일괄적용형',
+  type: 'EVENT', status: '기안', applyMode: '타겟추출형',
   startDate: '2026-07-01', endDate: '2026-09-30',
   scope: { assetClass: '해외파생', exchanges: ['CME'], sessions: '*', currencies: '*', products: ['6A'], excludeProducts: [] },
   scheduleId: cheapSchedule.id,

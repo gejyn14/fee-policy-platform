@@ -16,7 +16,7 @@ export function scopeMatches(s: ScopeSelector, p: Product): boolean {
 export function isTarget(rule: FeeRule, acct: Account, enrollments: Enrollment[]): boolean {
   if (rule.condition && !evalCondition(rule, acct)) return false;   // 조건 하드 게이트 (신청+조건)
   if (rule.type === 'BASE') return true;
-  if (rule.applyMode === '일괄적용형')
+  if (rule.applyMode === '타겟추출형')
     return !rule.targetAccountIds || rule.targetAccountIds.includes(acct.id);
   if (rule.applyMode === '가입형') return true;                 // 프로토타입: 전 계좌 가입 간주
   if (rule.applyMode === '휴면복귀형') return acct.dormantReturned;

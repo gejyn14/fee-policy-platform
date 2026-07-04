@@ -8,7 +8,7 @@ beforeEach(() => useStore.getState().reset());
 const newSched: FeeSchedule = { id: 'S-NEW', name: '테스트 이벤트 요율', components: [
   { name: '자사 수수료', kind: '자사', payer: '고객부과', rateType: '정액', flatAmount: 1 }] };
 const newRule: FeeRule = {
-  id: 'R-NEW', name: '6A 수수료 인하 이벤트', type: 'EVENT', status: '기안', applyMode: '일괄적용형',
+  id: 'R-NEW', name: '6A 수수료 인하 이벤트', type: 'EVENT', status: '기안', applyMode: '타겟추출형',
   startDate: '2026-07-01', endDate: '2026-09-30',
   scope: { assetClass: '해외파생', exchanges: ['CME'], sessions: '*', currencies: '*', products: ['6A'], excludeProducts: [] },
   scheduleId: 'S-NEW', warnings: { dominance: true, reverseMargin: false }, createdBy: '담당자', log: [] };
@@ -63,7 +63,7 @@ it('extendNegotiated → 기간 연장 + log', () => {
 
 it('submitRule with zero matching products → 승인대기 + sim { targets: 0, saving: 0 }', () => {
   const noMatchRule: FeeRule = {
-    id: 'R-NOMATCH', name: '0건 대상 규칙', type: 'EVENT', status: '기안', applyMode: '일괄적용형',
+    id: 'R-NOMATCH', name: '0건 대상 규칙', type: 'EVENT', status: '기안', applyMode: '타겟추출형',
     startDate: '2026-07-01', endDate: '2026-09-30',
     scope: { assetClass: '해외파생', exchanges: ['ZZZ-NONEXISTENT'], sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
     scheduleId: 'S-NEW', warnings: { dominance: true, reverseMargin: false }, createdBy: '담당자', log: [] };

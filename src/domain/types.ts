@@ -1,5 +1,5 @@
 export type RuleType = 'BASE' | 'EVENT' | 'NEGOTIATED';
-export type ApplyMode = '신청형' | '가입형' | '휴면복귀형' | '일괄적용형';
+export type ApplyMode = '신청형' | '가입형' | '휴면복귀형' | '타겟추출형';
 export type RuleStatus = '기안' | '승인대기' | '활성' | '반려' | '종료';
 export type AssetClass = '국내주식' | '해외주식' | '국내파생' | '해외파생' | '금현물';
 export type Payer = '고객부과' | '회사부담' | '면제';
@@ -54,7 +54,7 @@ export interface FeeRule {
   scope: ScopeSelector; scheduleId: string;
   benefit?: BenefitPeriod;                 // 적용기간 유형. 미지정 = 캘린더(하위호환)
   condition?: NegotiatedCondition;         // NEGOTIATED 전용
-  targetAccountIds?: string[];             // 일괄적용형 bulk 대상 (없으면 전체)
+  targetAccountIds?: string[];             // 타겟추출형 bulk 대상 (없으면 전체)
   warnings: { dominance: boolean; reverseMargin: boolean };
   sim?: { targets: number; saving: number; matchedProducts?: number };
   createdBy: string; log: string[];

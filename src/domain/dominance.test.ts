@@ -47,7 +47,7 @@ const flatSched = (id: string, flat: number): FeeSchedule =>
   ({ id, name: id, components: [{ name: '자사 수수료', kind: '자사', payer: '고객부과', rateType: '구간표', bands: [{ from: 0, to: null, flat }] }] });
 
 const rule = (over: Partial<FeeRule>): FeeRule => ({
-  id: 'R', name: 'r', type: 'EVENT', status: '활성', applyMode: '일괄적용형',
+  id: 'R', name: 'r', type: 'EVENT', status: '활성', applyMode: '타겟추출형',
   startDate: '2026-01-01', endDate: '2026-12-31',
   scope: { assetClass: '국내주식', exchanges: '*', sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
   scheduleId: 'S', warnings: { dominance: true, reverseMargin: false }, createdBy: 't', log: [], ...over,

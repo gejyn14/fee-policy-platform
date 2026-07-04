@@ -43,7 +43,7 @@ const sampleFor = (p: Product) => (price: number): Execution =>
 
 const ASSET_CLASSES: AssetClass[] = ['국내주식', '해외주식', '국내파생', '해외파생', '금현물'];
 const CHANNELS: Channel[] = ['HTS', 'MTS', 'API', 'ARS', '센터', '반대매매'];
-const APPLY_MODES: ApplyMode[] = ['신청형', '가입형', '휴면복귀형', '일괄적용형'];
+const APPLY_MODES: ApplyMode[] = ['신청형', '가입형', '휴면복귀형', '타겟추출형'];
 const KINDS: FeeComponent['kind'][] = ['자사', '유관기관', '세금'];
 const PAYERS: Payer[] = ['고객부과', '회사부담', '면제'];
 const RATE_TYPES: FeeComponent['rateType'][] = ['정률', '정액', '구간표'];
@@ -89,7 +89,7 @@ function makeInitialForm(products: Product[]): WizardForm {
   const assetClass: AssetClass = ASSET_CLASSES[0];
   const { exchanges, sessions } = optionsForAssetClass(products, assetClass);
   return {
-    name: '', type: 'EVENT', applyMode: '일괄적용형',
+    name: '', type: 'EVENT', applyMode: '타겟추출형',
     startDate: TODAY, endDate: '2026-12-31',
     condMetric: '6개월평균자산', condThreshold: 500_000_000, condAction: '승인후연장',
     benefitKind: '캘린더', benefitMonths: 2,
@@ -145,7 +145,7 @@ export default function Wizard() {
   const showExchangeCheckboxes = form.assetClass === '국내주식' || form.assetClass === '해외주식';
   const showSessionCheckboxes = form.assetClass !== '금현물'; // 금현물은 세션도 숨김(정규만 존재)
 
-  const showTrigger = form.applyMode !== '일괄적용형';
+  const showTrigger = form.applyMode !== '타겟추출형';
   const accountsParsed = !showTrigger && form.targetMode === 'accounts'
     ? parseCsvCodes(form.accountsCsvText, new Set(accounts.map((a) => a.id)))
     : { accepted: [] as string[], rejected: [] as string[] };
@@ -159,9 +159,9 @@ export default function Wizard() {
     });
   }
 
-  // 적용기간(혜택 기간). 일괄적용형은 신청 개념이 없어 항상 캘린더.
+  // 적용기간(혜택 기간). 타겟추출형은 신청 개념이 없어 항상 캘린더.
   function buildBenefit(): BenefitPeriod {
-    return (form.applyMode !== '일괄적용형' && form.benefitKind === '상대')
+    return (form.applyMode !== '타겟추출형' && form.benefitKind === '상대')
       ? { kind: '상대', months: form.benefitMonths }
       : { kind: '캘린더' };
   }
@@ -412,15 +412,15 @@ export default function Wizard() {
             </select>
           </div>
           <div className="field">
-            <label>{form.applyMode === '일괄적용형' ? '시작일' : '신청 가능 시작'}</label>
+            <label>{form.applyMode === '타겟추출형' ? '시작일' : '신청 가능 시작'}</label>
             <input type="date" value={form.startDate} onChange={(e) => update({ startDate: e.target.value })} />
           </div>
           <div className="field">
-            <label>{form.applyMode === '일괄적용형' ? '종료일' : '신청 가능 종료'}</label>
+            <label>{form.applyMode === '타겟추출형' ? '종료일' : '신청 가능 종료'}</label>
             <input type="date" value={form.endDate} onChange={(e) => update({ endDate: e.target.value })} />
           </div>
         </div>
-        {form.applyMode !== '일괄적용형' && (
+        {form.applyMode !== '타겟추출형' && (
           <div className="form-grid">
             <div className="field">
               <label>적용기간 유형</label>
@@ -731,7 +731,7 @@ export default function Wizard() {
         <table>
           <tbody>
             <tr><td>상품군</td><td>{form.assetClass}</td></tr>
-            <tr><td>적용기간</td><td>{form.applyMode === '일괄적용형' || form.benefitKind === '캘린더' ? '캘린더(신청/룰 기간)' : `가입일 +${form.benefitMonths}개월`}</td></tr>
+            <tr><td>적용기간</td><td>{form.applyMode === '타겟추출형' || form.benefitKind === '캘린더' ? '캘린더(신청/룰 기간)' : `가입일 +${form.benefitMonths}개월`}</td></tr>
             <tr>
               <td>거래소</td>
               <td>
