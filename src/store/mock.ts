@@ -186,4 +186,5 @@ export const mockRules: FeeRule[] = [
 
 export const mockEnrollments: Enrollment[] = [
   { accountId: 'A-1001', ruleId: 'RULE-NEGO-STOCK-US', enrolledAt: '2026-01-15', channel: 'HTS' },
+  { accountId: 'A-1002', ruleId: 'RULE-NEGO-STOCK-US', enrolledAt: '2026-03-02', channel: '지점' },
 ];

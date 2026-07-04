@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store/useStore';
+import { scopeMatches } from '../domain/binding';
 import type { FeeComponent, FeeRule } from '../domain/types';
 
 function scopeSummary(rule: FeeRule): string {
@@ -16,7 +17,7 @@ function valueText(c: FeeComponent): string {
 }
 
 export default function Approvals() {
-  const { rules, schedules, approveRule, rejectRule } = useStore();
+  const { rules, schedules, products, approveRule, rejectRule } = useStore();
   const [reasons, setReasons] = useState<Record<string, string>>({});
 
   const pending = rules.filter((r) => r.status === '승인대기');
@@ -50,7 +51,7 @@ export default function Approvals() {
         const schedule = schedules.find((s) => s.id === rule.scheduleId);
         const reason = reasons[rule.id] ?? '';
         const dominanceOk = rule.warnings.dominance;
-        const zeroScope = !!rule.sim && rule.sim.targets === 0;
+        const zeroScope = !products.some((p) => scopeMatches(rule.scope, p));
 
         return (
           <div className="card" key={rule.id}>

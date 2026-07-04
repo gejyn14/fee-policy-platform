@@ -63,11 +63,18 @@ export const useStore = create<State>((set) => ({
     const ownReceived = probe.lines.filter((l) => l.kind === '자사' && l.payer === '고객부과')
       .reduce((a, l) => a + l.amount, 0);
     const reverseMargin = probe.companyBorne > ownReceived;
-    // ③ 시뮬레이션: 대상 계좌 × 표본 60건 기준 감면액
+    // ③ 시뮬레이션: 품목별로 scope 매칭되는 incumbent 중 최저가를 현행으로 삼아 신규와 차액을 합산,
+    // 대상 계좌 × 표본 60건 기준 감면액 (위저드 5단계 표와 동일 기준)
     const targets = s.accounts.filter((a) => isTarget({ ...rule, status: '활성' }, a, s.enrollments));
-    const saving = targets.length * targetProducts.length * 60 *
-      Math.max(0, calcFee(s.schedules.find((x) => x.id === incumbents[0]?.scheduleId)
-        ?? schedule, sample(targetProducts[0])(100)).customerTotal - probe.customerTotal);
+    const perProductSaving = targetProducts.reduce((sum, p) => {
+      const matchingIncumbents = incumbents.filter((r) => scopeMatches(r.scope, p));
+      if (matchingIncumbents.length === 0) return sum;
+      const current = Math.min(...matchingIncumbents.map((inc) =>
+        calcFee(s.schedules.find((x) => x.id === inc.scheduleId)!, sample(p)(100)).customerTotal));
+      const next = calcFee(schedule, sample(p)(100)).customerTotal;
+      return sum + Math.max(0, current - next);
+    }, 0);
+    const saving = targets.length * 60 * perProductSaving;
     const submitted: FeeRule = { ...rule, status: '승인대기',
       warnings: { dominance: dominanceOk, reverseMargin },
       sim: { targets: targets.length, saving: Math.round(saving) },
