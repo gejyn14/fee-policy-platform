@@ -31,6 +31,8 @@ export default function RuleDetail({ rule }: { rule: FeeRule }) {
   const { schedules, enrollments, accounts } = useStore();
   const schedule = schedules.find((s) => s.id === rule.scheduleId);
   const dominanceOk = rule.warnings.dominance;
+  // BASE 룰은 비교 기준선 자체라 "기존 대비 지배" 개념이 성립하지 않는다 → '해당없음'.
+  const dominanceNA = rule.type === 'BASE';
   // 판정불가 통일: matchedProducts === 0(품목 미매칭)일 때만 두 배지 모두 판정불가.
   // matchedProducts가 undefined인 기존 mock 룰은 정상 판정 로직을 그대로 사용한다.
   const undetermined = rule.sim?.matchedProducts === 0;
@@ -64,8 +66,8 @@ export default function RuleDetail({ rule }: { rule: FeeRule }) {
 
       <h2>검증 결과</h2>
       <div className="check-grid">
-        <span className={`pill ${undetermined ? 'pill-pending' : dominanceOk ? 'pill-active' : 'pill-rejected'}`}>
-          지배관계 {undetermined ? '판정불가' : dominanceOk ? '✓' : '✗'}
+        <span className={`pill ${undetermined ? 'pill-pending' : dominanceNA ? 'pill-draft' : dominanceOk ? 'pill-active' : 'pill-rejected'}`}>
+          지배관계 {undetermined ? '판정불가' : dominanceNA ? '해당없음' : dominanceOk ? '✓' : '✗'}
         </span>
         <span className={`pill ${undetermined ? 'pill-pending' : rule.warnings.reverseMargin ? 'pill-rejected' : 'pill-draft'}`}>
           역마진 {undetermined ? '판정불가' : rule.warnings.reverseMargin ? '⚠' : '-'}

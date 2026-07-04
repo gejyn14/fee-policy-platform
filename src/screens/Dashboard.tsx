@@ -29,12 +29,13 @@ export default function Dashboard() {
     .filter((r) => r.status === '활성' && r.type !== 'BASE')
     .reduce((a, r) => a + (r.sim?.saving ?? 0), 0);
 
+  const q = query.trim().toUpperCase();
   const visible = rules.filter((r) =>
     (statusFilter === '전체' || r.status === statusFilter) &&
     (typeFilter === '전체' || r.type === typeFilter) &&
     (assetFilter === '전체' || r.scope.assetClass === assetFilter) &&
-    (query === '' || r.name.includes(query) || r.id.includes(query) ||
-      (r.scope.products !== '*' && r.scope.products.some((c) => c.toUpperCase().includes(query.toUpperCase())))));
+    (q === '' || r.name.toUpperCase().includes(q) || r.id.toUpperCase().includes(q) ||
+      (r.scope.products !== '*' && r.scope.products.some((c) => c.toUpperCase().includes(q)))));
 
   const pct = (r: FeeRule) => {
     const [s, e, t] = [Date.parse(r.startDate), Date.parse(r.endDate), Date.parse(TODAY)];
