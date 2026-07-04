@@ -13,7 +13,8 @@ import { classifyLifecycle } from '../domain/lifecycle';
 import { deriveFeeKey } from '../domain/feeKey';
 import { resolve, buildScopeIndex, scopeMatchesKey, type NegoException, type ResolveResult } from '../domain/resolve';
 import { classifyNegoExtension, type ExtGroup } from '../domain/negoExtension';
-import type { QualifyPolicy } from '../domain/types';
+import { qualifyOf } from '../domain/qualify';
+import type { QualifyPolicy, AssetClass, ScopeSelector } from '../domain/types';
 import { ResolveCache, type CacheStat } from '../domain/cache';
 
 const MASTER = generateInstruments();
@@ -38,6 +39,10 @@ interface State {
   extendNegotiated(id: string, newEndDate: string): void;
   reviewNegoExtension(): ExtGroup[];
   applyNegoExtension(): { summary: string; 유지: number; 탈락: number };
+  qualifyStatus(assetClass: AssetClass, accountId: string): { met: boolean; policy: QualifyPolicy | null };
+  submitNegoRequest(input: { accountIds: string[]; scope: ScopeSelector; scheduleId: string; bypass: Record<string, string>; requestedBy: string }): { requestId: string; requested: number };
+  approveNegoRequest(requestId: string): { activated: number };
+  rejectNegoRequest(requestId: string, reason: string): void;
   setWizardDraft(d: { form: unknown; step: number } | null): void;
   syncFromLedger(): { added: number };
   registerInstruments(rows: Instrument[]): { accepted: number; rejected: string[] };
@@ -218,6 +223,46 @@ export const useStore = create<State>((set) => ({
     [...keepIds, ...dropIds].forEach((id) => resolveCache.invalidateAccount(id));
     return { summary: `연장(유지) ${keepIds.size} · 해지(탈락) ${dropIds.size}`, 유지: keepIds.size, 탈락: dropIds.size };
   },
+
+  // 협의 신청 시 계좌의 상품군 표준 자격 충족 여부
+  qualifyStatus: (assetClass, accountId): { met: boolean; policy: QualifyPolicy | null } => {
+    const s = useStore.getState();
+    const acct = s.accounts.find((a) => a.id === accountId);
+    if (!acct) return { met: false, policy: null };
+    return qualifyOf(s.qualifyPolicies, assetClass, acct);
+  },
+  // 협의 신청 — 계좌 리스트마다 '요청' 상태 grant 생성(활성 아님 → 해석 무영향). 미충족은 bypass 사유로 '예외'.
+  submitNegoRequest: (input): { requestId: string; requested: number } => {
+    const s0 = useStore.getState();
+    const requestId = `REQ-${TODAY}-${s0.nego.length + 1}`;
+    const rows: NegoException[] = input.accountIds.map((id) => {
+      const acct = s0.accounts.find((a) => a.id === id);
+      const met = acct ? qualifyOf(s0.qualifyPolicies, input.scope.assetClass, acct).met : false;
+      return {
+        accountId: id, scope: input.scope, scheduleId: input.scheduleId, validFrom: '', validTo: '',
+        status: '요청' as const, qualify: met ? '충족' as const : '예외' as const, reason: met ? undefined : input.bypass[id],
+        requestId, requestedBy: input.requestedBy, requestedAt: TODAY,
+      };
+    });
+    set((s) => ({ nego: [...s.nego, ...rows] }));
+    return { requestId, requested: rows.length };
+  },
+  // 승인 — 요청 grant를 활성화(유효기간 승인일+1년). 영향 계좌 캐시 무효화.
+  approveNegoRequest: (requestId): { activated: number } => {
+    let activated = 0;
+    set((s) => ({
+      nego: s.nego.map((n) => {
+        if (n.requestId !== requestId || n.status !== '요청') return n;
+        activated += 1;
+        return { ...n, status: '활성' as const, validFrom: TODAY, validTo: extendOneYear(TODAY), approvedAt: TODAY };
+      }),
+    }));
+    useStore.getState().nego.filter((n) => n.requestId === requestId).forEach((n) => resolveCache.invalidateAccount(n.accountId));
+    return { activated };
+  },
+  rejectNegoRequest: (requestId, reason) => set((s) => ({
+    nego: s.nego.map((n) => n.requestId === requestId && n.status === '요청' ? { ...n, status: '반려' as const, reason } : n),
+  })),
 
   setWizardDraft: (d) => set({ wizardDraft: d }),
 

@@ -191,3 +191,37 @@ describe('협의수수료 연장 리뷰/적용', () => {
     expect(active('110000001001')).toBe(true);  // 유지
   });
 });
+
+describe('협의 신청·승인', () => {
+  beforeEach(() => useStore.getState().reset());
+  const usScope = { assetClass: '해외주식' as const, exchanges: '*' as const, sessions: '*' as const, channels: '*' as const, currencies: '*' as const, products: '*' as const, excludeProducts: [] };
+
+  it('신청 → 요청 grant 생성, 승인 → 활성화', () => {
+    const s = useStore.getState();
+    const { requestId, requested } = s.submitNegoRequest({ accountIds: ['110000001004'], scope: usScope, scheduleId: 'FS-NEGO-STOCK-US', bypass: {}, requestedBy: 'PB' });
+    expect(requested).toBe(1);
+    expect(useStore.getState().nego.some(n => n.requestId === requestId && n.status === '요청')).toBe(true);
+    useStore.getState().approveNegoRequest(requestId);
+    expect(useStore.getState().nego.some(n => n.requestId === requestId && n.status === '활성' && !!n.approvedAt)).toBe(true);
+  });
+
+  it('미충족 계좌는 bypass 사유로 예외 요청', () => {
+    const s = useStore.getState();
+    const { requestId } = s.submitNegoRequest({ accountIds: ['110000001002'], scope: usScope, scheduleId: 'FS-NEGO-STOCK-US', bypass: { '110000001002': '영업 필요' }, requestedBy: 'PB' });
+    const g = useStore.getState().nego.find(n => n.requestId === requestId)!;
+    expect(g.qualify).toBe('예외'); expect(g.reason).toBe('영업 필요');
+  });
+
+  it('자격 판정: 001 충족, 003 미충족', () => {
+    const s = useStore.getState();
+    expect(s.qualifyStatus('해외주식', '110000001001').met).toBe(true);
+    expect(s.qualifyStatus('해외주식', '110000001003').met).toBe(false);
+  });
+
+  it('반려', () => {
+    const s = useStore.getState();
+    const { requestId } = s.submitNegoRequest({ accountIds: ['110000001004'], scope: usScope, scheduleId: 'FS-NEGO-STOCK-US', bypass: {}, requestedBy: 'PB' });
+    s.rejectNegoRequest(requestId, '검토 보류');
+    expect(useStore.getState().nego.some(n => n.requestId === requestId && n.status === '반려')).toBe(true);
+  });
+});
