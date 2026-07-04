@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { calcFee } from '../domain/calc';
 import { dominates } from '../domain/dominance';
@@ -105,10 +105,20 @@ function makeInitialForm(products: Product[]): WizardForm {
 // ---------------------------------------------------------------------------
 
 export default function Wizard() {
-  const { products, schedules, rules, accounts, enrollments, submitRule } = useStore();
-  const [step, setStep] = useState(1);
-  const [form, setForm] = useState<WizardForm>(() => makeInitialForm(products));
+  const { products, schedules, rules, accounts, enrollments, submitRule, setWizardDraft } = useStore();
+  // 마운트 시 1회만 draft를 읽어 로컬 상태를 초기화한다 (렌더마다 재구독하지 않음 — 루프 방지).
+  const [step, setStep] = useState<number>(() => useStore.getState().wizardDraft?.step ?? 1);
+  const [form, setForm] = useState<WizardForm>(() => {
+    const draft = useStore.getState().wizardDraft;
+    return draft ? (draft.form as WizardForm) : makeInitialForm(products);
+  });
   const [done, setDone] = useState(false);
+
+  // 로컬 상태 → draft 단방향 동기화. wizardDraft는 의존성에 넣지 않는다(넣으면
+  // draft 변경이 이 effect를 재실행시켜 다시 draft를 쓰는 무한 루프가 될 수 있음).
+  useEffect(() => {
+    setWizardDraft({ form, step });
+  }, [form, step]);
 
   const update = (patch: Partial<WizardForm>) => setForm((f) => ({ ...f, ...patch }));
   const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
@@ -263,6 +273,7 @@ export default function Wizard() {
       createdBy: '현업담당자', log: [],
     };
     submitRule(rule, schedule);
+    setWizardDraft(null);
     setDone(true);
   }
 
@@ -270,6 +281,7 @@ export default function Wizard() {
     setForm(makeInitialForm(products));
     setStep(1);
     setDone(false);
+    setWizardDraft(null);
   }
 
   // -------------------------------------------------------------------------

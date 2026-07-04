@@ -68,3 +68,17 @@ it('submitRule with zero matching products → 승인대기 + sim { targets: 0, 
   expect(r.status).toBe('승인대기');
   expect(r.sim).toEqual({ targets: 0, saving: 0, matchedProducts: 0 });
 });
+
+it('wizardDraft는 다른 액션 후에도 유지되고 null로 리셋 가능', () => {
+  useStore.getState().setWizardDraft({ form: { name: '작성중' }, step: 3 });
+  useStore.getState().rebindAll(); // 무관 액션
+  expect(useStore.getState().wizardDraft?.step).toBe(3);
+  useStore.getState().setWizardDraft(null);
+  expect(useStore.getState().wizardDraft).toBeNull();
+});
+
+it('reset()은 wizardDraft도 null로 초기화', () => {
+  useStore.getState().setWizardDraft({ form: { name: '작성중' }, step: 2 });
+  useStore.getState().reset();
+  expect(useStore.getState().wizardDraft).toBeNull();
+});

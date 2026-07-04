@@ -15,11 +15,13 @@ export function evalCondition(rule: FeeRule, acct: Account): boolean {
 interface State {
   accounts: Account[]; products: Product[]; schedules: FeeSchedule[];
   rules: FeeRule[]; enrollments: Enrollment[]; bindings: FeeBinding[];
+  wizardDraft: { form: unknown; step: number } | null;
   reset(): void; rebindAll(): void;
   submitRule(rule: FeeRule, schedule: FeeSchedule): void;
   approveRule(id: string): void;
   rejectRule(id: string, reason: string): void;
   extendNegotiated(id: string, newEndDate: string): void;
+  setWizardDraft(d: { form: unknown; step: number } | null): void;
 }
 
 function allBindings(s: Pick<State, 'accounts' | 'rules' | 'schedules' | 'enrollments' | 'products'>): FeeBinding[] {
@@ -29,11 +31,12 @@ function allBindings(s: Pick<State, 'accounts' | 'rules' | 'schedules' | 'enroll
 export const useStore = create<State>((set) => ({
   accounts: mockAccounts, products: mockProducts, schedules: mockSchedules,
   rules: mockRules, enrollments: mockEnrollments, bindings: [],
+  wizardDraft: null,
 
   reset: () => set(() => {
     const init = { accounts: mockAccounts, products: mockProducts, schedules: mockSchedules,
       rules: mockRules.map(r => ({ ...r, log: [...r.log] })), enrollments: mockEnrollments };
-    return { ...init, bindings: allBindings(init) };
+    return { ...init, bindings: allBindings(init), wizardDraft: null };
   }),
 
   rebindAll: () => set((s) => ({ bindings: allBindings(s) })),
@@ -101,6 +104,8 @@ export const useStore = create<State>((set) => ({
     const next = { ...s, rules };
     return { rules, bindings: allBindings(next) };
   }),
+
+  setWizardDraft: (d) => set({ wizardDraft: d }),
 }));
 
 useStore.getState().reset(); // 초기 바인딩 생성
