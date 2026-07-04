@@ -36,11 +36,12 @@ export function rebindAccount(
 
     const sample = (price: number): Execution =>
       ({ accountId: acct.id, product: p, session: p.sessions[0], price, qty: 10, notional: price * 10 });
-    // 검사 가격 평균 고객부과액으로 비교 (지배관계 검증 덕에 순서 일관)
-    const cost = (r: FeeRule) => {
-      const ps = probePrices(schedOf(r.scheduleId), schedOf(r.scheduleId));
-      return ps.reduce((a, price) => a + calcFee(schedOf(r.scheduleId), sample(price)).customerTotal, 0) / ps.length;
-    };
+    // 검사 가격 평균 고객부과액으로 비교: 모든 후보가 공동 probe grid를 공유해야 공정한 비교가 된다
+    // (구간표 경계가 후보마다 다르면 각자 사설 그리드로 평균 낼 경우 비교가 왜곡됨)
+    const scheds = candidates.map((r) => schedOf(r.scheduleId));
+    const grid = [...new Set(scheds.flatMap((s) => probePrices(s, s)))].sort((a, b) => a - b);
+    const cost = (r: FeeRule) =>
+      grid.reduce((a, price) => a + calcFee(schedOf(r.scheduleId), sample(price)).customerTotal, 0) / grid.length;
     const winner = [...candidates].sort(
       (a, b) => cost(a) - cost(b) || TIE_ORDER[a.type] - TIE_ORDER[b.type],
     )[0];
