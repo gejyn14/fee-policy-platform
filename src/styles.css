@@ -567,3 +567,30 @@ tbody tr.active {
   color: var(--text-muted);
   align-self: center;
 }
+
+/* ---------- FeeTrace step chain (Task 2, v0.3) ---------- */
+
+.trace-step {
+  border-left: 3px solid var(--border);
+}
+
+.trace-step.active {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.trace-rejected td {
+  color: #999;
+  opacity: 0.7;
+}
+
+.trace-winner td {
+  background: #dcfce7;
+}
+
+.trace-narration {
+  margin: 10px 0 0;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-muted);
+}
