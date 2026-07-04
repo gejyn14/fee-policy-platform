@@ -122,6 +122,7 @@ CREATE TABLE FEE_RULE_SCOPE (
     EXCHANGE_ALL_YN   CHAR(1) DEFAULT 'N' NOT NULL,   -- exchanges === '*'
     SESSION_ALL_YN    CHAR(1) DEFAULT 'N' NOT NULL,   -- 참고용 저장만. 바인딩 매칭에는 미사용(컨트롤러 확정 1)
     CURRENCY_ALL_YN   CHAR(1) DEFAULT 'N' NOT NULL,
+    CHANNEL_ALL_YN    CHAR(1) DEFAULT 'Y' NOT NULL,   -- 매체(주문채널) 전체 여부. 기본=전 매체. 'N'이면 SCOPE_ITEM의 CHANNEL 행 참조
     PRODUCT_ALL_YN    CHAR(1) DEFAULT 'N' NOT NULL,
     CONSTRAINT PK_FEE_RULE_SCOPE PRIMARY KEY (RULE_ID),
     CONSTRAINT FK_FEE_RULE_SCOPE_RULE FOREIGN KEY (RULE_ID) REFERENCES FEE_RULE (RULE_ID),
@@ -133,12 +134,12 @@ CREATE SEQUENCE SEQ_SCOPE_ITEM_ID;
 CREATE TABLE FEE_RULE_SCOPE_ITEM (
     ITEM_ID     NUMBER(19)    NOT NULL,
     RULE_ID     VARCHAR2(30)  NOT NULL,
-    DIM_CODE    VARCHAR2(10)  NOT NULL,   -- EXCHANGE / SESSION / CURRENCY / PRODUCT
+    DIM_CODE    VARCHAR2(10)  NOT NULL,   -- EXCHANGE / SESSION / CURRENCY / PRODUCT / CHANNEL
     ITEM_VALUE  VARCHAR2(50)  NOT NULL,   -- 거래소코드/세션코드/통화코드/품목(기초자산)코드
     INCLUDE_YN  CHAR(1)       NOT NULL,   -- Y=포함 리스트, N=제외 리스트(excludeProducts는 항상 PRODUCT+N)
     CONSTRAINT PK_FEE_RULE_SCOPE_ITEM PRIMARY KEY (ITEM_ID),
     CONSTRAINT FK_SCOPE_ITEM_RULE FOREIGN KEY (RULE_ID) REFERENCES FEE_RULE (RULE_ID),
-    CONSTRAINT CK_SCOPE_ITEM_DIM CHECK (DIM_CODE IN ('EXCHANGE','SESSION','CURRENCY','PRODUCT')),
+    CONSTRAINT CK_SCOPE_ITEM_DIM CHECK (DIM_CODE IN ('EXCHANGE','SESSION','CURRENCY','PRODUCT','CHANNEL')),
     CONSTRAINT UQ_SCOPE_ITEM UNIQUE (RULE_ID, DIM_CODE, ITEM_VALUE, INCLUDE_YN)
 );
 CREATE INDEX IDX_SCOPE_ITEM_RULE  ON FEE_RULE_SCOPE_ITEM (RULE_ID, DIM_CODE);
@@ -326,6 +327,7 @@ erDiagram
     FEE_BINDING {
         varchar2_20 account_id PK
         varchar2_50 scope_key PK
+        varchar2_10 channel_code PK
         date valid_from PK
         date valid_to
         varchar2_30 schedule_id FK
@@ -363,6 +365,7 @@ erDiagram
 CREATE TABLE FEE_BINDING (
     ACCOUNT_ID      VARCHAR2(20)   NOT NULL,
     SCOPE_KEY       VARCHAR2(50)   NOT NULL,   -- `${거래소}:${품목코드}` (FeeBinding.scopeKey 주석과 동일)
+    CHANNEL_CODE    VARCHAR2(10)   DEFAULT '*' NOT NULL,   -- 주문 매체(MTS/HTS/영업점 등). '*'=전 매체
     VALID_FROM      DATE           NOT NULL,
     VALID_TO        DATE           NOT NULL,
     SCHEDULE_ID     VARCHAR2(30)   NOT NULL,
@@ -378,28 +381,31 @@ CREATE TABLE FEE_BINDING (
 -- PK 제약과 커버링 인덱스를 겸하는 인덱스: 체결 조회가 인덱스 블록만으로 끝나도록
 -- (index-only access) SCHEDULE_ID/SOURCE_RULE_ID까지 포함한 순서로 생성한다.
 CREATE UNIQUE INDEX PK_FEE_BINDING ON FEE_BINDING
-    (ACCOUNT_ID, SCOPE_KEY, VALID_FROM, VALID_TO, SCHEDULE_ID, SOURCE_RULE_ID);
+    (ACCOUNT_ID, SCOPE_KEY, CHANNEL_CODE, VALID_FROM, VALID_TO, SCHEDULE_ID, SOURCE_RULE_ID);
 
 ALTER TABLE FEE_BINDING
-    ADD CONSTRAINT PK_FEE_BINDING PRIMARY KEY (ACCOUNT_ID, SCOPE_KEY, VALID_FROM)
+    ADD CONSTRAINT PK_FEE_BINDING PRIMARY KEY (ACCOUNT_ID, SCOPE_KEY, CHANNEL_CODE, VALID_FROM)
     USING INDEX PK_FEE_BINDING;
 ```
 
-PK를 `(ACCOUNT_ID, SCOPE_KEY, VALID_FROM)` 3개 컬럼으로 잡은 이유: 동일 계좌×범위키에 대해 승인 시점에 미래 시작일(`START_DATE`)을 갖는 바인딩이 미리 생성되어 현재 유효 구간과 공존할 수 있다(예: 다음 주 시작하는 이벤트를 오늘 승인). 따라서 "계좌×범위키당 1행"이 아니라 "계좌×범위키×유효시작일당 1행"이 정확한 유일성 조건이다. 구간 간 비중첩(no-overlap)은 Oracle 네이티브 제약으로 표현할 수 없으므로 바인딩엔진(쓰기 주체)이 애플리케이션 레벨에서 보장한다.
+PK를 `(ACCOUNT_ID, SCOPE_KEY, CHANNEL_CODE, VALID_FROM)` 4개 컬럼으로 잡은 이유: 동일 계좌×범위키에 대해 승인 시점에 미래 시작일(`START_DATE`)을 갖는 바인딩이 미리 생성되어 현재 유효 구간과 공존할 수 있다(예: 다음 주 시작하는 이벤트를 오늘 승인). 따라서 "계좌×범위키당 1행"이 아니라 "계좌×범위키×유효시작일당 1행"이 정확한 유일성 조건이다. 구간 간 비중첩(no-overlap)은 Oracle 네이티브 제약으로 표현할 수 없으므로 바인딩엔진(쓰기 주체)이 애플리케이션 레벨에서 보장한다.
 
 ### 4.2 체결 시 조회 시나리오
 
 ```sql
 SELECT SCHEDULE_ID, SOURCE_RULE_ID
 FROM   FEE_BINDING
-WHERE  ACCOUNT_ID = :acct
-  AND  SCOPE_KEY  = :scope
+WHERE  ACCOUNT_ID   = :acct
+  AND  SCOPE_KEY    = :scope
+  AND  CHANNEL_CODE IN (:channel, '*')   -- 체결 주문의 매체. 매체 한정 행이 있으면 그것이 우선
   AND  VALID_FROM <= :today
-  AND  :today <= VALID_TO;
+  AND  :today <= VALID_TO
+ORDER  BY CASE WHEN CHANNEL_CODE = :channel THEN 0 ELSE 1 END
+FETCH  FIRST 1 ROW ONLY;
 ```
 
 - `PK_FEE_BINDING` 인덱스가 `(ACCOUNT_ID, SCOPE_KEY, VALID_FROM, VALID_TO, SCHEDULE_ID, SOURCE_RULE_ID)` 순서로 정의되어 있어, 이 쿼리는 `ACCOUNT_ID`/`SCOPE_KEY` 동등조건과 `VALID_FROM` 범위조건까지 인덱스 레인지 스캔으로 좁힌 뒤 `VALID_TO` 필터와 결과 컬럼(`SCHEDULE_ID`, `SOURCE_RULE_ID`) 모두를 인덱스에서 직접 읽어(index-only access) 테이블 블록 접근 없이 응답한다. 체결 hot path의 near-instant 요구(스펙 2장)를 충족하기 위한 핵심 설계다.
-- 정상 운영 시 결과는 0건 또는 1건이다(비중첩 보장 전제). 1건 초과가 반환되면 바인딩엔진의 비중첩 보장이 깨진 것이므로 reconciliation 배치가 이를 별도 이상으로 탐지해야 한다.
+- 정상 운영 시 결과는 매체 값별로 0건 또는 1건 — 즉 `IN (:channel, '*')` 조건으로 최대 2건(매체 한정 행 + `'*'` 행)이 매칭될 수 있고, `ORDER BY`가 매체 한정 행을 우선 선택한다. 같은 `CHANNEL_CODE` 값 안에서 유효구간이 겹쳐 2건 이상 나오면 바인딩엔진의 비중첩 보장이 깨진 것이므로 reconciliation 배치가 이를 별도 이상으로 탐지해야 한다.
 
 ### 4.3 fallback 규칙
 
@@ -420,7 +426,21 @@ WHERE  ACCOUNT_ID = :acct
 - 세션별 차등이 필요한 경우(예: 야간세션만 할인) 룰의 범위(scope) 차원이 아니라 `FEE_SCHEDULE` 내부, 구체적으로 1.1절에서 확장한 `FEE_COMPONENT.SESSION_CODE` 키 차원으로 표현한다. 즉 "이 이벤트는 야간세션에서만 적용"이 아니라 "이 요율표는 세션별로 다른 구성요소를 갖는다"로 모델링한다.
 - `FEE_RULE_SCOPE_ITEM`에 `DIM_CODE='SESSION'` 행이 존재할 수 있으나(위저드 UI에서 세션을 선택 항목으로 노출하는 경우 대비), 이는 표시·감사 목적의 참고 데이터일 뿐 바인딩 조회·매칭 경로에서는 절대 사용하지 않는다. 원장 개발팀은 4.2절 조회 쿼리에 세션 조건이 등장하지 않는 이유가 이 결정 때문임을 인지해야 한다.
 
-### 4.6 최저가 선택 알고리즘 반영 (참고)
+### 4.6 매체(주문채널) 차원 — 바인딩 키 전개 (2026-07-04 요구 추가)
+
+세션(4.5)과 달리 매체는 **바인딩 키의 일부**다. 두 차원의 취급이 다른 이유:
+
+- 세션 차등은 "같은 승자 룰 안에서 요율이 다른 것"(요율 구조의 속성)이므로 `FEE_COMPONENT.SESSION_CODE` 내부 차원으로 충분하다.
+- 매체 한정 이벤트("MTS 주문만 할인")는 **매체에 따라 최저가 승자 룰 자체가 달라진다.** 바인딩이 요율표 하나를 가리키는 구조에서 이를 요율표 내부로 밀어 넣으면 "MTS는 이벤트 요율 + 그 외는 기본 요율"을 합성한 인공 요율표를 만들어야 하는데, 이는 근거 추적(`SOURCE_RULE_ID`)을 오염시키고 룰 종료 시 재합성이 필요해 오류 여지가 크다.
+
+동작 방식:
+
+- `ScopeSelector`에 매체 차원 추가(`FEE_RULE_SCOPE.CHANNEL_ALL_YN` + `FEE_RULE_SCOPE_ITEM`의 `DIM_CODE='CHANNEL'` 행).
+- 바인딩엔진은 후보 룰 중 매체 한정 룰이 있을 때만 매체별로 최저가 비교를 분리 수행한다: `'*'` 행(매체 무관 승자) 1건 + 매체 한정 룰이 이기는 매체에 대해서만 해당 `CHANNEL_CODE` 행을 추가 생성. 매체 한정 룰이 없으면 기존과 동일하게 `'*'` 행 1건뿐이다.
+- 원장 조회(4.2)는 `CHANNEL_CODE IN (:channel, '*')`에서 매체 한정 행을 우선 선택한다. 매체 한정 이벤트가 존재하지 않는 계좌×품목에서는 행이 `'*'` 하나뿐이므로 조회 비용 증가는 없다.
+- 지배관계 검증(등록 시점)도 매체 축으로 분리 적용된다: 매체 한정 이벤트는 **해당 매체의** 기존 적용 요율 대비 전 구간 지배만 검증하면 된다.
+
+### 4.7 최저가 선택 알고리즘 반영 (참고)
 
 `FEE_BINDING`에 최종 기록되는 `SOURCE_RULE_ID`/`SCHEDULE_ID`는 바인딩엔진이 후보 룰들의 요율표 구간 경계를 모두 합친 union probe grid에서 평균 고객부과액을 비교해 결정한 승자다(`rebindAccount`, `probePrices`). 동률 시 tie-break는 협수(NEGOTIATED) > 이벤트(EVENT) > 기본(BASE) 순이다. 이 알고리즘 자체는 플랫폼 내부 로직이며 `FEE_BINDING` 테이블에는 결과만 남으므로, 원장은 이 로직을 알 필요가 없다 — 이것이 "원장은 룰을 모른다" 원칙의 물리적 구현이다.
 
@@ -437,6 +457,7 @@ CREATE TABLE FEE_BINDING_HISTORY (
     HISTORY_ID          NUMBER(19)    NOT NULL,
     ACCOUNT_ID          VARCHAR2(20)  NOT NULL,
     SCOPE_KEY           VARCHAR2(50)  NOT NULL,
+    CHANNEL_CODE        VARCHAR2(10)  DEFAULT '*' NOT NULL,
     OLD_SCHEDULE_ID     VARCHAR2(30),
     OLD_SOURCE_RULE_ID  VARCHAR2(30),
     NEW_SCHEDULE_ID     VARCHAR2(30),
@@ -513,3 +534,4 @@ CREATE INDEX IDX_ACCOUNT_METRIC_DATE ON ACCOUNT_FEE_METRIC_DAILY (METRIC_DATE);
 | 바인딩 변경 이력 | 없음(바인딩은 항상 재계산되는 파생 상태) | `FEE_BINDING_HISTORY` 신규 |
 | reconciliation 결과 | 없음(개념만 스펙에 존재) | `FEE_RECONCILE_LOG` 신규 |
 | 협수 조건 지표(`metric6mAsset`/`metric6mVolume`) | `Account`의 필드 | `ACCOUNT_FEE_METRIC_DAILY` 일 단위 집계 테이블(6절) |
+| 매체(주문채널) 차원 | 미구현 | `FEE_RULE_SCOPE.CHANNEL_ALL_YN` + `SCOPE_ITEM(CHANNEL)` + `FEE_BINDING.CHANNEL_CODE` 바인딩 키 전개(4.6절) |
