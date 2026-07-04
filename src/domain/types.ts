@@ -42,6 +42,9 @@ export interface NegotiatedCondition {
   action: '자동연장' | '승인후연장';
 }
 
+// 협의수수료 자격 정책 — 상품군별 표준 기준(신청 시 자동 자격판정에 사용)
+export interface QualifyPolicy { assetClass: AssetClass; metric: NegotiatedCondition['metric']; threshold: number }
+
 // 적용기간(혜택 기간) — 신청/유입 가능기간(startDate~endDate)과 별개.
 export type BenefitPeriod =
   | { kind: '캘린더' }                    // 룰 캘린더(startDate~endDate)까지
