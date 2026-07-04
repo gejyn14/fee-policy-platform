@@ -41,6 +41,17 @@ export const useStore = create<State>((set, get) => ({
   submitRule: (rule, schedule) => set((s) => {
     // ① 지배관계: 같은 scope의 기존 바인딩 요율표(대표: BASE) 대비 전 구간 비교
     const targetProducts = s.products.filter((p) => scopeMatches(rule.scope, p));
+
+    // Guard: if no products match scope, submit with empty sim
+    if (targetProducts.length === 0) {
+      const submitted: FeeRule = { ...rule, status: '승인대기',
+        warnings: { dominance: true, reverseMargin: false },
+        sim: { targets: 0, saving: 0 },
+        log: [...rule.log, `${TODAY} 기안 상신 (${rule.createdBy})`] };
+      return { schedules: [...s.schedules.filter((x) => x.id !== schedule.id), schedule],
+        rules: [...s.rules.filter((x) => x.id !== rule.id), submitted] };
+    }
+
     const incumbents = s.rules.filter((r) => r.status === '활성' &&
       targetProducts.some((p) => scopeMatches(r.scope, p)));
     const sample = (p: Product) => (price: number): Execution =>

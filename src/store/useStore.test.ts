@@ -51,3 +51,15 @@ it('extendNegotiated → 기간 연장 + log', () => {
   expect(r.endDate).toBe('2027-06-30');
   expect(r.log.at(-1)).toContain('연장');
 });
+
+it('submitRule with zero matching products → 승인대기 + sim { targets: 0, saving: 0 }', () => {
+  const noMatchRule: FeeRule = {
+    id: 'R-NOMATCH', name: '0건 대상 규칙', type: 'EVENT', status: '기안', applyMode: '일괄적용형',
+    startDate: '2026-07-01', endDate: '2026-09-30',
+    scope: { assetClass: '해외파생', exchanges: ['EUREX'], sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
+    scheduleId: 'S-NEW', warnings: { dominance: true, reverseMargin: false }, createdBy: '담당자', log: [] };
+  useStore.getState().submitRule(noMatchRule, newSched);
+  const r = useStore.getState().rules.find(x => x.id === 'R-NOMATCH')!;
+  expect(r.status).toBe('승인대기');
+  expect(r.sim).toEqual({ targets: 0, saving: 0 });
+});
