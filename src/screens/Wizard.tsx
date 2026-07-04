@@ -3,13 +3,14 @@ import { useStore } from '../store/useStore';
 import { calcFee } from '../domain/calc';
 import { explainDominanceFailure, type DominanceFailure } from '../domain/dominance';
 import { scopeMatches, isTarget } from '../domain/binding';
-import { isDerivative } from '../domain/feeKey';
+import { buildFeeKey, isDerivative } from '../domain/feeKey';
+import { scopeMatchesKey } from '../domain/resolve';
 import { TODAY } from '../domain/types';
 import { ruleTypeLabel } from './labels';
 import InstrumentPicker from './InstrumentPicker';
 import { parseCsvCodes, summarize, type Selection } from './pickerLogic';
 import type {
-  ApplyMode, AssetClass, Channel, Execution, FeeComponent, FeeRule, FeeSchedule,
+  ApplyMode, AssetClass, Channel, Execution, FeeComponent, FeeKey, FeeRule, FeeSchedule,
   NegotiatedCondition, Payer, Product, RateBand, ScopeSelector, Session,
 } from '../domain/types';
 
@@ -50,6 +51,9 @@ const METRICS: NegotiatedCondition['metric'][] = ['6개월평균자산', '6개�
 const ACTIONS: NegotiatedCondition['action'][] = ['자동연장', '승인후연장'];
 const STEP_LABELS = ['기본정보', '적용범위', '요율표', '대상', '시뮬레이션', '상신'];
 const STEP5_DISPLAY_CAP = 50;
+
+// 시뮬레이션 단위 행 — 파생은 품목, 주식은 feeKey 구간(거래소·세션·채널).
+type SimRow = { key: string; label: string; current: number | null; next: number };
 
 // ---------------------------------------------------------------------------
 // 폼 상태
@@ -208,33 +212,10 @@ export default function Wizard() {
   const sim = useMemo(() => {
     const scope = buildScope();
     const schedule: FeeSchedule = { id: 'PREVIEW', name: form.name || '(임시)', components: form.components };
-    const targetProducts = products.filter((p) => scopeMatches(scope, p));
-    if (targetProducts.length === 0) {
-      return { targetProducts, targets: [], dominanceFailures: [] as string[], dominanceOk: true, reverseMargin: false, rows: [] as { code: string; name: string; current: number | null; next: number }[] };
-    }
-    const incumbents = rules.filter((r) => r.status === '활성' && targetProducts.some((p) => scopeMatches(r.scope, p)));
-    const dominanceFailures: string[] = [];
-    for (const inc of incumbents) {
-      const incSched = schedules.find((x) => x.id === inc.scheduleId);
-      if (!incSched) continue;
-      // 동일 (기존룰, price) 조합에서 실패한 품목은 품목명을 콤마로 묶어 1줄로 그룹핑한다.
-      const groups = new Map<number, { fail: DominanceFailure; names: string[] }>();
-      for (const p of targetProducts) {
-        const fail = explainDominanceFailure(schedule, incSched, sampleFor(p));
-        if (!fail) continue;
-        const g = groups.get(fail.price);
-        if (g) g.names.push(`${p.name}(${p.code})`);
-        else groups.set(fail.price, { fail, names: [`${p.name}(${p.code})`] });
-      }
-      for (const { fail, names } of groups.values()) {
-        dominanceFailures.push(
-          `${names.join(', ')}: 가격 ${fail.price}에서 신규 ${fail.candidateFee.toLocaleString()}원 > 기존 '${inc.name}' ${fail.incumbentFee.toLocaleString()}원`,
-        );
-      }
-    }
-    const probe = calcFee(schedule, sampleFor(targetProducts[0])(100));
-    const ownReceived = probe.lines.filter((l) => l.kind === '자사' && l.payer === '고객부과').reduce((a, l) => a + l.amount, 0);
-    const reverseMargin = probe.companyBorne > ownReceived;
+    const derivativeLocal = isDerivative(form.assetClass);
+    const activeRules = rules.filter((r) => r.status === '활성');
+
+    // 대상 계좌(트리거/전체/명시) — 상품군 무관
     const previewRule: FeeRule = {
       id: 'PREVIEW', name: form.name, type: form.type, status: '활성', applyMode: form.applyMode,
       startDate: form.startDate, endDate: form.endDate, scope, scheduleId: 'PREVIEW',
@@ -242,28 +223,107 @@ export default function Wizard() {
       warnings: { dominance: true, reverseMargin: false }, createdBy: '', log: [],
     };
     const targets = accounts.filter((a) => isTarget(previewRule, a, enrollments));
-    // 현행 비교는 해당 품목에 스코프가 일치하는 모든 활성 룰 중 최저 수수료 기준
-    // (지배관계 검증은 위에서 전 활성 룰 대상으로 이미 수행)
-    const rows = targetProducts.map((p) => {
-      const matchingIncumbents = incumbents.filter((r) => scopeMatches(r.scope, p));
-      let current: number | null = null;
-      for (const inc of matchingIncumbents) {
+    const empty = {
+      targets, matchedCount: 0, unitNoun: derivativeLocal ? '품목' : 'feeKey 구간',
+      unitSamples: [] as string[], rows: [] as SimRow[],
+      dominanceFailures: [] as string[], dominanceOk: true, reverseMargin: false,
+    };
+
+    if (derivativeLocal) {
+      // 파생: feeKey에 품목이 남으므로 종목 단위로 시뮬레이션.
+      const targetProducts = products.filter((p) => scopeMatches(scope, p));
+      if (targetProducts.length === 0) return empty;
+      const incumbents = activeRules.filter((r) => targetProducts.some((p) => scopeMatches(r.scope, p)));
+      const dominanceFailures: string[] = [];
+      for (const inc of incumbents) {
         const incSched = schedules.find((x) => x.id === inc.scheduleId);
-        if (incSched) {
-          const fee = calcFee(incSched, sampleFor(p)(100)).customerTotal;
-          if (current === null || fee < current) {
-            current = fee;
-          }
+        if (!incSched) continue;
+        // 동일 (기존룰, price) 조합에서 실패한 품목은 품목명을 콤마로 묶어 1줄로 그룹핑한다.
+        const groups = new Map<number, { fail: DominanceFailure; names: string[] }>();
+        for (const p of targetProducts) {
+          const fail = explainDominanceFailure(schedule, incSched, sampleFor(p));
+          if (!fail) continue;
+          const g = groups.get(fail.price);
+          if (g) g.names.push(`${p.name}(${p.code})`);
+          else groups.set(fail.price, { fail, names: [`${p.name}(${p.code})`] });
         }
+        for (const { fail, names } of groups.values())
+          dominanceFailures.push(`${names.join(', ')}: 가격 ${fail.price}에서 신규 ${fail.candidateFee.toLocaleString()}원 > 기존 '${inc.name}' ${fail.incumbentFee.toLocaleString()}원`);
       }
-      const next = calcFee(schedule, sampleFor(p)(100)).customerTotal;
-      return { code: p.code, name: p.name, current, next };
-    });
-    return { targetProducts, targets, dominanceFailures, dominanceOk: dominanceFailures.length === 0, reverseMargin, rows };
+      const probe = calcFee(schedule, sampleFor(targetProducts[0])(100));
+      const ownReceived = probe.lines.filter((l) => l.kind === '자사' && l.payer === '고객부과').reduce((a, l) => a + l.amount, 0);
+      const rows: SimRow[] = targetProducts.map((p) => {
+        const matching = incumbents.filter((r) => scopeMatches(r.scope, p));
+        let current: number | null = null;
+        for (const inc of matching) {
+          const incSched = schedules.find((x) => x.id === inc.scheduleId);
+          if (incSched) { const fee = calcFee(incSched, sampleFor(p)(100)).customerTotal; current = current === null ? fee : Math.min(current, fee); }
+        }
+        return { key: `${p.exchange}:${p.code}`, label: `${p.code} (${p.name})`, current, next: calcFee(schedule, sampleFor(p)(100)).customerTotal };
+      });
+      return {
+        targets, matchedCount: targetProducts.length, unitNoun: '품목',
+        unitSamples: targetProducts.map((p) => `${p.code}(${p.name})`), rows,
+        dominanceFailures, dominanceOk: dominanceFailures.length === 0, reverseMargin: probe.companyBorne > ownReceived,
+      };
+    }
+
+    // 주식형: 품목 붕괴 → feeKey(거래소×세션×채널) 단위로 시뮬레이션(종목 전개 없음).
+    const exAll = [...new Set(products.filter((p) => p.assetClass === form.assetClass).map((p) => p.exchange))];
+    const exList = scope.exchanges === '*' ? exAll : scope.exchanges;
+    const seList = (scope.sessions === '*' ? SESSION_DIM : scope.sessions) as Session[];
+    const chList = ((scope.channels ?? '*') === '*' ? CHANNELS : scope.channels) as Channel[];
+    if (exList.length === 0) return empty;
+
+    // calcFee는 품목·세션·채널을 안 쓰므로 대표 execution 하나면 충분(product-independent).
+    const rep: Product = { assetClass: form.assetClass, exchange: exList[0], code: '(전체)', name: '대표', currency: form.assetClass.startsWith('해외') ? 'USD' : 'KRW', sessions: [seList[0] ?? '정규'] };
+    const sampleAt = (price: number): Execution => ({ accountId: 'SIM', product: rep, session: seList[0] ?? '정규', price, qty: 10, notional: price * 10 });
+    const probe = calcFee(schedule, sampleAt(100));
+    const ownReceived = probe.lines.filter((l) => l.kind === '자사' && l.payer === '고객부과').reduce((a, l) => a + l.amount, 0);
+    const nextFee = probe.customerTotal;
+
+    const feeKeys: FeeKey[] = [];
+    for (const ex of exList) for (const se of seList) for (const ch of chList) feeKeys.push(buildFeeKey(form.assetClass, ex, se, ch));
+
+    // 지배관계: feeKey들에 겹치는 활성 룰의 합집합에 대해 1회씩 검사.
+    const incMap = new Map<string, FeeRule>();
+    for (const fk of feeKeys) for (const r of activeRules) if (scopeMatchesKey(r.scope, fk)) incMap.set(r.id, r);
+    const dominanceFailures: string[] = [];
+    for (const inc of incMap.values()) {
+      const incSched = schedules.find((x) => x.id === inc.scheduleId);
+      if (!incSched) continue;
+      const fail = explainDominanceFailure(schedule, incSched, sampleAt);
+      if (fail) dominanceFailures.push(`가격 ${fail.price}에서 신규 ${fail.candidateFee.toLocaleString()}원 > 기존 '${inc.name}' ${fail.incumbentFee.toLocaleString()}원`);
+    }
+
+    // 표: feeKey 구간을 (겹치는 활성 룰 집합 + 현행 최저요율)이 같은 것끼리 묶어 요약 1줄로.
+    const groups = new Map<string, { exs: Set<string>; ses: Set<string>; chs: Set<string>; current: number | null }>();
+    for (const fk of feeKeys) {
+      const matching = activeRules.filter((r) => scopeMatchesKey(r.scope, fk));
+      let current: number | null = null;
+      for (const inc of matching) {
+        const incSched = schedules.find((x) => x.id === inc.scheduleId);
+        if (incSched) { const fee = calcFee(incSched, sampleAt(100)).customerTotal; current = current === null ? fee : Math.min(current, fee); }
+      }
+      const sig = matching.map((r) => r.id).sort().join(',') + '|' + current;
+      const g = groups.get(sig) ?? { exs: new Set<string>(), ses: new Set<string>(), chs: new Set<string>(), current };
+      g.exs.add(fk.exchange); g.ses.add(fk.session); g.chs.add(fk.channel);
+      groups.set(sig, g);
+    }
+    const dim = (set: Set<string>, full: number, word: string) => set.size >= full ? word : [...set].join('·');
+    const rows: SimRow[] = [...groups.entries()].map(([sig, g]) => ({
+      key: sig,
+      label: `${dim(g.exs, exAll.length, '전 거래소')} · ${dim(g.ses, SESSION_DIM.length, '전 세션')} · ${dim(g.chs, CHANNELS.length, '전 채널')}`,
+      current: g.current, next: nextFee,
+    }));
+    return {
+      targets, matchedCount: feeKeys.length, unitNoun: 'feeKey 구간',
+      unitSamples: rows.map((r) => r.label), rows,
+      dominanceFailures, dominanceOk: dominanceFailures.length === 0, reverseMargin: probe.companyBorne > ownReceived,
+    };
   }, [form, products, rules, schedules, accounts, enrollments]);
-  // 2단계 매칭 품목 수 — sim(useMemo)이 이미 scopeMatches 기반으로 계산한
-  // targetProducts를 그대로 재사용한다(중복 계산 방지).
-  const matchedProductCount = sim.targetProducts.length;
+  // 2단계 게이트용 매칭 수 — 파생=품목 수, 주식=feeKey 구간 수.
+  const matchedProductCount = sim.matchedCount;
 
   const canProceed1 = form.name.trim() !== '' && form.startDate <= form.endDate &&
     (form.type !== 'NEGOTIATED' || form.condThreshold > 0);
@@ -441,7 +501,9 @@ export default function Wizard() {
           <p className="trace-narration">주식은 종목 차원이 없다 — 이 룰은 거래소·세션·채널로만 해석되어 해당 조건의 전 종목에 적용된다.</p>
         )}
 
-        <p className={matchedProductCount === 0 ? 'warn' : undefined}>적용 종목 {matchedProductCount}개</p>
+        <p className={matchedProductCount === 0 ? 'warn' : undefined}>
+          {showProductPicker ? `적용 종목 ${matchedProductCount}개` : `적용 대상 ${matchedProductCount}개 구간(거래소×세션×채널)`}
+        </p>
         {showProductPicker && matchedProductCount === 0 && (
           <p className="warn">선택/제외 조건으로 매칭되는 품목이 없습니다.</p>
         )}
@@ -580,29 +642,29 @@ export default function Wizard() {
       <div className="stack">
         <div className="cards">
           <div className="card"><h3>{sim.targets.length}</h3><p>대상 계좌 수</p></div>
-          <div className="card"><h3>{sim.targetProducts.length}</h3><p>매칭 품목 수</p></div>
+          <div className="card"><h3>{sim.matchedCount}</h3><p>{sim.unitNoun === '품목' ? '매칭 품목 수' : '적용 feeKey 구간 수'}</p></div>
           <div className={sim.reverseMargin ? 'card warn' : 'card'}><h3>{sim.reverseMargin ? '예' : '아니오'}</h3><p>역마진 여부</p></div>
         </div>
 
-        <h2>매칭 품목</h2>
-        {sim.targetProducts.length === 0
-          ? <p className="empty">매칭되는 품목이 없습니다. 적용범위를 다시 확인하세요.</p>
+        <h2>{sim.unitNoun === '품목' ? '매칭 품목' : '적용 구간 (거래소·세션·채널)'}</h2>
+        {sim.unitSamples.length === 0
+          ? <p className="empty">적용 대상이 없습니다. 적용범위를 다시 확인하세요.</p>
           : (
             <p>
-              {sim.targetProducts.slice(0, STEP5_DISPLAY_CAP).map((p) => `${p.code}(${p.name})`).join(', ')}
-              {sim.targetProducts.length > STEP5_DISPLAY_CAP && ` 외 ${sim.targetProducts.length - STEP5_DISPLAY_CAP}건`}
+              {sim.unitSamples.slice(0, STEP5_DISPLAY_CAP).join(', ')}
+              {sim.unitSamples.length > STEP5_DISPLAY_CAP && ` 외 ${sim.unitSamples.length - STEP5_DISPLAY_CAP}건`}
             </p>
           )}
 
         <h2>표본 체결 기준 수수료 비교 (가격 100, 수량 10)</h2>
-        {sim.rows.length === 0 ? <p className="empty">비교할 품목이 없습니다.</p> : (
+        {sim.rows.length === 0 ? <p className="empty">비교할 대상이 없습니다.</p> : (
           <>
             <table>
-              <thead><tr><th>품목</th><th>현행 고객부담</th><th>신규 고객부담</th><th>차이</th></tr></thead>
+              <thead><tr><th>{sim.unitNoun === '품목' ? '품목' : '구간(거래소·세션·채널)'}</th><th>현행 고객부담</th><th>신규 고객부담</th><th>차이</th></tr></thead>
               <tbody>
                 {sim.rows.slice(0, STEP5_DISPLAY_CAP).map((r) => (
-                  <tr key={r.code}>
-                    <td>{r.code} ({r.name})</td>
+                  <tr key={r.key}>
+                    <td>{r.label}</td>
                     <td>{r.current === null ? '해당없음' : r.current.toLocaleString()}</td>
                     <td>{r.next.toLocaleString()}</td>
                     <td>{r.current === null ? '-' : (r.current - r.next).toLocaleString()}</td>
