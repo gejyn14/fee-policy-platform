@@ -13,6 +13,7 @@ import { classifyLifecycle } from '../domain/lifecycle';
 import { evalCondition } from '../domain/eligibility';
 import { deriveFeeKey } from '../domain/feeKey';
 import { resolve, buildScopeIndex, scopeMatchesKey, type NegoException, type ResolveResult } from '../domain/resolve';
+import { classifyNegoExtension, type ExtGroup } from '../domain/negoExtension';
 import { ResolveCache, type CacheStat } from '../domain/cache';
 
 const MASTER = generateInstruments();
@@ -34,6 +35,8 @@ interface State {
   approveRule(id: string): void;
   rejectRule(id: string, reason: string): void;
   extendNegotiated(id: string, newEndDate: string): void;
+  reviewNegoExtension(): ExtGroup[];
+  applyNegoExtension(): { summary: string; 신규: number; 유지: number; 탈락: number };
   setWizardDraft(d: { form: unknown; step: number } | null): void;
   syncFromLedger(): { added: number };
   registerInstruments(rows: Instrument[]): { accepted: number; rejected: string[] };
@@ -190,6 +193,34 @@ export const useStore = create<State>((set) => ({
       return { rules };
     });
     if (scope) resolveCache.invalidateByScope((k) => scopeMatchesKey(scope!, k));
+  },
+
+  // 협의수수료 연장 대상 확인(무변경) — 만료 임박 협의를 재평가해 신규/유지/탈락 그룹 산출.
+  reviewNegoExtension: (): ExtGroup[] => {
+    const s = useStore.getState();
+    return classifyNegoExtension(s.rules, s.accounts, s.enrollments, s.nego, TODAY);
+  },
+  // 담당자 일괄 승인 — 신규/유지는 협의 부여·연장, 탈락은 해지. 영향 계좌 캐시 무효화.
+  applyNegoExtension: (): { summary: string; 신규: number; 유지: number; 탈락: number } => {
+    const s0 = useStore.getState();
+    const groups = classifyNegoExtension(s0.rules, s0.accounts, s0.enrollments, s0.nego, TODAY);
+    const counts = { 신규: 0, 유지: 0, 탈락: 0 };
+    set((s) => {
+      let nego = [...s.nego];
+      for (const g of groups) {
+        const rule = s.rules.find((r) => r.id === g.ruleId);
+        if (!rule) continue;
+        for (const c of g.candidates) {
+          counts[c.status] += 1;
+          nego = nego.filter((n) => !(n.accountId === c.accountId && n.scheduleId === rule.scheduleId));
+          if (c.status !== '탈락')
+            nego.push({ accountId: c.accountId, scope: rule.scope, scheduleId: rule.scheduleId, validFrom: TODAY, validTo: extendOneYear(rule.endDate) });
+          resolveCache.invalidateAccount(c.accountId);
+        }
+      }
+      return { nego };
+    });
+    return { summary: `연장 ${counts.신규 + counts.유지}(신규 ${counts.신규}·유지 ${counts.유지}) · 탈락 ${counts.탈락}`, ...counts };
   },
 
   setWizardDraft: (d) => set({ wizardDraft: d }),

@@ -31,8 +31,17 @@ function dDay(endDate: string): number {
 interface Row { rule: FeeRule; account: Account }
 
 export default function Negotiated() {
-  const { rules, accounts, enrollments, extendNegotiated } = useStore();
+  const { rules, accounts, enrollments, extendNegotiated, reviewNegoExtension, applyNegoExtension } = useStore();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [applyMsg, setApplyMsg] = useState<string | null>(null);
+  const [openGroup, setOpenGroup] = useState<Set<string>>(new Set());
+
+  const extGroups = reviewNegoExtension();
+  const totalC = extGroups.reduce((a, g) => ({
+    신규: a.신규 + g.counts.신규, 유지: a.유지 + g.counts.유지, 탈락: a.탈락 + g.counts.탈락,
+  }), { 신규: 0, 유지: 0, 탈락: 0 });
+  const statusPill = (s: '신규' | '유지' | '탈락') =>
+    s === '탈락' ? 'pill-rejected' : s === '신규' ? 'pill-draft' : 'pill-active';
 
   const rows: Row[] = rules
     .filter((r) => r.type === 'NEGOTIATED')
@@ -41,9 +50,75 @@ export default function Negotiated() {
       .map((e) => ({ rule, account: accounts.find((a) => a.id === e.accountId) }))
       .filter((r): r is Row => !!r.account));
 
+  function toggleGroup(key: string) {
+    setOpenGroup((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  const reviewCard = (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <h2>연장 대상 확인 (만료 임박 자동 산출)</h2>
+      <p className="trace-narration">
+        신청·승인은 계좌별로 하지만, 연장은 상품군(주식)·품목(파생) 단위로 대상을 단체로 뽑아 조건을 재평가한다.
+        기존 대비 <b>신규</b>(새로 충족)·<b>유지</b>(계속 충족)·<b>탈락</b>(더는 미충족)으로 나뉜다.
+      </p>
+      <div className="check-grid" style={{ marginBottom: 12 }}>
+        <span className="pill pill-draft">신규 {totalC.신규}</span>
+        <span className="pill pill-active">유지 {totalC.유지}</span>
+        <span className="pill pill-rejected">탈락 {totalC.탈락}</span>
+        <button className="btn primary" type="button" disabled={extGroups.length === 0}
+          onClick={() => setApplyMsg(applyNegoExtension().summary)}>일괄 연장 승인</button>
+        {applyMsg && <span className="badge">{applyMsg}</span>}
+      </div>
+      {extGroups.length === 0 ? (
+        <p className="empty">연장 대상 협의가 없습니다.</p>
+      ) : (
+        <table>
+          <thead><tr><th>그룹</th><th>협의 룰</th><th>만료</th><th>신규</th><th>유지</th><th>탈락</th></tr></thead>
+          <tbody>
+            {extGroups.map((g) => {
+              const open = openGroup.has(g.ruleId);
+              const dday = dDay(g.endDate);
+              return (
+                <Fragment key={g.ruleId}>
+                  <tr onClick={() => toggleGroup(g.ruleId)} style={{ cursor: 'pointer' }}>
+                    <td>{g.axis === '품목' ? `품목 ${g.groupKey}` : g.groupKey}</td>
+                    <td>{g.ruleName}</td>
+                    <td className={dday <= 30 ? 'warn' : undefined}>D{dday >= 0 ? '-' : '+'}{Math.abs(dday)}</td>
+                    <td>{g.counts.신규}</td><td>{g.counts.유지}</td><td className={g.counts.탈락 ? 'warn' : undefined}>{g.counts.탈락}</td>
+                  </tr>
+                  {open && (
+                    <tr><td colSpan={6}>
+                      <table>
+                        <thead><tr><th>계좌</th><th>분류</th><th>사유</th></tr></thead>
+                        <tbody>
+                          {g.candidates.map((c) => (
+                            <tr key={c.accountId}>
+                              <td>{c.accountId} {c.accountName}</td>
+                              <td><span className={`pill ${statusPill(c.status)}`}>{c.status}</span></td>
+                              <td>{c.detail}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </td></tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+
   if (rows.length === 0) {
     return (
       <section>
+        {reviewCard}
         <p className="empty">관리 중인 협의수수료가 없습니다.</p>
       </section>
     );
@@ -60,6 +135,8 @@ export default function Negotiated() {
 
   return (
     <section>
+      {reviewCard}
+      <h2>협의 현황 (계좌별)</h2>
       <table>
         <thead>
           <tr>

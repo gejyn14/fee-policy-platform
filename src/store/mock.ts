@@ -107,6 +107,13 @@ export const mockSchedules: FeeSchedule[] = [
       { name: '증권거래세', kind: '세금', payer: '고객부과', rateType: '정률', rateBp: 15 },
     ],
   },
+  {
+    id: 'FS-NEGO-DERIV-CME',
+    name: '해외파생 CME 협의 요율',
+    components: [
+      { name: '위탁수수료', kind: '자사', payer: '고객부과', rateType: '정액', flatAmount: 1 },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -233,11 +240,26 @@ export const mockRules: FeeRule[] = [
     createdBy: '마케팅팀',
     log: ['2026-03-25 기안 → 2026-03-30 승인 → 활성'],
   },
+  // 파생 품목별 협의(연장 리뷰의 '품목' 축) — 만료 임박(2026-08-15)
+  {
+    id: 'RULE-NEGO-DERIV-CME',
+    name: '해외파생 CME 6A 대량약정 협의',
+    type: 'NEGOTIATED', status: '활성', applyMode: '신청형',
+    startDate: '2026-01-01', endDate: '2026-08-15',
+    scope: { assetClass: '해외파생', exchanges: ['CME'], sessions: '*', channels: '*', currencies: '*', products: ['6A'], excludeProducts: [] },
+    scheduleId: 'FS-NEGO-DERIV-CME',
+    condition: { metric: '6개월약정액', threshold: 100_000_000, action: '승인후연장' },
+    warnings: { dominance: true, reverseMargin: false },
+    createdBy: 'PB팀',
+    log: ['2026-01-05 기안 → 2026-01-10 승인 → 활성'],
+  },
 ];
 
 export const mockEnrollments: Enrollment[] = [
   { accountId: '110000001001', ruleId: 'RULE-NEGO-STOCK-US', enrolledAt: '2026-01-15', channel: 'HTS' },
   { accountId: '110000001002', ruleId: 'RULE-NEGO-STOCK-US', enrolledAt: '2026-03-02', channel: '지점' },
+  { accountId: '110000001004', ruleId: 'RULE-NEGO-STOCK-US', enrolledAt: '2026-05-10', channel: '지점' }, // 24억 충족·미보유 → 연장 리뷰의 '신규'
+  { accountId: '110000001004', ruleId: 'RULE-NEGO-DERIV-CME', enrolledAt: '2026-02-01', channel: 'API' }, // 파생 품목(6A) 협의 신청(약정 98억 충족)
   // 신규 가입 2개월 무료 — 001은 최근 가입(혜택 유효), 004는 이른 가입(혜택 만료)
   { accountId: '110000001001', ruleId: 'RULE-EVENT-STOCK-SIGNUP2M', enrolledAt: '2026-06-20', channel: 'MTS' }, // +2m=2026-08-20 유효
   { accountId: '110000001004', ruleId: 'RULE-EVENT-STOCK-SIGNUP2M', enrolledAt: '2026-04-10', channel: 'HTS' }, // +2m=2026-06-10 만료
@@ -248,5 +270,9 @@ export const mockEnrollments: Enrollment[] = [
 export const mockNego: NegoException[] = [
   { accountId: '110000001001',
     scope: { assetClass: '해외주식', exchanges: '*', sessions: '*', channels: '*', currencies: '*', products: '*', excludeProducts: [] },
-    scheduleId: 'FS-NEGO-STOCK-US', validFrom: '2026-01-10', validTo: '2026-12-31' },
+    scheduleId: 'FS-NEGO-STOCK-US', validFrom: '2026-01-10', validTo: '2026-07-31' },
+  // 연장 리뷰의 '탈락' 시연: 협의 보유하나 6개월평균자산 3천만(<5억) 미충족
+  { accountId: '110000001003',
+    scope: { assetClass: '해외주식', exchanges: '*', sessions: '*', channels: '*', currencies: '*', products: '*', excludeProducts: [] },
+    scheduleId: 'FS-NEGO-STOCK-US', validFrom: '2026-01-10', validTo: '2026-07-31' },
 ];

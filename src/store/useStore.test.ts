@@ -192,3 +192,30 @@ describe('resolveFee + 캐시', () => {
     expect(expired.sourceRuleId).not.toBe('RULE-EVENT-STOCK-SIGNUP2M');
   });
 });
+
+describe('협의수수료 연장 리뷰/적용', () => {
+  beforeEach(() => useStore.getState().reset());
+
+  it('리뷰가 해외주식 그룹의 유지·탈락을 분류(001 유지, 003 탈락)', () => {
+    const groups = useStore.getState().reviewNegoExtension();
+    const stockG = groups.find(g => g.groupKey === '해외주식')!;
+    const byId = Object.fromEntries(stockG.candidates.map(c => [c.accountId, c.status]));
+    expect(byId['110000001001']).toBe('유지');
+    expect(byId['110000001004']).toBe('신규');
+    expect(byId['110000001003']).toBe('탈락');
+  });
+
+  it('파생 협의는 품목 축', () => {
+    const groups = useStore.getState().reviewNegoExtension();
+    expect(groups.some(g => g.axis === '품목' && g.groupKey === '6A')).toBe(true);
+  });
+
+  it('일괄 승인: 탈락 grant 해지, 신규/유지 grant 보유', () => {
+    useStore.getState().applyNegoExtension();
+    const nego = useStore.getState().nego;
+    const has = (id: string) => nego.some(n => n.accountId === id && n.scheduleId === 'FS-NEGO-STOCK-US');
+    expect(has('110000001003')).toBe(false); // 탈락 해지
+    expect(has('110000001001')).toBe(true);  // 유지
+    expect(has('110000001004')).toBe(true);  // 신규 부여
+  });
+});
