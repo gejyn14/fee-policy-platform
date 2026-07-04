@@ -4,6 +4,8 @@ import type { BatchJobResult } from '../domain/types';
 
 type StoreState = ReturnType<typeof useStore.getState>;
 
+const DRILL_CAP = 50;   // 드릴다운 표시 상한 (대량 일괄 변경 시 렌더 폭주·핵심 행 매몰 방지)
+
 const JOBS = [
   { key: 'lifecycle', title: '① 룰 발효/만료', run: (s: StoreState) => s.batchActivateExpireRules() },
   { key: 'metrics', title: '② 지표 재산정', run: (s: StoreState) => s.batchRecomputeMetrics() },
@@ -76,9 +78,14 @@ export default function BatchOps() {
                     {result.changes.length === 0 ? (
                       <tr><td colSpan={2}><p className="empty">변경 없음</p></td></tr>
                     ) : (
-                      result.changes.map((c, ci) => (
-                        <tr key={ci}><td>{c.label}</td><td>{c.detail}</td></tr>
-                      ))
+                      <>
+                        {result.changes.slice(0, DRILL_CAP).map((c, ci) => (
+                          <tr key={ci}><td>{c.label}</td><td>{c.detail}</td></tr>
+                        ))}
+                        {result.changes.length > DRILL_CAP && (
+                          <tr><td colSpan={2}><p className="empty">그 외 {result.changes.length - DRILL_CAP}건 (변경 총 {result.changes.length}건)</p></td></tr>
+                        )}
+                      </>
                     )}
                   </tbody>
                 </table>

@@ -237,12 +237,21 @@ export const useStore = create<State>((set) => ({
     const before = new Map<string, string>(useStore.getState().bindings.map((b) => [`${b.accountId}|${b.scopeKey}`, b.scheduleId]));
     set((s) => ({ bindings: allBindings(s) }));
     const after = useStore.getState().bindings;
-    const changes: BatchChange[] = [];
+    // 변경 행을 새 바인딩 출처 룰 유형(협수>이벤트>기본) 순으로 정렬해, 소수의 협수 캐스케이드가
+    // 대량 이벤트 변경(예: 국내주식 프로모션 일괄 적용)에 묻히지 않고 상단에 오게 한다.
+    const typeOf = new Map(useStore.getState().rules.map((r) => [r.id, r.type] as const));
+    const rank: Record<string, number> = { NEGOTIATED: 0, EVENT: 1, BASE: 2 };
+    const rows: { change: BatchChange; r: number }[] = [];
     for (const b of after) {
       const key = `${b.accountId}|${b.scopeKey}`;
       const prev = before.get(key);
-      if (prev !== b.scheduleId) changes.push({ label: `${b.accountId} ${b.scopeKey}`, detail: `${prev ?? '(신규)'} → ${b.scheduleId}` });
+      if (prev !== b.scheduleId) rows.push({
+        change: { label: `${b.accountId} ${b.scopeKey}`, detail: `${prev ?? '(신규)'} → ${b.scheduleId}` },
+        r: rank[typeOf.get(b.sourceRuleId) ?? 'BASE'] ?? 2,
+      });
     }
+    rows.sort((a, b) => a.r - b.r);
+    const changes = rows.map((x) => x.change);
     return { summary: `바인딩 변경 ${changes.length}`, changes };
   },
 
