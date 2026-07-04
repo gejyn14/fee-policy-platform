@@ -1,6 +1,7 @@
 import { it, expect, describe } from 'vitest';
-import { scopeMatchesKey, findBaseSchedule, buildScopeIndex } from './resolve';
-import type { FeeKey, FeeRule, FeeSchedule, ScopeSelector } from './types';
+import { scopeMatchesKey, findBaseSchedule, buildScopeIndex, resolve } from './resolve';
+import type { NegoException } from './resolve';
+import type { Account, FeeKey, FeeRule, FeeSchedule, ScopeSelector } from './types';
 
 const key = (over: Partial<FeeKey> = {}): FeeKey =>
   ({ assetClass: '국내주식', exchange: 'KRX', session: '정규', channel: 'MTS', product: null, ...over });
@@ -56,5 +57,35 @@ describe('findBaseSchedule / buildScopeIndex', () => {
     expect(c.map(r => r.id)).not.toContain('R-OLD');   // 기간 밖
     expect(c.map(r => r.id)).not.toContain('R-BASE');  // BASE는 scope_index 아님
     expect(idx.candidatesFor(key({ channel: 'HTS' })).map(r => r.id)).not.toContain('R-EVT'); // 채널 불일치
+  });
+});
+
+describe('resolve', () => {
+  const acct: Account = { id: '110000001002', name: '이', grade: 'SILVER', dormantReturned: false, metric6mAsset: 600_000_000, metric6mVolume: 0 };
+  const schedules = [sched('S-BASE', 100), sched('S-EVT', 50), sched('S-NEGO', 30)];
+  const base = rule({ id: 'R-BASE', scheduleId: 'S-BASE' });
+  const evt = rule({ id: 'R-EVT', type: 'EVENT', scheduleId: 'S-EVT', scope: scope({ channels: ['MTS'] }) });
+  const idx = (rs = [base, evt]) => buildScopeIndex(rs, '2026-07-04');
+
+  it('BASE만이면 base 승자', () => {
+    const r = resolve(acct, key(), [base], schedules, [], idx([base]), '2026-07-04');
+    expect(r!.source).toBe('base'); expect(r!.scheduleId).toBe('S-BASE');
+  });
+  it('이벤트가 더 싸면 event 승자', () => {
+    const r = resolve(acct, key({ channel: 'MTS' }), [base, evt], schedules, [], idx(), '2026-07-04');
+    expect(r!.source).toBe('event'); expect(r!.sourceRuleId).toBe('R-EVT');
+    expect(r!.candidates[0].isWinner).toBe(true);
+    expect(r!.candidates.map(c => c.avgCustomerFee)).toEqual([...r!.candidates.map(c => c.avgCustomerFee)].sort((a,b)=>a-b));
+  });
+  it('nego가 최저가면 nego 승자(rule null, sourceRuleId null)', () => {
+    const nego: NegoException[] = [{ accountId: acct.id, scope: scope({ channels: '*' }), scheduleId: 'S-NEGO', validFrom: '2026-01-01', validTo: '2026-12-31' }];
+    const r = resolve(acct, key({ channel: 'MTS' }), [base, evt], schedules, nego, idx(), '2026-07-04');
+    expect(r!.source).toBe('nego'); expect(r!.sourceRuleId).toBeNull();
+    expect(r!.scheduleId).toBe('S-NEGO');
+  });
+  it('다른 계좌 nego는 무시', () => {
+    const nego: NegoException[] = [{ accountId: '999999999999', scope: scope(), scheduleId: 'S-NEGO', validFrom: '2026-01-01', validTo: '2026-12-31' }];
+    const r = resolve(acct, key({ channel: 'MTS' }), [base, evt], schedules, nego, idx(), '2026-07-04');
+    expect(r!.source).toBe('event');
   });
 });
