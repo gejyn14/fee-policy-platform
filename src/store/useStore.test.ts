@@ -1,4 +1,4 @@
-import { it, expect, beforeEach } from 'vitest';
+import { it, expect, beforeEach, describe } from 'vitest';
 import { useStore, evalCondition } from './useStore';
 import type { FeeRule, FeeSchedule } from '../domain/types';
 
@@ -116,4 +116,43 @@ it('성능: rebindAll이 2초 이내', () => {
   const t0 = performance.now();
   useStore.getState().rebindAll();
   expect(performance.now() - t0).toBeLessThan(2000);
+});
+
+describe('배치 잡', () => {
+  beforeEach(() => useStore.getState().reset());
+
+  it('① 발효/만료: 승인대기→활성, 만료 활성→종료', () => {
+    const res = useStore.getState().batchActivateExpireRules();
+    const rules = useStore.getState().rules;
+    expect(rules.find(r => r.id === 'RULE-EVENT-KR-PROMO')!.status).toBe('활성');
+    expect(rules.find(r => r.id === 'RULE-EVENT-KR-SPRING')!.status).toBe('종료');
+    expect(res.summary).toContain('발효');
+  });
+
+  it('② 지표 재산정: A-1002 자산이 5억을 넘는다', () => {
+    useStore.getState().batchRecomputeMetrics();
+    const a = useStore.getState().accounts.find(x => x.id === 'A-1002')!;
+    expect(a.metric6mAsset).toBeGreaterThan(500_000_000);
+  });
+
+  it('④+⑤ 캐스케이드: 지표 재산정 후 A-1002가 해외주식 협수 자격을 얻어 바인딩에 반영', () => {
+    const s = useStore.getState();
+    s.batchRecomputeMetrics();     // A-1002 → 5.145억
+    s.batchEvalNegotiations();     // 조건 충족 → 자격/연장
+    s.batchRebind();               // 수렴
+    const b = useStore.getState().bindings.find(x => x.accountId === 'A-1002' && x.scheduleId === 'FS-NEGO-STOCK-US');
+    expect(b).toBeTruthy();
+  });
+
+  it('⑤ batchRebind는 before/after 변경 건수를 델타로 반환', () => {
+    const s = useStore.getState();
+    s.batchRecomputeMetrics(); s.batchEvalNegotiations();
+    const res = s.batchRebind();
+    expect(res.changes.length).toBeGreaterThan(0);
+  });
+
+  it('⑥ 지배관계 재검증: 위반 없으면 summary에 위반 0', () => {
+    const res = useStore.getState().batchRevalidateDominance();
+    expect(res.summary).toMatch(/위반\s*0|이상\s*없/);
+  });
 });

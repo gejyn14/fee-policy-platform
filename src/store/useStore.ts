@@ -1,13 +1,16 @@
 import { create } from 'zustand';
-import type { Account, Enrollment, FeeBinding, FeeRule, FeeSchedule, Product, Execution } from '../domain/types';
+import type { Account, Enrollment, FeeBinding, FeeRule, FeeSchedule, Product, Execution, BatchChange, BatchJobResult } from '../domain/types';
 import { TODAY } from '../domain/types';
 import { mockAccounts, mockSchedules, mockRules, mockEnrollments } from './mock';
 import { rebindAccount, scopeMatches, isTarget } from '../domain/binding';
 import { calcFee } from '../domain/calc';
-import { dominates } from '../domain/dominance';
+import { dominates, revalidateDominance } from '../domain/dominance';
 import { generateInstruments, NEW_LISTING_POOL } from '../masterdata/instruments';
 import type { Instrument } from '../masterdata/instruments';
 import { deriveProducts } from '../masterdata/derive';
+import { nudgeMetrics } from '../domain/metrics';
+import { classifyLifecycle } from '../domain/lifecycle';
+import { evalCondition } from '../domain/eligibility';
 
 const MASTER = generateInstruments();
 const SYNC_BATCH_SIZE = 5;
@@ -27,6 +30,18 @@ interface State {
   setWizardDraft(d: { form: unknown; step: number } | null): void;
   syncFromLedger(): { added: number };
   registerInstruments(rows: Instrument[]): { accepted: number; rejected: string[] };
+  batchActivateExpireRules(): BatchJobResult;
+  batchRecomputeMetrics(): BatchJobResult;
+  batchSyncInstruments(): BatchJobResult;
+  batchEvalNegotiations(): BatchJobResult;
+  batchRebind(): BatchJobResult;
+  batchRevalidateDominance(): BatchJobResult;
+}
+
+// '2026-12-31' → '2027-12-31' (Date 객체 금지, 문자열 연도만 +1)
+function extendOneYear(dateStr: string): string {
+  const [y, ...rest] = dateStr.split('-');
+  return [String(Number(y) + 1), ...rest].join('-');
 }
 
 function allBindings(s: Pick<State, 'accounts' | 'rules' | 'schedules' | 'enrollments' | 'products'>): FeeBinding[] {
@@ -150,6 +165,95 @@ export const useStore = create<State>((set) => ({
   }),
 
   setWizardDraft: (d) => set({ wizardDraft: d }),
+
+  batchActivateExpireRules: () => {
+    const changes: BatchChange[] = [];
+    set((s) => {
+      const rules = s.rules.map((r) => {
+        const c = classifyLifecycle(r, TODAY);
+        if (c === 'activate') { changes.push({ label: r.id, detail: `발효: 승인대기 → 활성 (${r.name})` });
+          return { ...r, status: '활성' as const, log: [...r.log, `${TODAY} 발효(배치) → 활성`] }; }
+        if (c === 'expire') { changes.push({ label: r.id, detail: `만료: 활성 → 종료 (${r.name})` });
+          return { ...r, status: '종료' as const, log: [...r.log, `${TODAY} 만료(배치) → 종료`] }; }
+        return r;
+      });
+      return { rules };   // rebind 안 함
+    });
+    const act = changes.filter(c => c.detail.startsWith('발효')).length;
+    const exp = changes.filter(c => c.detail.startsWith('만료')).length;
+    return { summary: `발효 ${act} · 만료 ${exp}`, changes };
+  },
+
+  batchRecomputeMetrics: () => {
+    const changes: BatchChange[] = [];
+    set((s) => {
+      const accounts = s.accounts.map((a) => {
+        const n = nudgeMetrics(a);
+        if (n.metric6mAsset !== a.metric6mAsset) changes.push({ label: a.id,
+          detail: `6개월평균자산 ${a.metric6mAsset.toLocaleString()} → ${n.metric6mAsset.toLocaleString()}` });
+        return { ...a, ...n };
+      });
+      return { accounts };
+    });
+    return { summary: `지표변경 ${changes.length}`, changes };
+  },
+
+  batchSyncInstruments: () => {
+    let added = 0; const changes: BatchChange[] = [];
+    set((s) => {
+      const batch = NEW_LISTING_POOL.slice(s.syncCursor, s.syncCursor + SYNC_BATCH_SIZE);
+      added = batch.length;
+      if (batch.length === 0) return {};
+      batch.forEach((i) => changes.push({ label: i.code, detail: `신규 상장: ${i.name} (${i.exchange})` }));
+      const instruments = [...s.instruments, ...batch];
+      return { instruments, products: deriveProducts(instruments), syncCursor: s.syncCursor + batch.length }; // rebind 안 함
+    });
+    return { summary: `신규 품목 ${added}`, changes };
+  },
+
+  batchEvalNegotiations: () => {
+    const changes: BatchChange[] = [];
+    set((s) => {
+      const rules = s.rules.map((r) => {
+        if (r.type !== 'NEGOTIATED' || !r.condition) return r;
+        const enrolledAccts = s.accounts.filter((a) => s.enrollments.some((e) => e.accountId === a.id && e.ruleId === r.id));
+        let anyMet = false;
+        for (const a of enrolledAccts) {
+          const met = evalCondition(r, a);
+          changes.push({ label: `${a.id}·${r.scope.assetClass}`,
+            detail: met ? `조건 충족 → 자격 유지/연장` : `조건 미충족 → 해지 후보` });
+          if (met) anyMet = true;
+        }
+        return anyMet ? { ...r, endDate: extendOneYear(r.endDate), log: [...r.log, `${TODAY} 배치 자동연장`] } : r;
+      });
+      return { rules };
+    });
+    const met = changes.filter(c => c.detail.includes('충족') && !c.detail.includes('미충족')).length;
+    const unmet = changes.filter(c => c.detail.includes('미충족')).length;
+    return { summary: `자격 유지 ${met} · 해지후보 ${unmet}`, changes };
+  },
+
+  batchRebind: () => {
+    const before = new Map<string, string>(useStore.getState().bindings.map((b) => [`${b.accountId}|${b.scopeKey}`, b.scheduleId]));
+    set((s) => ({ bindings: allBindings(s) }));
+    const after = useStore.getState().bindings;
+    const changes: BatchChange[] = [];
+    for (const b of after) {
+      const key = `${b.accountId}|${b.scopeKey}`;
+      const prev = before.get(key);
+      if (prev !== b.scheduleId) changes.push({ label: `${b.accountId} ${b.scopeKey}`, detail: `${prev ?? '(신규)'} → ${b.scheduleId}` });
+    }
+    return { summary: `바인딩 변경 ${changes.length}`, changes };
+  },
+
+  batchRevalidateDominance: () => {
+    const s = useStore.getState();
+    const res = revalidateDominance(s.rules, s.schedules, TODAY);
+    const violations = res.filter((r) => !r.ok);
+    const changes: BatchChange[] = res.map((r) => ({ label: r.rule.id,
+      detail: r.ok ? `BASE 대비 전 구간 저렴 ✓` : `⚠ BASE보다 비싼 구간 존재` }));
+    return { summary: `재검증 ${res.length} · 위반 ${violations.length}`, changes };
+  },
 }));
 
 useStore.getState().reset(); // 초기 바인딩 생성
