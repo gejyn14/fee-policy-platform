@@ -212,12 +212,20 @@ export default function Wizard() {
       warnings: { dominance: true, reverseMargin: false }, createdBy: '', log: [],
     };
     const targets = accounts.filter((a) => isTarget(previewRule, a, enrollments));
-    // 현행 비교는 명세대로 BASE 활성 룰 기준 (지배관계 검증은 위에서 전 활성 룰 대상으로 이미 수행)
-    const baseIncumbents = incumbents.filter((r) => r.type === 'BASE');
+    // 현행 비교는 해당 품목에 스코프가 일치하는 모든 활성 룰 중 최저 수수료 기준
+    // (지배관계 검증은 위에서 전 활성 룰 대상으로 이미 수행)
     const rows = targetProducts.map((p) => {
-      const inc = baseIncumbents.find((r) => scopeMatches(r.scope, p));
-      const incSched = inc ? schedules.find((x) => x.id === inc.scheduleId) : undefined;
-      const current = incSched ? calcFee(incSched, sampleFor(p)(100)).customerTotal : null;
+      const matchingIncumbents = incumbents.filter((r) => scopeMatches(r.scope, p));
+      let current: number | null = null;
+      for (const inc of matchingIncumbents) {
+        const incSched = schedules.find((x) => x.id === inc.scheduleId);
+        if (incSched) {
+          const fee = calcFee(incSched, sampleFor(p)(100)).customerTotal;
+          if (current === null || fee < current) {
+            current = fee;
+          }
+        }
+      }
       const next = calcFee(schedule, sampleFor(p)(100)).customerTotal;
       return { code: p.code, name: p.name, current, next };
     });
