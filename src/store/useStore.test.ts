@@ -61,7 +61,7 @@ it('submitRule with zero matching products → 승인대기 + sim { targets: 0, 
   const noMatchRule: FeeRule = {
     id: 'R-NOMATCH', name: '0건 대상 규칙', type: 'EVENT', status: '기안', applyMode: '일괄적용형',
     startDate: '2026-07-01', endDate: '2026-09-30',
-    scope: { assetClass: '해외파생', exchanges: ['EUREX'], sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
+    scope: { assetClass: '해외파생', exchanges: ['ZZZ-NONEXISTENT'], sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
     scheduleId: 'S-NEW', warnings: { dominance: true, reverseMargin: false }, createdBy: '담당자', log: [] };
   useStore.getState().submitRule(noMatchRule, newSched);
   const r = useStore.getState().rules.find(x => x.id === 'R-NOMATCH')!;
@@ -81,4 +81,34 @@ it('reset()은 wizardDraft도 null로 초기화', () => {
   useStore.getState().setWizardDraft({ form: { name: '작성중' }, step: 2 });
   useStore.getState().reset();
   expect(useStore.getState().wizardDraft).toBeNull();
+});
+
+it('초기 상태: 마스터 기반 products (레거시 포함, 대량)', () => {
+  const s = useStore.getState();
+  expect(s.products.length).toBeGreaterThanOrEqual(2500);
+  expect(s.products.some(p => p.exchange === 'NXT' && p.code === '005930')).toBe(true);
+  expect(s.products.some(p => p.exchange === 'CME' && p.code === '6A')).toBe(true);
+});
+
+it('syncFromLedger: 결정적 유입 + products/bindings 갱신, 소진 시 0', () => {
+  const before = useStore.getState().products.length;
+  const r1 = useStore.getState().syncFromLedger();
+  expect(r1.added).toBeGreaterThan(0);
+  expect(useStore.getState().products.length).toBeGreaterThan(before);
+  let total = r1.added;
+  for (let i = 0; i < 20; i++) total += useStore.getState().syncFromLedger().added;
+  expect(useStore.getState().syncFromLedger().added).toBe(0); // 풀 소진
+});
+
+it('registerInstruments: 중복 코드 거부', () => {
+  const dup = { ...useStore.getState().instruments[0] };
+  const r = useStore.getState().registerInstruments([dup]);
+  expect(r.accepted).toBe(0);
+  expect(r.rejected).toContain(dup.code);
+});
+
+it('성능: rebindAll이 2초 이내', () => {
+  const t0 = performance.now();
+  useStore.getState().rebindAll();
+  expect(performance.now() - t0).toBeLessThan(2000);
 });

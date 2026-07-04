@@ -1,19 +1,10 @@
-import type { Account, Product, FeeSchedule, FeeRule, Enrollment } from '../domain/types';
+import type { Account, FeeSchedule, FeeRule, Enrollment } from '../domain/types';
 
 export const mockAccounts: Account[] = [
   { id: 'A-1001', name: '김철수', grade: 'GOLD', dormantReturned: false, metric6mAsset: 850_000_000, metric6mVolume: 2_100_000_000 },
   { id: 'A-1002', name: '이영희', grade: 'SILVER', dormantReturned: false, metric6mAsset: 120_000_000, metric6mVolume: 300_000_000 },
   { id: 'A-1003', name: '박민준', grade: 'SILVER', dormantReturned: true, metric6mAsset: 30_000_000, metric6mVolume: 50_000_000 },
   { id: 'A-1004', name: '최수진', grade: 'GOLD', dormantReturned: false, metric6mAsset: 2_400_000_000, metric6mVolume: 9_800_000_000 },
-];
-
-export const mockProducts: Product[] = [
-  { assetClass: '국내주식', exchange: 'KRX', code: '005930', name: '삼성전자', currency: 'KRW', sessions: ['정규'] },
-  { assetClass: '해외주식', exchange: 'NASDAQ', code: 'AAPL', name: '애플', currency: 'USD', sessions: ['정규', '프리마켓'] },
-  { assetClass: '국내파생', exchange: 'KRX', code: 'K200OPT', name: 'KOSPI200옵션', currency: 'KRW', sessions: ['정규', '야간'] },
-  { assetClass: '해외파생', exchange: 'CME', code: '6A', name: 'Australian Dollar', currency: 'USD', sessions: ['주간', '야간'] },
-  { assetClass: '해외파생', exchange: 'CME', code: '6B', name: 'British Pound', currency: 'USD', sessions: ['주간', '야간'] },
-  { assetClass: '금현물', exchange: 'KRX', code: 'GOLD99', name: 'KRX 금 99.99', currency: 'KRW', sessions: ['정규'] },
 ];
 
 // ---------------------------------------------------------------------------

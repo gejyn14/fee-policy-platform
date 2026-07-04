@@ -1,10 +1,16 @@
 import { create } from 'zustand';
 import type { Account, Enrollment, FeeBinding, FeeRule, FeeSchedule, Product, Execution } from '../domain/types';
 import { TODAY } from '../domain/types';
-import { mockAccounts, mockProducts, mockSchedules, mockRules, mockEnrollments } from './mock';
+import { mockAccounts, mockSchedules, mockRules, mockEnrollments } from './mock';
 import { rebindAccount, scopeMatches, isTarget } from '../domain/binding';
 import { calcFee } from '../domain/calc';
 import { dominates } from '../domain/dominance';
+import { generateInstruments, NEW_LISTING_POOL } from '../masterdata/instruments';
+import type { Instrument } from '../masterdata/instruments';
+import { deriveProducts } from '../masterdata/derive';
+
+const MASTER = generateInstruments();
+const SYNC_BATCH_SIZE = 5;
 
 export function evalCondition(rule: FeeRule, acct: Account): boolean {
   if (!rule.condition) return true;
@@ -13,8 +19,9 @@ export function evalCondition(rule: FeeRule, acct: Account): boolean {
 }
 
 interface State {
-  accounts: Account[]; products: Product[]; schedules: FeeSchedule[];
+  accounts: Account[]; instruments: Instrument[]; products: Product[]; schedules: FeeSchedule[];
   rules: FeeRule[]; enrollments: Enrollment[]; bindings: FeeBinding[];
+  syncCursor: number;
   wizardDraft: { form: unknown; step: number } | null;
   reset(): void; rebindAll(): void;
   submitRule(rule: FeeRule, schedule: FeeSchedule): void;
@@ -22,6 +29,8 @@ interface State {
   rejectRule(id: string, reason: string): void;
   extendNegotiated(id: string, newEndDate: string): void;
   setWizardDraft(d: { form: unknown; step: number } | null): void;
+  syncFromLedger(): { added: number };
+  registerInstruments(rows: Instrument[]): { accepted: number; rejected: string[] };
 }
 
 function allBindings(s: Pick<State, 'accounts' | 'rules' | 'schedules' | 'enrollments' | 'products'>): FeeBinding[] {
@@ -29,17 +38,56 @@ function allBindings(s: Pick<State, 'accounts' | 'rules' | 'schedules' | 'enroll
 }
 
 export const useStore = create<State>((set) => ({
-  accounts: mockAccounts, products: mockProducts, schedules: mockSchedules,
+  accounts: mockAccounts, instruments: MASTER, products: deriveProducts(MASTER), schedules: mockSchedules,
   rules: mockRules, enrollments: mockEnrollments, bindings: [],
+  syncCursor: 0,
   wizardDraft: null,
 
   reset: () => set(() => {
-    const init = { accounts: mockAccounts, products: mockProducts, schedules: mockSchedules,
+    const init = { accounts: mockAccounts, instruments: MASTER, products: deriveProducts(MASTER), schedules: mockSchedules,
       rules: mockRules.map(r => ({ ...r, log: [...r.log] })), enrollments: mockEnrollments };
-    return { ...init, bindings: allBindings(init), wizardDraft: null };
+    return { ...init, bindings: allBindings(init), syncCursor: 0, wizardDraft: null };
   }),
 
   rebindAll: () => set((s) => ({ bindings: allBindings(s) })),
+
+  syncFromLedger: () => {
+    let added = 0;
+    set((s) => {
+      const batch = NEW_LISTING_POOL.slice(s.syncCursor, s.syncCursor + SYNC_BATCH_SIZE);
+      added = batch.length;
+      if (batch.length === 0) return {};
+      const instruments = [...s.instruments, ...batch];
+      const products = deriveProducts(instruments);
+      const next = { ...s, instruments, products };
+      return { instruments, products, syncCursor: s.syncCursor + batch.length, bindings: allBindings(next) };
+    });
+    return { added };
+  },
+
+  registerInstruments: (rows) => {
+    let accepted = 0;
+    const rejected: string[] = [];
+    set((s) => {
+      const existingCodes = new Set(s.instruments.map((i) => i.code));
+      const toAdd: Instrument[] = [];
+      for (const row of rows) {
+        if (existingCodes.has(row.code)) {
+          rejected.push(row.code);
+        } else {
+          existingCodes.add(row.code);
+          toAdd.push(row);
+        }
+      }
+      accepted = toAdd.length;
+      if (toAdd.length === 0) return {};
+      const instruments = [...s.instruments, ...toAdd];
+      const products = deriveProducts(instruments);
+      const next = { ...s, instruments, products };
+      return { instruments, products, bindings: allBindings(next) };
+    });
+    return { accepted, rejected };
+  },
 
   submitRule: (rule, schedule) => set((s) => {
     // ① 지배관계: 같은 scope의 기존 바인딩 요율표(대표: BASE) 대비 전 구간 비교
