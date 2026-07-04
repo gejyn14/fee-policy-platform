@@ -1,32 +1,55 @@
-# React + TypeScript + Vite
+# 수수료 이벤트 플랫폼 v0 프로토타입
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+증권사에서 상품군(국내주식/해외주식/국내파생/해외파생/금현물)별로 BASE 수수료 위에 EVENT(일괄 이벤트)와
+NEGOTIATED(개별 협의수수료) 룰을 등록·검증·승인하고, 계좌별로 어떤 룰이 실제 적용되는지(바인딩)와 그 근거를
+투명하게 확인할 수 있도록 만든 수수료 이벤트 정형화 플랫폼의 v0 프로토타입입니다. 룰 등록 시 지배관계(기존
+요율 대비 항상 저렴한지) 검증과 역마진(회사부담이 자사 수취분보다 큰지) 경고를 자동 계산하고, 계좌×품목마다
+활성 룰 중 최저가를 골라 바인딩하는 과정을 화면으로 시연합니다. 백엔드 없이 mock 데이터와 클라이언트 상태
+(zustand)만으로 동작합니다.
 
-Currently, two official plugins are available:
+## 실행
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## 테스트
+
+```bash
+npm test
+```
+
+## 빌드
+
+```bash
+npm run build
+```
+
+## 시연 시나리오
+
+1. **대시보드**에서 활성 룰 목록과 진행률, 바인딩 건수, 역마진 경고 룰 수를 확인합니다.
+2. **이벤트 등록** 위저드에서 CME 6A를 대상으로 하는 신규 EVENT를 6단계 순서로 등록합니다.
+   1. 기본 정보 (이름/유형/적용형태/기간)
+   2. 적용 범위 (자산군 → 거래소/세션/통화 체크박스, 품목 검색·선택)
+   3. 요율표 구성 (구성요소 이름/부담주체/방식/값 입력)
+   4. 검증 (지배관계/역마진 자동 판정 확인)
+   5. 시뮬레이션 (대상 계좌 수·예상 감면액 확인)
+   6. 상신 (기안자 확인 후 제출 → 상태: 승인대기)
+3. **승인함**에서 방금 상신한 룰의 검증 배지(지배관계 ✓, 역마진 경고 여부)와 시뮬레이션 결과를 확인한 뒤 승인합니다.
+4. **대시보드**로 돌아와 활성 이벤트 수와 바인딩 건수에 반영된 것을 확인합니다.
+5. **계좌 조회**에서 CME 6A를 보유한 계좌(예: A-1001)를 선택해 해당 품목 바인딩의 출처 룰이 새로 승인한
+   이벤트로 바뀌었는지 확인하고, 우측 체결 시뮬레이터에 가격·수량을 입력해 수수료가 인하되었는지 확인합니다.
+6. **협수 관리**에서 협의수수료 조건 게이지(충족/미충족)를 확인하고, 조건을 충족한 건에 대해 원클릭으로
+   기간을 연장합니다.
+
+## 프로토타입 한계
+
+- 백엔드가 없는 mock 데이터 기반이며, 모든 상태는 클라이언트 메모리(zustand)에만 존재합니다.
+- Excel 업로드 대신 CSV 붙여넣기로 대체되어 있습니다.
+- 기준일(`TODAY`)이 `2026-07-04`로 고정되어 있어 실제 날짜와 무관하게 동작합니다.
+- 새로고침 시 모든 상태가 초기 mock 데이터로 리셋됩니다.
+
+## 설계 문서
+
+[docs/superpowers/specs/2026-07-04-fee-event-platform-design.md](docs/superpowers/specs/2026-07-04-fee-event-platform-design.md)
