@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { it, expect } from 'vitest';
 import { calcFee } from './calc';
 import type { FeeSchedule, Execution, Product } from './types';
 

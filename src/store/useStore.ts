@@ -26,11 +26,11 @@ function allBindings(s: Pick<State, 'accounts' | 'rules' | 'schedules' | 'enroll
   return s.accounts.flatMap((a) => rebindAccount(a, s.rules, s.schedules, s.enrollments, s.products, TODAY));
 }
 
-export const useStore = create<State>((set, get) => ({
+export const useStore = create<State>((set) => ({
   accounts: mockAccounts, products: mockProducts, schedules: mockSchedules,
   rules: mockRules, enrollments: mockEnrollments, bindings: [],
 
-  reset: () => set((s) => {
+  reset: () => set(() => {
     const init = { accounts: mockAccounts, products: mockProducts, schedules: mockSchedules,
       rules: mockRules.map(r => ({ ...r, log: [...r.log] })), enrollments: mockEnrollments };
     return { ...init, bindings: allBindings(init) };
