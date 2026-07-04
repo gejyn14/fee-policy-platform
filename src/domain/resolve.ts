@@ -55,6 +55,18 @@ export interface ResolveResult {
 
 const SRC_RANK: Record<'nego' | 'event' | 'base', number> = { nego: 0, event: 1, base: 2 };
 
+// 동일 계층 동률 tie-break용 적용범위 구체성 점수(제약 차원 수). 높을수록 더 구체적.
+function scopeSpecificity(r: FeeRule | null): number {
+  if (!r) return 0;
+  const s = r.scope; let n = 0;
+  if (s.exchanges !== '*') n++;
+  if (s.sessions !== '*') n++;
+  if ((s.channels ?? '*') !== '*') n++;
+  if (s.products !== '*') n++;
+  if (s.excludeProducts.length) n++;
+  return n;
+}
+
 export function resolve(
   acct: Account,
   key: FeeKey,
@@ -89,7 +101,12 @@ export function resolve(
 
   const ranked = cands
     .map((c) => ({ ...c, avgCustomerFee: cost(c.schedule) }))
-    .sort((a, b) => a.avgCustomerFee - b.avgCustomerFee || SRC_RANK[a.source] - SRC_RANK[b.source]);
+    .sort((a, b) =>
+      a.avgCustomerFee - b.avgCustomerFee                              // ① 고객 부담 최저
+      || SRC_RANK[a.source] - SRC_RANK[b.source]                       // ② 계층: 협의>이벤트>기본
+      || scopeSpecificity(b.rule) - scopeSpecificity(a.rule)          // ③ 동일 계층: 더 구체적 범위 우선
+      || (b.rule?.startDate ?? '').localeCompare(a.rule?.startDate ?? '') // ④ 더 최근 시작
+      || (a.rule?.id ?? '').localeCompare(b.rule?.id ?? ''));          // ⑤ 식별자(결정성)
 
   const candidates: ResolveCandidate[] = ranked.map((c, i) => ({
     rule: c.rule, schedule: c.schedule, avgCustomerFee: c.avgCustomerFee, source: c.source, isWinner: i === 0,

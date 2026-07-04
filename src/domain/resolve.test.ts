@@ -121,3 +121,19 @@ describe('resolve — 적용기간(benefit)', () => {
     expect(r!.source).toBe('base');
   });
 });
+
+describe('resolve — 동일 계층 동률 tie-break', () => {
+  const acct: Account = { id: '110000001002', name: '이', grade: 'SILVER', dormantReturned: false, metric6mAsset: 0, metric6mVolume: 0 };
+  const schedules = [sched('S-BASE', 100), sched('S-EVT', 50)];
+  const base = rule({ id: 'R-BASE', scheduleId: 'S-BASE' });
+  // 같은 요율표(동일 고객부담)의 두 이벤트: 하나는 넓은 범위, 하나는 세션 한정(더 구체적)
+  const broad = rule({ id: 'R-BROAD', type: 'EVENT', scheduleId: 'S-EVT', scope: scope({ channels: ['MTS'] }) });
+  const narrow = rule({ id: 'R-NARROW', type: 'EVENT', scheduleId: 'S-EVT', scope: scope({ channels: ['MTS'], sessions: ['정규'] }) });
+
+  it('동률 이벤트끼리는 더 구체적인 적용범위가 승자', () => {
+    const idx = buildScopeIndex([base, broad, narrow], '2026-07-04');
+    const r = resolve(acct, key({ channel: 'MTS', session: '정규' }), [base, broad, narrow], schedules, [], idx, '2026-07-04', []);
+    expect(r!.source).toBe('event');
+    expect(r!.sourceRuleId).toBe('R-NARROW');   // 세션 한정이 더 구체적
+  });
+});
