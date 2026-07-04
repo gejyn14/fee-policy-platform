@@ -17,7 +17,8 @@ function statusPillClass(status: RuleStatus): string {
 }
 
 export default function Dashboard() {
-  const { rules, bindings, accounts, enrollments } = useStore();
+  const { rules, nego, cacheStat, accounts, enrollments } = useStore();
+  const cache = cacheStat();
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<RuleType | '전체'>('전체');
   const [statusFilter, setStatusFilter] = useState<RuleStatus | '전체'>('활성');
@@ -48,10 +49,18 @@ export default function Dashboard() {
     <section>
       <div className="cards">
         <div className="card"><h3>{activeAll.filter((r) => r.type === 'EVENT').length}</h3><p>활성 이벤트</p></div>
-        <div className="card"><h3>{bindings.length}</h3><p>바인딩 (계좌×품목)</p></div>
+        <div className="card"><h3>{nego.length}</h3><p>협의 예외</p></div>
         <div className="card warn"><h3>{activeAll.filter((r) => r.warnings.reverseMargin).length}</h3><p>역마진 경고 룰</p></div>
         <div className="card"><h3>{totalSaving.toLocaleString()}원</h3><p>예상 감면 누계</p></div>
+        <div className="card">
+          <h3>{cache.size}건 (적중 {cache.hits} / 미스 {cache.misses})</h3>
+          <p>수수료 해석 캐시</p>
+        </div>
       </div>
+      <p className="empty">
+        계좌×품목 전량 바인딩 테이블은 없다 — 예외(협의)만 저장하고 나머지는 해석·캐시한다.
+        {cache.size === 0 && ' (캐시는 체결 해석 시 채워집니다.)'}
+      </p>
 
       <h2>수수료 룰</h2>
       <div className="form-grid">

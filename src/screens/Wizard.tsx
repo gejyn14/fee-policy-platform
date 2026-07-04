@@ -8,7 +8,7 @@ import { ruleTypeLabel } from './labels';
 import InstrumentPicker from './InstrumentPicker';
 import { parseCsvCodes, summarize, type Selection } from './pickerLogic';
 import type {
-  ApplyMode, AssetClass, Execution, FeeComponent, FeeRule, FeeSchedule,
+  ApplyMode, AssetClass, Channel, Execution, FeeComponent, FeeRule, FeeSchedule,
   NegotiatedCondition, Payer, Product, RateBand, ScopeSelector,
 } from '../domain/types';
 
@@ -37,6 +37,7 @@ const sampleFor = (p: Product) => (price: number): Execution =>
 // ---------------------------------------------------------------------------
 
 const ASSET_CLASSES: AssetClass[] = ['국내주식', '해외주식', '국내파생', '해외파생', '금현물'];
+const CHANNELS: Channel[] = ['HTS', 'MTS', 'API', 'ARS', '센터', '반대매매'];
 const APPLY_MODES: ApplyMode[] = ['신청형', '가입형', '휴면복귀형', '일괄적용형'];
 const KINDS: FeeComponent['kind'][] = ['자사', '유관기관', '세금'];
 const PAYERS: Payer[] = ['고객부과', '회사부담', '면제'];
@@ -63,6 +64,7 @@ interface WizardForm {
   assetClass: AssetClass;
   exchangesSel: string[];       // 국내주식 전용(KRX/NXT 체크박스) — 그 외 상품군은 미사용(picker가 selection.exchanges로 처리)
   sessionsSel: string[];
+  channelsSel: Channel[];       // 채널 축(HTS/MTS/API/ARS/센터/반대매매) — 전 상품군 공통, additive
   selection: Selection;        // 픽커(InstrumentPicker) 선택 상태 — products/excludeProducts/exchanges
 
   copyScheduleId: string;
@@ -81,6 +83,7 @@ function makeInitialForm(products: Product[]): WizardForm {
     condMetric: '6개월평균자산', condThreshold: 500_000_000, condAction: '승인후연장',
     assetClass,
     exchangesSel: exchanges, sessionsSel: sessions,
+    channelsSel: [...CHANNELS],
     selection: emptySelection(),
     copyScheduleId: '',
     components: [{ name: '자사 수수료', kind: '자사', payer: '고객부과', rateType: '정률', rateBp: 10 }],
@@ -118,6 +121,7 @@ export default function Wizard() {
 
   const update = (patch: Partial<WizardForm>) => setForm((f) => ({ ...f, ...patch }));
   const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+  const toggleChannel = (list: Channel[], v: Channel) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
   // 거래소 차원 관련성 매트릭스(스펙 §1.1): 국내주식만 거래소가 "선택 차원"(KRX/NXT 체크박스로
   // 위저드가 직접 다룬다). 해외주식/해외파생은 거래소가 종목·품목의 "속성"이라 픽커 내부의
@@ -153,6 +157,9 @@ export default function Wizard() {
       currencies: '*', // v0 결정: 통화는 위저드 차원이 아니라 요율표(schedule) 차원 — 항상 전체
       products: form.selection.products,
       excludeProducts: form.selection.excludeProducts,
+      // 채널 축(additive): 전체선택 또는 미선택(0개)이면 '*'(전체), 일부만 선택했으면 선택된 배열.
+      channels: (form.channelsSel.length === 0 || form.channelsSel.length === CHANNELS.length)
+        ? '*' : form.channelsSel,
     };
   }
 
@@ -402,6 +409,19 @@ export default function Wizard() {
         )}
 
         <div className="field">
+          <label>채널</label>
+          <div className="check-grid">
+            {CHANNELS.map((ch) => (
+              <label key={ch} className="check-item">
+                <input type="checkbox" checked={form.channelsSel.includes(ch)}
+                  onChange={() => update({ channelsSel: toggleChannel(form.channelsSel, ch) })} />
+                {ch}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="field">
           <label>품목 선택</label>
           <InstrumentPicker
             assetClass={form.assetClass}
@@ -618,6 +638,7 @@ export default function Wizard() {
               </td>
             </tr>
             <tr><td>세션</td><td>{form.sessionsSel.length === sessions.length ? '전체' : form.sessionsSel.join(', ')}</td></tr>
+            <tr><td>채널</td><td>{(form.channelsSel.length === 0 || form.channelsSel.length === CHANNELS.length) ? '전체' : form.channelsSel.join(', ')}</td></tr>
             <tr><td>품목</td><td>{summarize(form.selection)}</td></tr>
             <tr><td>제외 품목</td><td>{form.selection.excludeProducts.length > 0 ? form.selection.excludeProducts.join(', ') : '없음'}</td></tr>
             <tr><td>구성요소</td><td>{form.components.map((c) => c.name).join(', ')}</td></tr>
