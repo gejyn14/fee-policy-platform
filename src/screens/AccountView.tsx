@@ -30,9 +30,25 @@ export default function AccountView() {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [price, setPrice] = useState(100);
   const [qty, setQty] = useState(10);
+  const [search, setSearch] = useState('');
 
   const account = accounts.find((a) => a.id === accountId);
   const accountBindings = bindings.filter((b) => b.accountId === accountId);
+  const query = search.trim().toLowerCase();
+  const filteredBindings = query
+    ? accountBindings.filter((b) => {
+        const [, code] = b.scopeKey.split(':');
+        const name = productName(b.scopeKey, products);
+        return (
+          (code ?? '').toLowerCase().includes(query) ||
+          name.toLowerCase().includes(query) ||
+          b.reason.toLowerCase().includes(query)
+        );
+      })
+    : accountBindings;
+  const BINDING_DISPLAY_CAP = 50;
+  const displayBindings = filteredBindings.slice(0, BINDING_DISPLAY_CAP);
+  const hiddenCount = filteredBindings.length - displayBindings.length;
   const selected: FeeBinding | undefined = accountBindings.find((b) => b.scopeKey === selectedKey);
   const schedule = selected ? schedules.find((s) => s.id === selected.scheduleId) : undefined;
   const sourceRule = selected ? rules.find((r) => r.id === selected.sourceRuleId) : undefined;
@@ -63,6 +79,22 @@ export default function AccountView() {
       )}
 
       {accountBindings.length > 0 && (
+        <div className="field" style={{ maxWidth: 320 }}>
+          <label>검색 (품목코드/품목명/근거)</label>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="예: 6A, 삼성전자, 신규협의"
+          />
+        </div>
+      )}
+
+      {accountBindings.length > 0 && filteredBindings.length === 0 && (
+        <p className="empty">검색 결과가 없습니다.</p>
+      )}
+
+      {displayBindings.length > 0 && (
         <table>
           <thead>
             <tr>
@@ -74,7 +106,7 @@ export default function AccountView() {
             </tr>
           </thead>
           <tbody>
-            {accountBindings.map((b) => {
+            {displayBindings.map((b) => {
               const sched = schedules.find((s) => s.id === b.scheduleId);
               const rule = rules.find((r) => r.id === b.sourceRuleId);
               const isSelected = b.scopeKey === selectedKey;
@@ -95,6 +127,10 @@ export default function AccountView() {
             })}
           </tbody>
         </table>
+      )}
+
+      {hiddenCount > 0 && (
+        <p className="empty">그 외 {hiddenCount}건 — 검색으로 좁히세요.</p>
       )}
 
       {selected && schedule && (
