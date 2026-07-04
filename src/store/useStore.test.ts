@@ -182,4 +182,13 @@ describe('resolveFee + 캐시', () => {
     const r = useStore.getState().resolveFee('110000001002', deriveFeeKey(usStock, '정규', 'MTS'));
     expect(r!.source).toBe('base');
   });
+  it('상대형 이벤트: 가입일+2개월 안의 계좌만 무료요율로 해석', () => {
+    const s = useStore.getState();
+    const krStock = s.products.find(p => p.assetClass === '국내주식' && p.exchange === 'KRX')!;
+    const k = deriveFeeKey(krStock, '정규', 'MTS');
+    const valid = s.resolveFee('110000001001', k)!;   // 2026-06-20 가입 → 유효
+    const expired = s.resolveFee('110000001004', k)!; // 2026-04-10 가입 → 만료
+    expect(valid.sourceRuleId).toBe('RULE-EVENT-STOCK-SIGNUP2M');
+    expect(expired.sourceRuleId).not.toBe('RULE-EVENT-STOCK-SIGNUP2M');
+  });
 });

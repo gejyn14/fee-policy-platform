@@ -98,6 +98,15 @@ export const mockSchedules: FeeSchedule[] = [
       { name: '증권거래세', kind: '세금', payer: '고객부과', rateType: '정률', rateBp: 15 },
     ],
   },
+  {
+    id: 'FS-EVT-SIGNUP2M',
+    name: '신규 가입 2개월 무료 요율',
+    components: [
+      { name: '자사 수수료', kind: '자사', payer: '고객부과', rateType: '정률', rateBp: 0 },
+      { name: '거래소/예탁원 수수료', kind: '유관기관', payer: '고객부과', rateType: '정률', rateBp: 0.5 },
+      { name: '증권거래세', kind: '세금', payer: '고객부과', rateType: '정률', rateBp: 15 },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -210,11 +219,28 @@ export const mockRules: FeeRule[] = [
     createdBy: '마케팅팀',
     log: ['2026-02-25 기안 → 활성'],
   },
+  // 적용기간 상대형: 신청 가능기간(2026-04~06)에 가입한 계좌는 가입일+2개월 무료.
+  // 신청 마감(06-30)이 지나도 가입일+2개월까지 혜택 유지되는 것이 핵심.
+  {
+    id: 'RULE-EVENT-STOCK-SIGNUP2M',
+    name: '신규 온라인 가입 2개월 무료',
+    type: 'EVENT', status: '활성', applyMode: '가입형',
+    startDate: '2026-04-01', endDate: '2026-06-30',        // 신청/유입 가능기간
+    benefit: { kind: '상대', months: 2 },
+    scope: { assetClass: '국내주식', exchanges: '*', sessions: '*', channels: ['HTS', 'MTS'], currencies: '*', products: '*', excludeProducts: [] },
+    scheduleId: 'FS-EVT-SIGNUP2M',
+    warnings: { dominance: true, reverseMargin: false },
+    createdBy: '마케팅팀',
+    log: ['2026-03-25 기안 → 2026-03-30 승인 → 활성'],
+  },
 ];
 
 export const mockEnrollments: Enrollment[] = [
   { accountId: '110000001001', ruleId: 'RULE-NEGO-STOCK-US', enrolledAt: '2026-01-15', channel: 'HTS' },
   { accountId: '110000001002', ruleId: 'RULE-NEGO-STOCK-US', enrolledAt: '2026-03-02', channel: '지점' },
+  // 신규 가입 2개월 무료 — 001은 최근 가입(혜택 유효), 004는 이른 가입(혜택 만료)
+  { accountId: '110000001001', ruleId: 'RULE-EVENT-STOCK-SIGNUP2M', enrolledAt: '2026-06-20', channel: 'MTS' }, // +2m=2026-08-20 유효
+  { accountId: '110000001004', ruleId: 'RULE-EVENT-STOCK-SIGNUP2M', enrolledAt: '2026-04-10', channel: 'HTS' }, // +2m=2026-06-10 만료
 ];
 
 // v0.5 협의수수료 overlay (계좌 인덱스 예외). A-1001은 8.5억으로 조건 충족·승인된 상태.
