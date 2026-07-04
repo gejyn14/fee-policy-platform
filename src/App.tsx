@@ -16,7 +16,7 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>수수료 이벤트 플랫폼 <span className="badge">v0.5 프로토타입</span></h1>
+        <h1>수수료 정책 플랫폼 <span className="badge">v0.7 프로토타입</span></h1>
         <nav>{TABS.map(t => (
           <button key={t} className={t === tab ? 'active' : ''} onClick={() => setTab(t)}>{t}</button>
         ))}</nav>
