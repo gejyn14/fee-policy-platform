@@ -42,7 +42,7 @@ export interface FeeRule {
   condition?: NegotiatedCondition;         // NEGOTIATED 전용
   targetAccountIds?: string[];             // 일괄적용형 bulk 대상 (없으면 전체)
   warnings: { dominance: boolean; reverseMargin: boolean };
-  sim?: { targets: number; saving: number };
+  sim?: { targets: number; saving: number; matchedProducts?: number };
   createdBy: string; log: string[];
 }
 

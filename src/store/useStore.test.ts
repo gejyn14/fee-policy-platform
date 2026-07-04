@@ -19,6 +19,11 @@ it('submitRule → 승인대기 + 시뮬레이션 결과 기록', () => {
   expect(r.sim!.targets).toBeGreaterThan(0);
 });
 
+it('submitRule은 매칭 품목 수를 sim.matchedProducts에 기록', () => {
+  useStore.getState().submitRule(newRule, newSched); // 기존 픽스처: CME 6A 대상
+  expect(useStore.getState().rules.find(x => x.id === 'R-NEW')!.sim!.matchedProducts).toBe(1);
+});
+
 it('approveRule → 활성 + 바인딩 재생성으로 이벤트 요율 반영', () => {
   useStore.getState().submitRule(newRule, newSched);
   useStore.getState().approveRule('R-NEW');
@@ -61,5 +66,5 @@ it('submitRule with zero matching products → 승인대기 + sim { targets: 0, 
   useStore.getState().submitRule(noMatchRule, newSched);
   const r = useStore.getState().rules.find(x => x.id === 'R-NOMATCH')!;
   expect(r.status).toBe('승인대기');
-  expect(r.sim).toEqual({ targets: 0, saving: 0 });
+  expect(r.sim).toEqual({ targets: 0, saving: 0, matchedProducts: 0 });
 });

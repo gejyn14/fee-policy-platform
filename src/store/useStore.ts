@@ -46,7 +46,7 @@ export const useStore = create<State>((set) => ({
     if (targetProducts.length === 0) {
       const submitted: FeeRule = { ...rule, status: '승인대기',
         warnings: { dominance: true, reverseMargin: false },
-        sim: { targets: 0, saving: 0 },
+        sim: { targets: 0, saving: 0, matchedProducts: 0 },
         log: [...rule.log, `${TODAY} 기안 상신 (${rule.createdBy})`] };
       return { schedules: [...s.schedules.filter((x) => x.id !== schedule.id), schedule],
         rules: [...s.rules.filter((x) => x.id !== rule.id), submitted] };
@@ -77,7 +77,7 @@ export const useStore = create<State>((set) => ({
     const saving = targets.length * 60 * perProductSaving;
     const submitted: FeeRule = { ...rule, status: '승인대기',
       warnings: { dominance: dominanceOk, reverseMargin },
-      sim: { targets: targets.length, saving: Math.round(saving) },
+      sim: { targets: targets.length, saving: Math.round(saving), matchedProducts: targetProducts.length },
       log: [...rule.log, `${TODAY} 기안 상신 (${rule.createdBy})`] };
     return { schedules: [...s.schedules.filter((x) => x.id !== schedule.id), schedule],
       rules: [...s.rules.filter((x) => x.id !== rule.id), submitted] };
