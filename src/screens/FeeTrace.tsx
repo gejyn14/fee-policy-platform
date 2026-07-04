@@ -6,12 +6,6 @@ import type { Execution, FeeComponent } from '../domain/types';
 import { TODAY } from '../domain/types';
 import { ruleTypeLabel } from './labels';
 
-// Negotiated.tsx의 formatEok (로컬 복사)
-function formatEok(won: number): string {
-  const eok = Math.round((won / 100_000_000) * 10) / 10;
-  return `${eok.toLocaleString()}억`;
-}
-
 // AccountView.tsx의 bandLabel (로컬 복사)
 function bandLabel(c: FeeComponent, price: number): string | null {
   if (c.rateType !== '구간표') return null;
@@ -33,6 +27,7 @@ export default function FeeTrace() {
 
   const account = accounts.find((a) => a.id === accountId);
   const product = productKey ? products.find((p) => `${p.exchange}:${p.code}` === productKey) : undefined;
+  const myEnrollments = enrollments.filter((e) => e.accountId === accountId);
 
   const trace = useMemo(
     () => (account && product) ? explainBinding(account, product, rules, schedules, enrollments, TODAY) : null,
@@ -79,7 +74,7 @@ export default function FeeTrace() {
           <label>계좌</label>
           <select value={accountId} onChange={(e) => handleAccountChange(e.target.value)}>
             {accounts.map((a) => (
-              <option key={a.id} value={a.id}>{a.id} {a.name} ({a.grade})</option>
+              <option key={a.id} value={a.id}>{a.id} {a.name}</option>
             ))}
           </select>
         </div>
@@ -145,22 +140,21 @@ export default function FeeTrace() {
           <div className="stack">
             {step >= 1 && (
               <div className={`card trace-step ${step === 1 ? 'active' : ''}`}>
-                <h2>① 계좌 확인</h2>
+                <h2>① 대상 판정</h2>
                 <table>
                   <thead>
-                    <tr><th>계좌번호</th><th>이름</th><th>등급</th><th>6개월평균자산</th><th>6개월약정액</th></tr>
+                    <tr><th>계좌번호</th><th>이름</th><th>휴면복귀</th><th>협의수수료 신청</th></tr>
                   </thead>
                   <tbody>
                     <tr>
                       <td>{account.id}</td>
                       <td>{account.name}</td>
-                      <td>{account.grade}</td>
-                      <td>{formatEok(account.metric6mAsset)}</td>
-                      <td>{formatEok(account.metric6mVolume)}</td>
+                      <td>{account.dormantReturned ? '예' : '아니오'}</td>
+                      <td>{myEnrollments.length > 0 ? myEnrollments.map((e) => e.ruleId).join(', ') : '없음'}</td>
                     </tr>
                   </tbody>
                 </table>
-                <p className="trace-narration">계좌의 등급·속성에서 출발하지만, 등급표를 직접 조회하지 않고 이 계좌에 걸린 모든 룰을 본다.</p>
+                <p className="trace-narration">As-Is처럼 등급으로 요율표를 직접 조회하지 않는다. 각 룰이 스스로 선언한 대상(전체·지정계좌·신청·휴면복귀)에 이 계좌가 걸리는지를 판정해 후보를 모은다.</p>
               </div>
             )}
 
@@ -227,7 +221,7 @@ export default function FeeTrace() {
               <div className={`card trace-step ${step === 4 ? 'active' : ''}`}>
                 <h2>④ 확정 바인딩</h2>
                 {trace.binding === null ? (
-                  <p className="empty">적용 가능한 룰 없음 — 기본 등급 fallback</p>
+                  <p className="empty">적용 가능한 룰 없음 (후보 0건)</p>
                 ) : (
                   <>
                     <table>
