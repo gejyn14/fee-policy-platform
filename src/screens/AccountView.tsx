@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { calcFee } from '../domain/calc';
 import { buildFeeKey, deriveFeeKey, isDerivative } from '../domain/feeKey';
+import { addMonths } from '../domain/dateutil';
 import type { AssetClass, FeeComponent, Execution, Product, Session, Channel, ScopeSelector } from '../domain/types';
 import type { ResolveResult } from '../domain/resolve';
 
@@ -46,7 +47,7 @@ function repProductFor(assetClass: AssetClass, exchange: string, session: Sessio
 }
 
 export default function AccountView() {
-  const { accounts, products, schedules, nego, resolveFee, cacheStat } = useStore();
+  const { accounts, products, schedules, nego, resolveFee, cacheStat, enrollments } = useStore();
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
   const [assetClass, setAssetClass] = useState<AssetClass>('국내주식');
   const [exchange, setExchange] = useState<string>('KRX');
@@ -257,6 +258,15 @@ export default function AccountView() {
               )}
               <span className="badge">hits {stat.hits} · misses {stat.misses} · size {stat.size}</span>
             </div>
+
+            {(() => {
+              const win = result.candidates.find((c) => c.isWinner);
+              const b = win?.rule?.benefit;
+              if (!b || b.kind !== '상대') return null;
+              const e = enrollments.find((x) => x.accountId === accountId && x.ruleId === win!.rule!.id);
+              if (!e) return null;
+              return <p className="trace-narration">적용기간: 가입일 {e.enrolledAt} + {b.months}개월 → {addMonths(e.enrolledAt, b.months)}까지(신청 마감과 무관)</p>;
+            })()}
 
             {winnerSchedule && (
               <>
