@@ -38,10 +38,10 @@ export default function Negotiated() {
 
   const extGroups = reviewNegoExtension();
   const totalC = extGroups.reduce((a, g) => ({
-    신규: a.신규 + g.counts.신규, 유지: a.유지 + g.counts.유지, 탈락: a.탈락 + g.counts.탈락,
-  }), { 신규: 0, 유지: 0, 탈락: 0 });
-  const statusPill = (s: '신규' | '유지' | '탈락') =>
-    s === '탈락' ? 'pill-rejected' : s === '신규' ? 'pill-draft' : 'pill-active';
+    유지: a.유지 + g.counts.유지, 탈락: a.탈락 + g.counts.탈락,
+  }), { 유지: 0, 탈락: 0 });
+  const statusPill = (s: '유지' | '탈락') => s === '탈락' ? 'pill-rejected' : 'pill-active';
+  const gKey = (g: { axis: string; groupKey: string }) => `${g.axis}:${g.groupKey}`;
 
   const rows: Row[] = rules
     .filter((r) => r.type === 'NEGOTIATED')
@@ -62,11 +62,10 @@ export default function Negotiated() {
     <div className="card" style={{ marginBottom: 20 }}>
       <h2>연장 대상 확인 (만료 임박 자동 산출)</h2>
       <p className="trace-narration">
-        신청·승인은 계좌별로 하지만, 연장은 상품군(주식)·품목(파생) 단위로 대상을 단체로 뽑아 조건을 재평가한다.
-        기존 대비 <b>신규</b>(새로 충족)·<b>유지</b>(계속 충족)·<b>탈락</b>(더는 미충족)으로 나뉜다.
+        신청·승인은 계좌별로 하지만, 연장은 상품군(주식)·품목(파생) 단위로 활성 협의를 단체로 뽑아 자격을 재평가한다.
+        <b>유지</b>(자격 충족 또는 영업예외)·<b>탈락</b>(더는 미충족 → 해지 대상)으로 나뉜다.
       </p>
       <div className="check-grid" style={{ marginBottom: 12 }}>
-        <span className="pill pill-draft">신규 {totalC.신규}</span>
         <span className="pill pill-active">유지 {totalC.유지}</span>
         <span className="pill pill-rejected">탈락 {totalC.탈락}</span>
         <button className="btn primary" type="button" disabled={extGroups.length === 0}
@@ -77,21 +76,20 @@ export default function Negotiated() {
         <p className="empty">연장 대상 협의가 없습니다.</p>
       ) : (
         <table>
-          <thead><tr><th>그룹</th><th>협의 룰</th><th>만료</th><th>신규</th><th>유지</th><th>탈락</th></tr></thead>
+          <thead><tr><th>그룹</th><th>만료</th><th>유지</th><th>탈락</th></tr></thead>
           <tbody>
             {extGroups.map((g) => {
-              const open = openGroup.has(g.ruleId);
+              const open = openGroup.has(gKey(g));
               const dday = dDay(g.endDate);
               return (
-                <Fragment key={g.ruleId}>
-                  <tr onClick={() => toggleGroup(g.ruleId)} style={{ cursor: 'pointer' }}>
+                <Fragment key={gKey(g)}>
+                  <tr onClick={() => toggleGroup(gKey(g))} style={{ cursor: 'pointer' }}>
                     <td>{g.axis === '품목' ? `품목 ${g.groupKey}` : g.groupKey}</td>
-                    <td>{g.ruleName}</td>
                     <td className={dday <= 30 ? 'warn' : undefined}>D{dday >= 0 ? '-' : '+'}{Math.abs(dday)}</td>
-                    <td>{g.counts.신규}</td><td>{g.counts.유지}</td><td className={g.counts.탈락 ? 'warn' : undefined}>{g.counts.탈락}</td>
+                    <td>{g.counts.유지}</td><td className={g.counts.탈락 ? 'warn' : undefined}>{g.counts.탈락}</td>
                   </tr>
                   {open && (
-                    <tr><td colSpan={6}>
+                    <tr><td colSpan={4}>
                       <table>
                         <thead><tr><th>계좌</th><th>분류</th><th>사유</th></tr></thead>
                         <tbody>

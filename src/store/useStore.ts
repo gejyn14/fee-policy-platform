@@ -14,6 +14,7 @@ import { evalCondition } from '../domain/eligibility';
 import { deriveFeeKey } from '../domain/feeKey';
 import { resolve, buildScopeIndex, scopeMatchesKey, type NegoException, type ResolveResult } from '../domain/resolve';
 import { classifyNegoExtension, type ExtGroup } from '../domain/negoExtension';
+import type { QualifyPolicy } from '../domain/types';
 import { ResolveCache, type CacheStat } from '../domain/cache';
 
 const MASTER = generateInstruments();
@@ -26,6 +27,7 @@ interface State {
   accounts: Account[]; instruments: Instrument[]; products: Product[]; schedules: FeeSchedule[];
   rules: FeeRule[]; enrollments: Enrollment[];
   nego: NegoException[];
+  qualifyPolicies: QualifyPolicy[];
   syncCursor: number;
   wizardDraft: { form: unknown; step: number } | null;
   reset(): void;
@@ -36,7 +38,7 @@ interface State {
   rejectRule(id: string, reason: string): void;
   extendNegotiated(id: string, newEndDate: string): void;
   reviewNegoExtension(): ExtGroup[];
-  applyNegoExtension(): { summary: string; 신규: number; 유지: number; 탈락: number };
+  applyNegoExtension(): { summary: string; 유지: number; 탈락: number };
   setWizardDraft(d: { form: unknown; step: number } | null): void;
   syncFromLedger(): { added: number };
   registerInstruments(rows: Instrument[]): { accepted: number; rejected: string[] };
@@ -58,6 +60,7 @@ export const useStore = create<State>((set) => ({
   accounts: mockAccounts, instruments: MASTER, products: deriveProducts(MASTER), schedules: mockSchedules,
   rules: mockRules, enrollments: mockEnrollments,
   nego: mockNego,
+  qualifyPolicies: [],
   syncCursor: 0,
   wizardDraft: null,
 
@@ -65,7 +68,7 @@ export const useStore = create<State>((set) => ({
     const init = { accounts: mockAccounts, instruments: MASTER, products: deriveProducts(MASTER), schedules: mockSchedules,
       rules: mockRules.map(r => ({ ...r, log: [...r.log] })), enrollments: mockEnrollments };
     resolveCache.clear();
-    return { ...init, nego: mockNego, syncCursor: 0, wizardDraft: null };
+    return { ...init, nego: mockNego, qualifyPolicies: [], syncCursor: 0, wizardDraft: null };
   }),
 
   resolveFee: (accountId, key) => {
@@ -195,33 +198,27 @@ export const useStore = create<State>((set) => ({
     if (scope) resolveCache.invalidateByScope((k) => scopeMatchesKey(scope!, k));
   },
 
-  // 협의수수료 연장 대상 확인(무변경) — 만료 임박 협의를 재평가해 신규/유지/탈락 그룹 산출.
+  // 협의수수료 연장 대상 확인(무변경) — 활성 grant를 상품군 자격 기준으로 재평가해 유지/탈락 그룹 산출.
   reviewNegoExtension: (): ExtGroup[] => {
     const s = useStore.getState();
-    return classifyNegoExtension(s.rules, s.accounts, s.enrollments, s.nego, TODAY);
+    return classifyNegoExtension(s.nego, s.accounts, s.qualifyPolicies);
   },
-  // 담당자 일괄 승인 — 신규/유지는 협의 부여·연장, 탈락은 해지. 영향 계좌 캐시 무효화.
-  applyNegoExtension: (): { summary: string; 신규: number; 유지: number; 탈락: number } => {
+  // 담당자 일괄 승인 — 유지는 연장(유효기간 갱신), 탈락은 해지(반려). 영향 계좌 캐시 무효화.
+  applyNegoExtension: (): { summary: string; 유지: number; 탈락: number } => {
     const s0 = useStore.getState();
-    const groups = classifyNegoExtension(s0.rules, s0.accounts, s0.enrollments, s0.nego, TODAY);
-    const counts = { 신규: 0, 유지: 0, 탈락: 0 };
-    set((s) => {
-      let nego = [...s.nego];
-      for (const g of groups) {
-        const rule = s.rules.find((r) => r.id === g.ruleId);
-        if (!rule) continue;
-        for (const c of g.candidates) {
-          counts[c.status] += 1;
-          nego = nego.filter((n) => !(n.accountId === c.accountId && n.scheduleId === rule.scheduleId));
-          if (c.status !== '탈락')
-            nego.push({ accountId: c.accountId, scope: rule.scope, scheduleId: rule.scheduleId, validFrom: TODAY, validTo: extendOneYear(rule.endDate),
-              status: '활성', qualify: '충족', requestId: `LEGACY-${c.accountId}`, requestedBy: '배치', requestedAt: TODAY, approvedAt: TODAY });
-          resolveCache.invalidateAccount(c.accountId);
-        }
-      }
-      return { nego };
-    });
-    return { summary: `연장 ${counts.신규 + counts.유지}(신규 ${counts.신규}·유지 ${counts.유지}) · 탈락 ${counts.탈락}`, ...counts };
+    const groups = classifyNegoExtension(s0.nego, s0.accounts, s0.qualifyPolicies);
+    const keepIds = new Set<string>(); const dropIds = new Set<string>();
+    for (const g of groups) for (const c of g.candidates) (c.status === '유지' ? keepIds : dropIds).add(c.accountId);
+    set((s) => ({
+      nego: s.nego.map((n) => {
+        if (n.status !== '활성') return n;
+        if (keepIds.has(n.accountId)) return { ...n, validTo: extendOneYear(TODAY) };
+        if (dropIds.has(n.accountId)) return { ...n, status: '반려' as const, reason: '연장 자격 미충족' };
+        return n;
+      }),
+    }));
+    [...keepIds, ...dropIds].forEach((id) => resolveCache.invalidateAccount(id));
+    return { summary: `연장(유지) ${keepIds.size} · 해지(탈락) ${dropIds.size}`, 유지: keepIds.size, 탈락: dropIds.size };
   },
 
   setWizardDraft: (d) => set({ wizardDraft: d }),
