@@ -2,7 +2,8 @@ import type { Account, FeeSchedule, FeeRule, Enrollment } from '../domain/types'
 
 export const mockAccounts: Account[] = [
   { id: 'A-1001', name: '김철수', grade: 'GOLD', dormantReturned: false, metric6mAsset: 850_000_000, metric6mVolume: 2_100_000_000 },
-  { id: 'A-1002', name: '이영희', grade: 'SILVER', dormantReturned: false, metric6mAsset: 120_000_000, metric6mVolume: 300_000_000 },
+  // 배치 ② 캐스케이드 대상: nudge(+5%)로 5.145억 → 협수 문턱 5억 초과
+  { id: 'A-1002', name: '이영희', grade: 'SILVER', dormantReturned: false, metric6mAsset: 490_000_000, metric6mVolume: 300_000_000 },
   { id: 'A-1003', name: '박민준', grade: 'SILVER', dormantReturned: true, metric6mAsset: 30_000_000, metric6mVolume: 50_000_000 },
   { id: 'A-1004', name: '최수진', grade: 'GOLD', dormantReturned: false, metric6mAsset: 2_400_000_000, metric6mVolume: 9_800_000_000 },
 ];
@@ -86,10 +87,21 @@ export const mockSchedules: FeeSchedule[] = [
       { name: 'SEC/거래소 수수료', kind: '유관기관', payer: '고객부과', rateType: '정률', rateBp: 5 },
     ],
   },
+  // EVENT 국내주식 프로모션 — BASE(자사 10bp)보다 싼 3bp (발효/만료 대상 룰 2개가 참조)
+  {
+    id: 'FS-EVENT-KR-PROMO',
+    name: 'EVENT 국내주식 프로모션 요율',
+    components: [
+      { name: '자사 수수료', kind: '자사', payer: '고객부과', rateType: '정률', rateBp: 3 },
+      { name: '거래소/예탁원 수수료', kind: '유관기관', payer: '고객부과', rateType: '정률', rateBp: 0.5 },
+      { name: '증권거래세', kind: '세금', payer: '고객부과', rateType: '정률', rateBp: 15 },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
 // 룰 (FeeRule) — BASE 5개(상품군별, 활성) + EVENT 1개(활성·일괄적용형) + NEGOTIATED 1개(활성·신청형)
+//              + EVENT 발효/만료 대상 2개(배치 ① 검증용, 배치 실행 전까지는 바인딩에 영향 없음)
 // ---------------------------------------------------------------------------
 
 export const mockRules: FeeRule[] = [
@@ -172,6 +184,30 @@ export const mockRules: FeeRule[] = [
     sim: { targets: 1, saving: 450_000 },
     createdBy: 'PB팀-오세훈',
     log: ['2026-01-05 PB팀 오세훈 기안 → 2026-01-10 지점장 승인 → 활성'],
+  },
+  // ① 발효 대상: 오늘(2026-07-04) window 안이지만 아직 승인대기
+  {
+    id: 'RULE-EVENT-KR-PROMO',
+    name: '국내주식 여름 프로모션(발효 대기)',
+    type: 'EVENT', status: '승인대기', applyMode: '일괄적용형',
+    startDate: '2026-07-01', endDate: '2026-09-30',
+    scope: { assetClass: '국내주식', exchanges: '*', sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
+    scheduleId: 'FS-EVENT-KR-PROMO',
+    warnings: { dominance: true, reverseMargin: false },
+    createdBy: '마케팅팀',
+    log: ['2026-06-28 기안 → 승인대기'],
+  },
+  // ① 만료 대상: 활성이지만 endDate가 오늘 이전
+  {
+    id: 'RULE-EVENT-KR-SPRING',
+    name: '국내주식 봄 이벤트(만료 대상)',
+    type: 'EVENT', status: '활성', applyMode: '일괄적용형',
+    startDate: '2026-03-01', endDate: '2026-06-30',
+    scope: { assetClass: '국내주식', exchanges: '*', sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
+    scheduleId: 'FS-EVENT-KR-PROMO',
+    warnings: { dominance: true, reverseMargin: false },
+    createdBy: '마케팅팀',
+    log: ['2026-02-25 기안 → 활성'],
   },
 ];
 

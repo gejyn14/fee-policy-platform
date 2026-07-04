@@ -72,3 +72,6 @@ export interface FeeBinding {
 }
 
 export const TODAY = '2026-07-04';
+
+export interface BatchChange { label: string; detail: string }
+export interface BatchJobResult { summary: string; changes: BatchChange[] }
