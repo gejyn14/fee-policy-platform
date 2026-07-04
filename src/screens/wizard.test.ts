@@ -1,5 +1,5 @@
 import { it, expect, describe } from 'vitest';
-import { parseCsvCodes } from './Wizard';
+import { parseCsvCodes } from './pickerLogic';
 
 describe('parseCsvCodes', () => {
   it('콤마와 개행이 섞인 텍스트를 파싱해 유효 코드만 accepted로 분류', () => {

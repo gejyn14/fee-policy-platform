@@ -5,37 +5,29 @@ import { explainDominanceFailure, type DominanceFailure } from '../domain/domina
 import { scopeMatches, isTarget } from '../domain/binding';
 import { TODAY } from '../domain/types';
 import { ruleTypeLabel } from './labels';
+import InstrumentPicker from './InstrumentPicker';
+import { parseCsvCodes, summarize, type Selection } from './pickerLogic';
 import type {
   ApplyMode, AssetClass, Execution, FeeComponent, FeeRule, FeeSchedule,
   NegotiatedCondition, Payer, Product, RateBand, ScopeSelector,
 } from '../domain/types';
 
 // ---------------------------------------------------------------------------
-// 순수 헬퍼 (TDD 대상: parseCsvCodes)
+// 순수 헬퍼
 // ---------------------------------------------------------------------------
+// parseCsvCodes는 InstrumentPicker(./pickerLogic)로 이관되었다 — 위저드는 계좌 CSV
+// 파싱에만 그 함수를 재사용한다(로직 자체는 그대로, 소유권만 픽커로 이동).
 
-/** 콤마/개행으로 구분된 코드 목록을 파싱해 유효 코드(accepted)와 무시된 코드(rejected)로 분류한다. */
-export function parseCsvCodes(text: string, valid: Set<string>): { accepted: string[]; rejected: string[] } {
-  const tokens = text.split(/[,\n]/).map((t) => t.trim()).filter((t) => t.length > 0);
-  const accepted: string[] = [];
-  const rejected: string[] = [];
-  const seenAccepted = new Set<string>();
-  const seenRejected = new Set<string>();
-  for (const t of tokens) {
-    if (valid.has(t)) {
-      if (!seenAccepted.has(t)) { seenAccepted.add(t); accepted.push(t); }
-    } else if (!seenRejected.has(t)) { seenRejected.add(t); rejected.push(t); }
-  }
-  return { accepted, rejected };
-}
-
+// 상품군별 거래소/세션 옵션 — 국내주식의 거래소 체크박스(KRX/NXT)와 전 상품군 공통
+// 세션 체크박스에 쓰인다. 통화는 v0.2부터 위저드에서 다루지 않는다(스코프는 항상 '*').
 function optionsForAssetClass(products: Product[], ac: AssetClass) {
   const inClass = products.filter((p) => p.assetClass === ac);
   const exchanges = [...new Set(inClass.map((p) => p.exchange))];
   const sessions = [...new Set(inClass.flatMap((p) => p.sessions))];
-  const currencies = [...new Set(inClass.map((p) => p.currency))];
-  return { inClass, exchanges, sessions, currencies };
+  return { exchanges, sessions };
 }
+
+const emptySelection = (): Selection => ({ products: '*', excludeProducts: [], exchanges: '*' });
 
 const sampleFor = (p: Product) => (price: number): Execution =>
   ({ accountId: 'SIM', product: p, session: p.sessions[0], price, qty: 10, notional: price * 10 });
@@ -68,13 +60,9 @@ interface WizardForm {
   condAction: NegotiatedCondition['action'];
 
   assetClass: AssetClass;
-  exchangesSel: string[];
+  exchangesSel: string[];       // 국내주식 전용(KRX/NXT 체크박스) — 그 외 상품군은 미사용(picker가 selection.exchanges로 처리)
   sessionsSel: string[];
-  currenciesSel: string[];
-  itemsSel: string[];
-  itemSearch: string;
-  itemsCsvText: string;
-  excludeText: string;
+  selection: Selection;        // 픽커(InstrumentPicker) 선택 상태 — products/excludeProducts/exchanges
 
   copyScheduleId: string;
   components: FeeComponent[];
@@ -85,15 +73,14 @@ interface WizardForm {
 
 function makeInitialForm(products: Product[]): WizardForm {
   const assetClass: AssetClass = ASSET_CLASSES[0];
-  const { inClass, exchanges, sessions, currencies } = optionsForAssetClass(products, assetClass);
+  const { exchanges, sessions } = optionsForAssetClass(products, assetClass);
   return {
     name: '', type: 'EVENT', applyMode: '일괄적용형',
     startDate: TODAY, endDate: '2026-12-31',
     condMetric: '6개월평균자산', condThreshold: 500_000_000, condAction: '승인후연장',
     assetClass,
-    exchangesSel: exchanges, sessionsSel: sessions, currenciesSel: currencies,
-    itemsSel: inClass.map((p) => p.code),
-    itemSearch: '', itemsCsvText: '', excludeText: '',
+    exchangesSel: exchanges, sessionsSel: sessions,
+    selection: emptySelection(),
     copyScheduleId: '',
     components: [{ name: '자사 수수료', kind: '자사', payer: '고객부과', rateType: '정률', rateBp: 10 }],
     targetMode: 'all', accountsCsvText: '',
@@ -131,39 +118,40 @@ export default function Wizard() {
   const update = (patch: Partial<WizardForm>) => setForm((f) => ({ ...f, ...patch }));
   const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
-  const { inClass, exchanges, sessions, currencies } = optionsForAssetClass(products, form.assetClass);
-  const filteredItems = inClass.filter((p) => {
-    const q = form.itemSearch.trim().toLowerCase();
-    return !q || p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q);
-  });
-  const excludeParsed = parseCsvCodes(form.excludeText, new Set(inClass.map((p) => p.code)));
-  // 품목 CSV는 계좌 CSV(accountsParsed)와 동일하게 매 렌더 파싱한다. 파싱 결과는 별도 상태이며
-  // itemsSel(수동 선택) 안으로 다시 써넣지 않는다 — 그렇게 하면 수동으로 해제한 품목이 CSV
-  // 텍스트가 남아있는 한 다음 렌더에서 계속 되살아나는 문제가 생긴다. 최종 선택은
-  // "수동 선택 ∪ CSV 인식"을 렌더 시점에 계산해서만 사용한다.
-  const itemsCsvParsed = parseCsvCodes(form.itemsCsvText, new Set(inClass.map((p) => p.code)));
-  const effectiveItemsSel = [...new Set([...form.itemsSel, ...itemsCsvParsed.accepted])];
+  // 거래소 차원 관련성 매트릭스(스펙 §1.1): 국내주식만 거래소가 "선택 차원"(KRX/NXT 체크박스로
+  // 위저드가 직접 다룬다). 해외주식/해외파생은 거래소가 종목·품목의 "속성"이라 픽커 내부의
+  // 필터 chip/전체선택으로만 다뤄지고, 국내파생·금현물은 거래소가 KRX로 숨겨진 차원이다.
+  const { exchanges, sessions } = optionsForAssetClass(products, form.assetClass);
+  const showExchangeCheckboxes = form.assetClass === '국내주식';
+  const showSessionCheckboxes = form.assetClass !== '금현물'; // 금현물은 세션도 숨김(정규만 존재)
+
   const showTrigger = form.applyMode !== '일괄적용형';
   const accountsParsed = !showTrigger && form.targetMode === 'accounts'
     ? parseCsvCodes(form.accountsCsvText, new Set(accounts.map((a) => a.id)))
     : { accepted: [] as string[], rejected: [] as string[] };
 
   function handleAssetClassChange(ac: AssetClass) {
+    // 상품군이 바뀌면 scope 관련 폼(거래소/세션/선택)을 전부 새 상품군 기준으로 초기화한다.
     const opt = optionsForAssetClass(products, ac);
     update({
-      assetClass: ac, exchangesSel: opt.exchanges, sessionsSel: opt.sessions, currenciesSel: opt.currencies,
-      itemsSel: opt.inClass.map((p) => p.code), itemSearch: '', itemsCsvText: '', excludeText: '',
+      assetClass: ac, exchangesSel: opt.exchanges, sessionsSel: opt.sessions,
+      selection: emptySelection(),
     });
   }
 
   function buildScope(): ScopeSelector {
+    // 국내주식: 거래소는 위저드 체크박스(KRX/NXT)가 결정. 그 외 상품군: 픽커의 selection.exchanges
+    // (전체선택 시 특정 거래소로, 개별 선택 시 '*'로 유지)가 결정.
+    const scopeExchanges = showExchangeCheckboxes
+      ? (form.exchangesSel.length === exchanges.length ? '*' : form.exchangesSel)
+      : form.selection.exchanges;
     return {
       assetClass: form.assetClass,
-      exchanges: form.exchangesSel.length === exchanges.length ? '*' : form.exchangesSel,
+      exchanges: scopeExchanges,
       sessions: form.sessionsSel.length === sessions.length ? '*' : form.sessionsSel,
-      currencies: form.currenciesSel.length === currencies.length ? '*' : form.currenciesSel,
-      products: effectiveItemsSel.length === inClass.length ? '*' : effectiveItemsSel,
-      excludeProducts: excludeParsed.accepted,
+      currencies: '*', // v0 결정: 통화는 위저드 차원이 아니라 요율표(schedule) 차원 — 항상 전체
+      products: form.selection.products,
+      excludeProducts: form.selection.excludeProducts,
     };
   }
 
@@ -261,8 +249,8 @@ export default function Wizard() {
 
   const canProceed1 = form.name.trim() !== '' && form.startDate <= form.endDate &&
     (form.type !== 'NEGOTIATED' || form.condThreshold > 0);
-  const canProceed2 = form.exchangesSel.length > 0 && form.sessionsSel.length > 0 && form.currenciesSel.length > 0 &&
-    matchedProductCount > 0;
+  const canProceed2 = matchedProductCount > 0 && form.sessionsSel.length > 0 &&
+    (!showExchangeCheckboxes || form.exchangesSel.length > 0);
   const canProceed3 = form.components.length > 0 && form.components.every((c) => c.name.trim() !== '');
   const canProceed4 = showTrigger || form.targetMode === 'all' || accountsParsed.accepted.length > 0;
   const canProceed5 = sim.dominanceOk;
@@ -328,6 +316,12 @@ export default function Wizard() {
             </select>
           </div>
           <div className="field">
+            <label>상품군</label>
+            <select value={form.assetClass} onChange={(e) => handleAssetClassChange(e.target.value as AssetClass)}>
+              {ASSET_CLASSES.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+          <div className="field">
             <label>시작일</label>
             <input type="date" value={form.startDate} onChange={(e) => update({ startDate: e.target.value })} />
           </div>
@@ -367,94 +361,59 @@ export default function Wizard() {
   }
 
   function renderStep2() {
+    // 차원 관련성 매트릭스(스펙 §1.1): 상품군에 따라 거래소/세션 체크박스 노출 여부가 다르다.
+    // 국내주식=거래소(KRX/NXT)+세션 / 해외주식·해외파생=세션만(거래소는 픽커 내부) /
+    // 국내파생=세션만(거래소 숨김, KRX 고정) / 금현물=둘 다 숨김(픽커만).
     return (
       <div className="stack">
-        <div className="field">
-          <label>상품군</label>
-          <select value={form.assetClass} onChange={(e) => handleAssetClassChange(e.target.value as AssetClass)}>
-            {ASSET_CLASSES.map((a) => <option key={a} value={a}>{a}</option>)}
-          </select>
-        </div>
-
-        <div className="field">
-          <label>거래소</label>
-          <div className="check-grid">
-            {exchanges.map((ex) => (
-              <label key={ex} className="check-item">
-                <input type="checkbox" checked={form.exchangesSel.includes(ex)}
-                  onChange={() => update({ exchangesSel: toggle(form.exchangesSel, ex) })} />
-                {ex}
-              </label>
-            ))}
+        {showExchangeCheckboxes && (
+          <div className="field">
+            <label>거래소</label>
+            <div className="check-grid">
+              {exchanges.map((ex) => (
+                <label key={ex} className="check-item">
+                  <input type="checkbox" checked={form.exchangesSel.includes(ex)}
+                    onChange={() => update({ exchangesSel: toggle(form.exchangesSel, ex) })} />
+                  {ex}
+                </label>
+              ))}
+            </div>
           </div>
-        </div>
-
-        <div className="field">
-          <label>세션</label>
-          <div className="check-grid">
-            {sessions.map((s) => (
-              <label key={s} className="check-item">
-                <input type="checkbox" checked={form.sessionsSel.includes(s)}
-                  onChange={() => update({ sessionsSel: toggle(form.sessionsSel, s) })} />
-                {s}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div className="field">
-          <label>통화</label>
-          <div className="check-grid">
-            {currencies.map((c) => (
-              <label key={c} className="check-item">
-                <input type="checkbox" checked={form.currenciesSel.includes(c)}
-                  onChange={() => update({ currenciesSel: toggle(form.currenciesSel, c) })} />
-                {c}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div className="field">
-          <label>품목 검색</label>
-          <input value={form.itemSearch} onChange={(e) => update({ itemSearch: e.target.value })} placeholder="코드 또는 이름" />
-        </div>
-        <div className="check-grid">
-          {filteredItems.map((p) => (
-            <label key={p.code} className="check-item">
-              <input type="checkbox" checked={effectiveItemsSel.includes(p.code)}
-                onChange={() => update({ itemsSel: toggle(form.itemsSel, p.code) })} />
-              {p.code} ({p.name})
-            </label>
-          ))}
-          {filteredItems.length === 0 && <span className="empty">검색 결과 없음</span>}
-        </div>
-
-        <div className="field">
-          <label>품목 코드 붙여넣기 (프로토타입: CSV)</label>
-          <textarea rows={3} value={form.itemsCsvText} onChange={(e) => update({ itemsCsvText: e.target.value })}
-            placeholder="예: 6A, 6B" />
-          <p>인식 {itemsCsvParsed.accepted.length}건 / 무시 {itemsCsvParsed.rejected.length}건</p>
-          {itemsCsvParsed.rejected.length > 0 && (
-            <p className="warn">무시된 코드 (해당 상품군에 없음): {itemsCsvParsed.rejected.join(', ')}</p>
-          )}
-        </div>
-
-        <div className="field">
-          <label>제외 품목</label>
-          <textarea rows={2} value={form.excludeText} onChange={(e) => update({ excludeText: e.target.value })}
-            placeholder="예: 005930" />
-        </div>
-        {excludeParsed.rejected.length > 0 && (
-          <p className="warn">무시된 코드 (해당 상품군에 없음): {excludeParsed.rejected.join(', ')}</p>
         )}
+
+        {showSessionCheckboxes && (
+          <div className="field">
+            <label>세션</label>
+            <div className="check-grid">
+              {sessions.map((s) => (
+                <label key={s} className="check-item">
+                  <input type="checkbox" checked={form.sessionsSel.includes(s)}
+                    onChange={() => update({ sessionsSel: toggle(form.sessionsSel, s) })} />
+                  {s}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="field">
+          <label>품목 선택</label>
+          <InstrumentPicker
+            assetClass={form.assetClass}
+            value={form.selection}
+            onChange={(selection) => update({ selection })}
+          />
+        </div>
 
         <p className={matchedProductCount === 0 ? 'warn' : undefined}>매칭 품목 {matchedProductCount}개</p>
         {matchedProductCount === 0 && (
           <p className="warn">선택/제외 조건으로 매칭되는 품목이 없습니다.</p>
         )}
-        {(form.exchangesSel.length === 0 || form.sessionsSel.length === 0 || form.currenciesSel.length === 0) && (
-          <p className="warn">거래소/세션/통화 중 최소 1개씩은 선택해야 합니다.</p>
+        {showExchangeCheckboxes && form.exchangesSel.length === 0 && (
+          <p className="warn">거래소를 최소 1개 이상 선택해야 합니다.</p>
+        )}
+        {showSessionCheckboxes && form.sessionsSel.length === 0 && (
+          <p className="warn">세션을 최소 1개 이상 선택해야 합니다.</p>
         )}
       </div>
     );
@@ -635,11 +594,17 @@ export default function Wizard() {
         <table>
           <tbody>
             <tr><td>상품군</td><td>{form.assetClass}</td></tr>
-            <tr><td>거래소</td><td>{form.exchangesSel.length === exchanges.length ? '전체' : form.exchangesSel.join(', ')}</td></tr>
+            <tr>
+              <td>거래소</td>
+              <td>
+                {showExchangeCheckboxes
+                  ? (form.exchangesSel.length === exchanges.length ? '전체' : form.exchangesSel.join(', '))
+                  : (form.selection.exchanges === '*' ? '전체' : form.selection.exchanges.join(', '))}
+              </td>
+            </tr>
             <tr><td>세션</td><td>{form.sessionsSel.length === sessions.length ? '전체' : form.sessionsSel.join(', ')}</td></tr>
-            <tr><td>통화</td><td>{form.currenciesSel.length === currencies.length ? '전체' : form.currenciesSel.join(', ')}</td></tr>
-            <tr><td>품목</td><td>{effectiveItemsSel.length === inClass.length ? '전체' : effectiveItemsSel.join(', ')}</td></tr>
-            <tr><td>제외 품목</td><td>{excludeParsed.accepted.length > 0 ? excludeParsed.accepted.join(', ') : '없음'}</td></tr>
+            <tr><td>품목</td><td>{summarize(form.selection)}</td></tr>
+            <tr><td>제외 품목</td><td>{form.selection.excludeProducts.length > 0 ? form.selection.excludeProducts.join(', ') : '없음'}</td></tr>
             <tr><td>구성요소</td><td>{form.components.map((c) => c.name).join(', ')}</td></tr>
             <tr><td>대상</td><td>{showTrigger ? '트리거 기반 자동 대상' : (form.targetMode === 'all' ? '전체 계좌' : `지정 계좌 ${accountsParsed.accepted.length}건`)}</td></tr>
             <tr><td>시뮬레이션</td><td>대상 {sim.targets.length}건, 지배관계 {sim.dominanceOk ? '통과' : '불통과'}, 역마진 {sim.reverseMargin ? '있음' : '없음'}</td></tr>
