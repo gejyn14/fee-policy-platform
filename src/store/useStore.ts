@@ -40,6 +40,7 @@ interface State {
   reviewNegoExtension(): ExtGroup[];
   applyNegoExtension(): { summary: string; 유지: number; 탈락: number };
   qualifyStatus(assetClass: AssetClass, accountId: string): { met: boolean; policy: QualifyPolicy | null };
+  addSchedule(schedule: FeeSchedule): void;
   submitNegoRequest(input: { accountIds: string[]; scope: ScopeSelector; scheduleId: string; bypass: Record<string, string>; requestedBy: string }): { requestId: string; requested: number };
   approveNegoRequest(requestId: string): { activated: number };
   rejectNegoRequest(requestId: string, reason: string): void;
@@ -263,6 +264,7 @@ export const useStore = create<State>((set) => ({
   rejectNegoRequest: (requestId, reason) => set((s) => ({
     nego: s.nego.map((n) => n.requestId === requestId && n.status === '요청' ? { ...n, status: '반려' as const, reason } : n),
   })),
+  addSchedule: (schedule) => set((s) => ({ schedules: [...s.schedules.filter((x) => x.id !== schedule.id), schedule] })),
 
   setWizardDraft: (d) => set({ wizardDraft: d }),
 
