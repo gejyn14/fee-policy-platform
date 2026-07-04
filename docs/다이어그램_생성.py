@@ -222,3 +222,26 @@ box(d, 650, 110, 140, 76, '담당자', ['확인 후', '일괄 승인'], fill=AMB
 label(d, 30, 258, '신청·승인은 계좌별, 연장은 그룹 단위로 대상을 한 번에 산출하고 기존 대비 탈락까지 함께 보여줌.', sz=13, color=GREY)
 save(img, 'd7_nego')
 print('DONE')
+
+# ============================================================ D8 해석 상세
+img, d = canvas(860, 600)
+label(d, 30, 18, '[그림 8] 체결 해석 상세 — 후보 수집 · 게이트 · 최저가 · 캐시', sz=15, color=NAVY)
+x, y0, bw, bh, vg = 60, 58, 420, 54, 12
+steps = [
+    ('① 조회키 구성', '상품군·거래소·세션·채널 (파생=품목)', BLUE_F, BLUE_O, NAVY),
+    ('② 후보 인덱스 조회', '활성 이벤트·협의 중 적용범위 매칭', BLUE_F, BLUE_O, NAVY),
+    ('③ 대상·기간 게이트', '신청/가입/휴면·조건 충족 + 적용기간 통과', AMBER_F, AMBER_O, AMBER_T),
+    ('④ 협의 예외 결합', '계좌·유효기간 매칭 grant 추가', GREEN_F, GREEN_O, GREEN_T),
+    ('⑤ 기본요율 결합', '상품군 BASE 항상 후보', BLUE_F, BLUE_O, NAVY),
+    ('⑥ 최저가 선정', '공동 probe grid 평균 최소(동률 협의>이벤트>기본)', GREEN_F, GREEN_O, GREEN_T),
+    ('⑦ 캐시 저장', '(계좌, 조회키) → 요율표·출처', (235,235,245), (170,170,200), NAVY),
+]
+anno = {2:'주식은 종목 붕괴', 5:'금액 미저장 — 요율표×체결 즉석 계산', 6:'이후 동일 조회 = 적중(재계산 없음)'}
+for i,(t,dsc,f,o,tc) in enumerate(steps):
+    y = y0 + i*(bh+vg)
+    box(d, x, y, bw, bh, t, [dsc], fill=f, outline=o, tcolor=tc, tsz=15, bsz=11.5)
+    if i < 6:
+        arrow(d,(x+bw/2,y+bh),(x+bw/2,y+bh+vg))
+    if i in anno:
+        label(d, x+bw+24, y+bh/2-8, '← '+anno[i], sz=11.5, color=GREY)
+save(img, 'd8_resolve')

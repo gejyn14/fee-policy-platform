@@ -170,6 +170,35 @@ table(['정보', '내용', '비고'], [
 h('2.2 “전량 전개 테이블” 부재 이유', level=2)
 b('계좌×종목 사전 전개 = 수천만 계좌 × 수천 종목 → 저장 폭발, 대규모 불가')
 b('대안 :: 규칙만 저장 → 체결 시 해석. 계좌 단위 저장은 협의 예외뿐')
+
+h('2.3 핵심 테이블 (주요 컬럼)', level=2)
+para('요율표 계열', size=10.5, after=2)
+table(['테이블', '주요 컬럼', '비고'], [
+    ['요율표(FEE_SCHEDULE)', 'schedule_id(PK) · name', '규칙이 참조'],
+    ['구성요소(FEE_COMPONENT)', 'schedule_id(FK) · seq · name · kind[자사/유관기관/세금] · payer[고객부과/회사부담/면제] · rate_type[정률/정액/구간표] · rate_bp · flat_amount · min_fee', '요율표 1:N'],
+    ['구간(FEE_RATE_BAND)', 'schedule_id·seq(FK) · from · to · rate_bp / flat', '구간표일 때'],
+], widths=[3.6, 10, 2])
+para('규칙 계열', size=10.5, after=2)
+table(['테이블', '주요 컬럼'], [
+    ['규칙(FEE_RULE)', 'rule_id(PK) · name · type[BASE/EVENT/NEGOTIATED] · status · apply_mode[일괄/신청/가입/휴면복귀] · start_date · end_date · benefit_kind[캘린더/상대] · benefit_months · schedule_id(FK)'],
+    ['적용범위(FEE_RULE_SCOPE)', 'rule_id(FK) · asset_class · exchanges · sessions · channels · products · exclude_products'],
+    ['조건(FEE_RULE_CONDITION)', 'rule_id(FK) · metric[6개월평균자산/약정액] · threshold · action[자동연장/승인후연장]  (협의 전용)'],
+], widths=[3.6, 12])
+para('계좌 관련', size=10.5, after=2)
+table(['테이블', '주요 컬럼', '비고'], [
+    ['협의 예외(NEGO_GRANT)', 'account_id · schedule_id · asset_class 등 범위 · valid_from · valid_to', '계좌 단위 저장(유일)'],
+    ['가입/신청(ENROLLMENT)', 'account_id · rule_id · enrolled_at · channel', '상대형·협의 자격 근거'],
+    ['계좌 지표(ACCOUNT_METRIC)', 'account_id · avg_asset_6m · volume_6m · dormant_returned', '원장 적재'],
+    ['해석 캐시(RESOLVED_CACHE)', 'account_id · fee_key · schedule_id · source_rule_id · source[협의/이벤트/기본] · computed_at', '읽기 지연 감소'],
+], widths=[3.6, 10, 2])
+para('조회키(FEE_KEY) — 계좌에 수수료를 매기는 축', size=10.5, after=2)
+table(['컬럼', '값', '주식', '파생'], [
+    ['asset_class', '상품군', '○', '○'],
+    ['exchange', '거래소(KRX/NXT/CME…)', '○', '○'],
+    ['session', '세션(프리/정규/애프터)', '○', '○'],
+    ['channel', '주문채널(HTS/MTS/API/ARS/센터/반대매매)', '○', '○'],
+    ['product', '품목(종목/계약)', '✗ (null)', '○'],
+], widths=[3, 8, 2.3, 2.3])
 doc.add_page_break()
 
 # ============================================================ 3
@@ -246,6 +275,16 @@ h('5.2 예시 — 상대형 이벤트', level=2)
 b('신규 가입 2개월 무료 · 6/20 가입 고객, 7월 초 국내주식 온라인 체결 → 자사 수수료 0원 무료 요율(유관·세금 정상)')
 b('4월 가입 고객(2개월 경과) → 무료 아님, 표준요율 복귀')
 b('동일 이벤트, 고객별 상이 :: 적용기간이 “가입일 기준 상대형”이기 때문')
+
+h('5.3 해석 상세 (기술)', level=2)
+pic('d8_resolve', w=13.5)
+b('후보 인덱스 :: 활성 이벤트·협의를 적용범위로 미리 인덱싱 → 조회키로 매칭분만 추출(전 룰 스캔 아님)')
+b('대상 게이트 :: 일괄=전 계좌 / 신청·가입=이력 존재 / 휴면복귀=복귀 계좌 / 협의=신청+조건 충족')
+b('기간 게이트 :: 캘린더형=룰 기간 내 / 상대형=가입일~가입일+N (신청 마감 무관)')
+b('협의 예외 결합 :: (계좌, 요율표) 매칭 + 유효기간 내 grant를 후보에 추가')
+b('최저가 비교 :: 후보 공동 probe grid(구간 경계+표본가) 평균 고객부담 최소 선택. 동률 시 협의>이벤트>기본')
+b('캐시 :: 결과를 (계좌, 조회키) 키로 저장. 규칙 승인/연장·지표 변경 시 영향 범위(계좌 또는 스코프)만 무효화')
+b('금액 :: 저장하지 않음 — 요율표 × 체결가·수량으로 그때 계산해 원장 전달')
 
 out = '/Users/yujin-an/dev/fees/docs/수수료플랫폼_업무설계서_v0.6.docx'
 doc.save(out)
