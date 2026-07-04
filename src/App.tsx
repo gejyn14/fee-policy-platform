@@ -4,8 +4,9 @@ import Wizard from './screens/Wizard';
 import Approvals from './screens/Approvals';
 import Negotiated from './screens/Negotiated';
 import AccountView from './screens/AccountView';
+import InstrumentMaster from './screens/InstrumentMaster';
 
-const TABS = ['대시보드', '이벤트 등록', '승인함', '협수 관리', '계좌 조회'] as const;
+const TABS = ['대시보드', '이벤트 등록', '승인함', '협수 관리', '계좌 조회', '종목 마스터'] as const;
 type Tab = typeof TABS[number];
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
         {tab === '승인함' && <Approvals />}
         {tab === '협수 관리' && <Negotiated />}
         {tab === '계좌 조회' && <AccountView />}
+        {tab === '종목 마스터' && <InstrumentMaster />}
       </main>
     </div>
   );
