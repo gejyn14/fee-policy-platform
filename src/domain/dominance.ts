@@ -1,4 +1,4 @@
-import type { FeeSchedule, Execution } from './types';
+import type { FeeSchedule, Execution, FeeRule, Product } from './types';
 import { calcFee } from './calc';
 
 /** 두 요율표의 모든 구간 경계 주변 + 기본 표본가로 검사 가격 목록 생성 */
@@ -39,4 +39,26 @@ export function explainDominanceFailure(
     }
   }
   return worst;
+}
+
+export function revalidateDominance(
+  rules: FeeRule[], schedules: FeeSchedule[], today: string,
+): { rule: FeeRule; ok: boolean }[] {
+  const active = rules.filter((r) => r.status === '활성' && r.startDate <= today && today <= r.endDate);
+  const schedOf = (id: string) => schedules.find((s) => s.id === id)!;
+  const baseOf = (assetClass: string) =>
+    active.find((r) => r.type === 'BASE' && r.scope.assetClass === assetClass);
+  const result: { rule: FeeRule; ok: boolean }[] = [];
+  for (const r of active) {
+    if (r.type === 'BASE') continue;
+    const base = baseOf(r.scope.assetClass);
+    if (!base) continue;
+    // calcFee는 product를 쓰지 않으므로 더미 product로 sampleExec 구성
+    const dummy: Product = { assetClass: r.scope.assetClass, exchange: 'X', code: 'X', name: 'X', currency: 'KRW', sessions: ['주간'] };
+    const sample = (price: number): Execution =>
+      ({ accountId: 'SIM', product: dummy, session: '주간', price, qty: 10, notional: price * 10 });
+    const ok = dominates(schedOf(r.scheduleId), schedOf(base.scheduleId), sample);
+    result.push({ rule: r, ok });
+  }
+  return result;
 }
