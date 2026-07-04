@@ -96,7 +96,10 @@ export function explainBinding(
       return { rule, reason };
     });
 
-  const tieBreakApplied = ranked.length >= 2 && ranked[0].cost === ranked[1].cost;
+  // 상위 2개가 cost 동률이면서, 순서가 실제로 TIE_ORDER(협수>이벤트>기본)로 갈린 경우만 true.
+  // 같은 유형끼리 동률이면 tie-break가 작동한 게 아니므로(배열 순서로 결정) 화면 문구가 거짓이 된다.
+  const tieBreakApplied = ranked.length >= 2 && ranked[0].cost === ranked[1].cost
+    && TIE_ORDER[ranked[0].rule.type] !== TIE_ORDER[ranked[1].rule.type];
 
   const winner = ranked[0]?.rule ?? null;
   const binding: FeeBinding | null = winner ? {

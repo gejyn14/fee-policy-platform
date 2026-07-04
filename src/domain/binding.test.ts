@@ -131,6 +131,14 @@ describe('explainBinding', () => {
     expect(t.candidates.map(c => c.rule.id)).toEqual(['R-BASE']);
   });
 
+  it('같은 유형끼리 cost 동률이면 tieBreakApplied=false (tie-break 미작동)', () => {
+    // 두 EVENT가 같은 요율표(S-EVT)로 cost 동률 → 승자는 배열 순서로 결정, TIE_ORDER는 no-op
+    const evt2 = rule({ id: 'R-EVT2', type: 'EVENT', scheduleId: 'S-EVT' });
+    const t = explainBinding(acct, p6A, [evt, evt2], schedules, [], '2026-07-04');
+    expect(t.candidates[0].avgCustomerFee).toBe(t.candidates[1].avgCustomerFee);
+    expect(t.tieBreakApplied).toBe(false);
+  });
+
   it('후보 0건이면 binding null', () => {
     const t = explainBinding(acct, p6A, [], schedules, [], '2026-07-04');
     expect(t.binding).toBeNull();
