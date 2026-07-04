@@ -1,5 +1,6 @@
 import { it, expect, beforeEach, describe } from 'vitest';
 import { useStore, evalCondition } from './useStore';
+import { deriveFeeKey } from '../domain/feeKey';
 import type { FeeRule, FeeSchedule, Product } from '../domain/types';
 
 beforeEach(() => useStore.getState().reset());
@@ -29,7 +30,7 @@ it('approveRule → 활성 + resolveFee가 신규 이벤트 요율 반영', () =
   const cme6a = s.products.find(p => p.exchange === 'CME' && p.code === '6A')!;
   s.submitRule(newRule, newSched);
   s.approveRule('R-NEW');
-  const r = useStore.getState().resolveFee('110000001001', cme6a, '정규', 'HTS');
+  const r = useStore.getState().resolveFee('110000001001', deriveFeeKey(cme6a, '정규', 'HTS'));
   expect(r!.sourceRuleId).toBe('R-NEW');   // 정액 1원이라 최저가
 });
 
@@ -40,7 +41,7 @@ it('rejectRule → 반려, resolveFee 영향 없음', () => {
   s.rejectRule('R-NEW', '기간 조정 필요');
   const rules = useStore.getState().rules;
   expect(rules.find(x => x.id === 'R-NEW')!.status).toBe('반려');
-  const r = useStore.getState().resolveFee('110000001001', cme6a, '정규', 'HTS');
+  const r = useStore.getState().resolveFee('110000001001', deriveFeeKey(cme6a, '정규', 'HTS'));
   expect(r!.sourceRuleId).not.toBe('R-NEW');
 });
 
@@ -138,11 +139,11 @@ describe('배치 잡', () => {
 
   it('②→④→재해석 캐스케이드: A-1002가 협의 자격 획득해 해외주식이 nego로 해석', () => {
     const s = useStore.getState();
-    const before = s.resolveFee('110000001002', s.products.find(p => p.assetClass === '해외주식')!, '정규', 'MTS');
+    const before = s.resolveFee('110000001002', deriveFeeKey(s.products.find(p => p.assetClass === '해외주식')!, '정규', 'MTS'));
     expect(before!.source).toBe('base');           // 초기: 미충족 → base
     s.batchRecomputeMetrics();                       // 4.9억 → 5.14억
     s.batchEvalNegotiations();                       // grant 부여 + invalidateAccount
-    const after = s.resolveFee('110000001002', s.products.find(p => p.assetClass === '해외주식')!, '정규', 'MTS');
+    const after = s.resolveFee('110000001002', deriveFeeKey(s.products.find(p => p.assetClass === '해외주식')!, '정규', 'MTS'));
     expect(after!.source).toBe('nego');              // 재해석 → nego
   });
 
@@ -165,20 +166,20 @@ describe('resolveFee + 캐시', () => {
   beforeEach(() => useStore.getState().reset());
 
   it('A-1001(협의 grant 보유)은 해외주식이 nego로 해석', () => {
-    const r = useStore.getState().resolveFee('110000001001', usStock, '정규', 'MTS');
+    const r = useStore.getState().resolveFee('110000001001', deriveFeeKey(usStock, '정규', 'MTS'));
     expect(r!.source).toBe('nego');
     expect(r!.scheduleId).toBe('FS-NEGO-STOCK-US');
     expect(r!.cacheHit).toBe(false);
   });
   it('두 번째 조회는 캐시 적중', () => {
     const s = useStore.getState();
-    s.resolveFee('110000001001', usStock, '정규', 'MTS');
-    const r2 = s.resolveFee('110000001001', usStock, '정규', 'MTS');
+    s.resolveFee('110000001001', deriveFeeKey(usStock, '정규', 'MTS'));
+    const r2 = s.resolveFee('110000001001', deriveFeeKey(usStock, '정규', 'MTS'));
     expect(r2!.cacheHit).toBe(true);
     expect(useStore.getState().cacheStat().hits).toBeGreaterThanOrEqual(1);
   });
   it('A-1002(협의 grant 없음)는 해외주식이 base로 해석', () => {
-    const r = useStore.getState().resolveFee('110000001002', usStock, '정규', 'MTS');
+    const r = useStore.getState().resolveFee('110000001002', deriveFeeKey(usStock, '정규', 'MTS'));
     expect(r!.source).toBe('base');
   });
 });

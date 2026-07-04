@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useStore } from '../store/useStore';
-import { deriveFeeKey } from '../domain/feeKey';
+import { buildFeeKey, deriveFeeKey, isDerivative } from '../domain/feeKey';
 import { calcFee } from '../domain/calc';
-import type { Execution, FeeComponent, Session, Channel } from '../domain/types';
+import type { AssetClass, Execution, FeeComponent, Product, Session, Channel } from '../domain/types';
 import type { ResolveResult } from '../domain/resolve';
 
 // AccountView.tsx의 bandLabel (로컬 복사)
@@ -17,13 +17,25 @@ function bandLabel(c: FeeComponent, price: number): string | null {
 
 const SESSIONS: Session[] = ['프리', '정규', '애프터'];
 const CHANNELS: Channel[] = ['HTS', 'MTS', 'API', 'ARS', '센터', '반대매매'];
+const ASSET_CLASSES: AssetClass[] = ['국내주식', '해외주식', '국내파생', '해외파생', '금현물'];
 const SOURCE_LABEL: Record<'nego' | 'event' | 'base', string> = { nego: '협의', event: '이벤트', base: '기본' };
 
 type Resolved = ResolveResult & { cacheHit: boolean };
 
+// 주식형은 종목이 아니라 (거래소·세션·채널)만으로 해석되므로, ⑤ 체결 금액 계산에 쓸
+// 대표 execution을 종목 없이 합성한다. calcFee는 notional/qty/price만 참조한다.
+function repProductFor(assetClass: AssetClass, exchange: string, session: Session): Product {
+  return {
+    assetClass, exchange, code: '(전체)', name: `${assetClass} · ${exchange}`,
+    currency: assetClass.startsWith('해외') ? 'USD' : 'KRW', sessions: [session],
+  };
+}
+
 export default function FeeTrace() {
   const { accounts, products, schedules, resolveFee, cacheStat } = useStore();
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
+  const [assetClass, setAssetClass] = useState<AssetClass>('국내주식');
+  const [exchange, setExchange] = useState<string>('KRX');
   const [productKey, setProductKey] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [session, setSession] = useState<Session>('정규');
@@ -33,23 +45,37 @@ export default function FeeTrace() {
   const [result, setResult] = useState<Resolved | null>(null);
   const [hasRun, setHasRun] = useState(false);
 
+  const isDeriv = isDerivative(assetClass);
   const account = accounts.find((a) => a.id === accountId);
-  const product = productKey ? products.find((p) => `${p.exchange}:${p.code}` === productKey) : undefined;
+
+  // 상품군별 거래소 목록(주식형 거래소 셀렉트용)
+  const exchangeOptions = [...new Set(products.filter((p) => p.assetClass === assetClass).map((p) => p.exchange))];
+
+  // 파생만 종목을 고른다. 주식형은 productKey를 쓰지 않는다(품목 붕괴).
+  const product = isDeriv && productKey
+    ? products.find((p) => `${p.exchange}:${p.code}` === productKey)
+    : undefined;
 
   const query = search.trim().toLowerCase();
-  const searchResults = query
-    ? products.filter((p) => p.code.toLowerCase().includes(query) || p.name.toLowerCase().includes(query)).slice(0, 20)
+  const searchResults = (isDeriv && query)
+    ? products.filter((p) => p.assetClass === assetClass
+        && (p.code.toLowerCase().includes(query) || p.name.toLowerCase().includes(query))).slice(0, 20)
     : [];
 
-  const ready = !!account && !!product;
-  const feeKey = product ? deriveFeeKey(product, session, channel) : null;
+  // feeKey: 주식형 = 거래소·세션·채널(품목 null), 파생 = 종목 기반.
+  const feeKey = isDeriv
+    ? (product ? deriveFeeKey(product, session, channel) : null)
+    : (exchange ? buildFeeKey(assetClass, exchange, session, channel) : null);
+  const ready = !!account && !!feeKey;
+
+  const repProduct = isDeriv ? product : (exchange ? repProductFor(assetClass, exchange, session) : undefined);
 
   const winnerSchedule = result
     ? (result.candidates.find((c) => c.isWinner)?.schedule ?? schedules.find((s) => s.id === result.scheduleId))
     : undefined;
 
-  const exec: Execution | null = (winnerSchedule && account && product)
-    ? { accountId, product, session, channel, price, qty, notional: price * qty }
+  const exec: Execution | null = (winnerSchedule && account && repProduct)
+    ? { accountId, product: repProduct, session, channel, price, qty, notional: price * qty }
     : null;
   const calc = (winnerSchedule && exec) ? calcFee(winnerSchedule, exec) : null;
   const stat = cacheStat();
@@ -61,6 +87,20 @@ export default function FeeTrace() {
 
   function handleAccountChange(id: string) {
     setAccountId(id);
+    resetResult();
+  }
+
+  function handleAssetClassChange(ac: AssetClass) {
+    setAssetClass(ac);
+    const opts = [...new Set(products.filter((p) => p.assetClass === ac).map((p) => p.exchange))];
+    setExchange(opts[0] ?? '');
+    setProductKey(null);
+    setSearch('');
+    resetResult();
+  }
+
+  function handleExchangeChange(v: string) {
+    setExchange(v);
     resetResult();
   }
 
@@ -85,8 +125,8 @@ export default function FeeTrace() {
   }
 
   function handleResolve() {
-    if (!account || !product) return;
-    setResult(resolveFee(accountId, product, session, channel));
+    if (!feeKey) return;
+    setResult(resolveFee(accountId, feeKey));
     setHasRun(true);
   }
 
@@ -103,21 +143,37 @@ export default function FeeTrace() {
         </div>
 
         <div className="field">
-          <label>품목</label>
-          {product ? (
-            <div className="check-grid">
-              <span className="check-item">{product.exchange}:{product.code} {product.name}</span>
-              <button className="btn" type="button" onClick={handleClearProduct}>변경</button>
-            </div>
-          ) : (
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="6A, 삼성전자, 005930"
-            />
-          )}
+          <label>자산군</label>
+          <select value={assetClass} onChange={(e) => handleAssetClassChange(e.target.value as AssetClass)}>
+            {ASSET_CLASSES.map((ac) => <option key={ac} value={ac}>{ac}</option>)}
+          </select>
         </div>
+
+        {isDeriv ? (
+          <div className="field">
+            <label>품목</label>
+            {product ? (
+              <div className="check-grid">
+                <span className="check-item">{product.exchange}:{product.code} {product.name}</span>
+                <button className="btn" type="button" onClick={handleClearProduct}>변경</button>
+              </div>
+            ) : (
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="6A, 6B, K200OPT"
+              />
+            )}
+          </div>
+        ) : (
+          <div className="field">
+            <label>거래소</label>
+            <select value={exchange} onChange={(e) => handleExchangeChange(e.target.value)}>
+              {exchangeOptions.map((ex) => <option key={ex} value={ex}>{ex}</option>)}
+            </select>
+          </div>
+        )}
 
         <div className="field">
           <label>세션</label>
@@ -134,7 +190,7 @@ export default function FeeTrace() {
         </div>
       </div>
 
-      {!product && query && (
+      {isDeriv && !product && query && (
         searchResults.length > 0 ? (
           <table>
             <thead>
@@ -159,7 +215,7 @@ export default function FeeTrace() {
       )}
 
       {!ready ? (
-        <p className="empty">계좌와 품목을 선택하면 결정 흐름이 단계별로 표시됩니다.</p>
+        <p className="empty">계좌와 {isDeriv ? '품목' : '거래소'}를 선택하면 결정 흐름이 단계별로 표시됩니다.</p>
       ) : (
         <>
           <div className="actions">

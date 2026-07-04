@@ -3,13 +3,14 @@ import { useStore } from '../store/useStore';
 import { calcFee } from '../domain/calc';
 import { explainDominanceFailure, type DominanceFailure } from '../domain/dominance';
 import { scopeMatches, isTarget } from '../domain/binding';
+import { isDerivative } from '../domain/feeKey';
 import { TODAY } from '../domain/types';
 import { ruleTypeLabel } from './labels';
 import InstrumentPicker from './InstrumentPicker';
 import { parseCsvCodes, summarize, type Selection } from './pickerLogic';
 import type {
   ApplyMode, AssetClass, Channel, Execution, FeeComponent, FeeRule, FeeSchedule,
-  NegotiatedCondition, Payer, Product, RateBand, ScopeSelector,
+  NegotiatedCondition, Payer, Product, RateBand, ScopeSelector, Session,
 } from '../domain/types';
 
 // ---------------------------------------------------------------------------
@@ -18,13 +19,16 @@ import type {
 // parseCsvCodes는 InstrumentPicker(./pickerLogic)로 이관되었다 — 위저드는 계좌 CSV
 // 파싱에만 그 함수를 재사용한다(로직 자체는 그대로, 소유권만 픽커로 이동).
 
-// 상품군별 거래소/세션 옵션 — 국내주식의 거래소 체크박스(KRX/NXT)와 전 상품군 공통
-// 세션 체크박스에 쓰인다. 통화는 v0.2부터 위저드에서 다루지 않는다(스코프는 항상 '*').
+// 세션은 v0.5의 고정 차원 {프리·정규·애프터}다 — 종목 마스터의 거래시간(정규/야간/프리마켓 등)에서
+// 유도하지 않는다. feeKey.session이 이 3값이므로 위저드도 이 3값을 그대로 제시한다.
+const SESSION_DIM: Session[] = ['프리', '정규', '애프터'];
+
+// 상품군별 거래소 옵션 — 주식형(국내주식/해외주식)의 거래소 체크박스에 쓰인다.
+// 통화는 v0.2부터 위저드에서 다루지 않는다(스코프는 항상 '*').
 function optionsForAssetClass(products: Product[], ac: AssetClass) {
   const inClass = products.filter((p) => p.assetClass === ac);
   const exchanges = [...new Set(inClass.map((p) => p.exchange))];
-  const sessions = [...new Set(inClass.flatMap((p) => p.sessions))];
-  return { exchanges, sessions };
+  return { exchanges, sessions: SESSION_DIM as string[] };
 }
 
 const emptySelection = (): Selection => ({ products: '*', excludeProducts: [], exchanges: '*' });
@@ -123,11 +127,14 @@ export default function Wizard() {
   const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
   const toggleChannel = (list: Channel[], v: Channel) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
-  // 거래소 차원 관련성 매트릭스(스펙 §1.1): 국내주식만 거래소가 "선택 차원"(KRX/NXT 체크박스로
-  // 위저드가 직접 다룬다). 해외주식/해외파생은 거래소가 종목·품목의 "속성"이라 픽커 내부의
-  // 필터 chip/전체선택으로만 다뤄지고, 국내파생·금현물은 거래소가 KRX로 숨겨진 차원이다.
+  // 차원 관련성 매트릭스(v0.5): 주식은 품목(종목) 차원이 붕괴되므로 종목을 고르지 않는다.
+  // - 국내주식/해외주식: 거래소가 "선택 차원"(체크박스). 품목 픽커 없음.
+  // - 국내파생/해외파생: 품목 픽커로 종목을 고르고, 거래소는 품목의 속성으로 따라온다.
+  // - 금현물: 거래소 KRX 고정·세션 숨김(정규), 품목 픽커도 없음(주식형).
+  const derivative = isDerivative(form.assetClass);
   const { exchanges, sessions } = optionsForAssetClass(products, form.assetClass);
-  const showExchangeCheckboxes = form.assetClass === '국내주식';
+  const showProductPicker = derivative;                              // 파생만 종목 선택
+  const showExchangeCheckboxes = form.assetClass === '국내주식' || form.assetClass === '해외주식';
   const showSessionCheckboxes = form.assetClass !== '금현물'; // 금현물은 세션도 숨김(정규만 존재)
 
   const showTrigger = form.applyMode !== '일괄적용형';
@@ -421,17 +428,21 @@ export default function Wizard() {
           </div>
         </div>
 
-        <div className="field">
-          <label>품목 선택</label>
-          <InstrumentPicker
-            assetClass={form.assetClass}
-            value={form.selection}
-            onChange={(selection) => update({ selection })}
-          />
-        </div>
+        {showProductPicker ? (
+          <div className="field">
+            <label>품목 선택</label>
+            <InstrumentPicker
+              assetClass={form.assetClass}
+              value={form.selection}
+              onChange={(selection) => update({ selection })}
+            />
+          </div>
+        ) : (
+          <p className="trace-narration">주식은 종목 차원이 없다 — 이 룰은 거래소·세션·채널로만 해석되어 해당 조건의 전 종목에 적용된다.</p>
+        )}
 
-        <p className={matchedProductCount === 0 ? 'warn' : undefined}>매칭 품목 {matchedProductCount}개</p>
-        {matchedProductCount === 0 && (
+        <p className={matchedProductCount === 0 ? 'warn' : undefined}>적용 종목 {matchedProductCount}개</p>
+        {showProductPicker && matchedProductCount === 0 && (
           <p className="warn">선택/제외 조건으로 매칭되는 품목이 없습니다.</p>
         )}
         {showExchangeCheckboxes && form.exchangesSel.length === 0 && (

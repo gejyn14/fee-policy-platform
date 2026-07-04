@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Account, Enrollment, FeeRule, FeeSchedule, Product, Execution, BatchChange, BatchJobResult, Session, Channel } from '../domain/types';
+import type { Account, Enrollment, FeeRule, FeeSchedule, Product, Execution, BatchChange, BatchJobResult, FeeKey } from '../domain/types';
 import { TODAY } from '../domain/types';
 import { mockAccounts, mockSchedules, mockRules, mockEnrollments, mockNego } from './mock';
 import { scopeMatches, isTarget } from '../domain/binding';
@@ -28,7 +28,7 @@ interface State {
   syncCursor: number;
   wizardDraft: { form: unknown; step: number } | null;
   reset(): void;
-  resolveFee(accountId: string, product: Product, session: Session, channel: Channel): (ResolveResult & { cacheHit: boolean }) | null;
+  resolveFee(accountId: string, key: FeeKey): (ResolveResult & { cacheHit: boolean }) | null;
   cacheStat(): CacheStat;
   submitRule(rule: FeeRule, schedule: FeeSchedule): void;
   approveRule(id: string): void;
@@ -65,11 +65,10 @@ export const useStore = create<State>((set) => ({
     return { ...init, nego: mockNego, syncCursor: 0, wizardDraft: null };
   }),
 
-  resolveFee: (accountId, product, session, channel) => {
+  resolveFee: (accountId, key) => {
     const s = useStore.getState();
     const acct = s.accounts.find((a) => a.id === accountId);
     if (!acct) return null;
-    const key = deriveFeeKey(product, session, channel);
     const hit = resolveCache.get(accountId, key);
     if (hit) return { key, scheduleId: hit.scheduleId, sourceRuleId: hit.sourceRuleId, source: hit.source, candidates: [], cacheHit: true };
     const idx = buildScopeIndex(s.rules, TODAY);
@@ -288,7 +287,7 @@ export const useStore = create<State>((set) => ({
     const sample = s.products.find((p) => p.assetClass === '해외주식');   // 대표 해외주식 품목으로 캐스케이드 가시화
     const changes: BatchChange[] = [];
     if (sample) for (const a of s.accounts) {
-      const r = s.resolveFee(a.id, sample, '정규', 'MTS');
+      const r = s.resolveFee(a.id, deriveFeeKey(sample, '정규', 'MTS'));
       if (r) changes.push({ label: `${a.id} ${sample.exchange}:${sample.code}`, detail: `${r.source} (${r.scheduleId})` });
     }
     return { summary: `재해석 ${changes.length} · 캐시 ${s.cacheStat().size}건`, changes };
