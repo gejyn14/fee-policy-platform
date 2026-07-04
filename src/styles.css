@@ -428,3 +428,142 @@ tbody tr.active {
   color: var(--text-muted);
   white-space: nowrap;
 }
+
+/* ---------- InstrumentPicker dual-panel (Task 5) ---------- */
+
+.picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.picker-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.picker-panel-right {
+  position: sticky;
+  top: 0;
+}
+
+.picker-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.picker-filter-chip {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.picker-filter-chip:hover {
+  background: #f3f4f6;
+}
+
+.picker-filter-chip.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.picker-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.picker-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.picker-list table {
+  box-shadow: none;
+}
+
+.picker-overflow-note {
+  margin: 8px 2px 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.picker-summary {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.picker-chip-section h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.picker-chip-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.picker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  background: #f3f4f6;
+  border-radius: 999px;
+  padding: 4px 6px 4px 10px;
+}
+
+.picker-chip-exclude {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.picker-chip-remove {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 999px;
+}
+
+.picker-chip-remove:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.picker-chip-more {
+  font-size: 12px;
+  color: var(--text-muted);
+  align-self: center;
+}
+
+.picker-csv-result {
+  font-size: 12px;
+  color: var(--text-muted);
+  align-self: center;
+}
