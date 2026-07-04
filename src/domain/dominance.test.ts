@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { dominates, probePrices } from './dominance';
+import { dominates, probePrices, explainDominanceFailure } from './dominance';
 import type { FeeSchedule, Execution, Product } from './types';
 
 const opt: Product = { assetClass: '국내파생', exchange: 'KRX', code: 'K200OPT', name: 'KOSPI200옵션', currency: 'KRW', sessions: ['정규'] };
@@ -26,4 +26,19 @@ it('probePrices는 양쪽 구간 경계를 모두 포함', () => {
   const ps = probePrices(a, b);
   expect(ps.some(p => p > 3 && p < 7)).toBe(true);  // 3~7 사이 표본 존재
   expect(ps.some(p => p > 7)).toBe(true);            // 7 초과 표본 존재
+});
+
+it('교차 구간에서 최대 역전 지점을 반환', () => {
+  const base = sched([{ from: 0, to: 3, flat: 10 }, { from: 3, to: null, flat: 50 }]);
+  const cross = sched([{ from: 0, to: 3, flat: 5 }, { from: 3, to: null, flat: 80 }]);
+  const f = explainDominanceFailure(cross, base, sample)!;
+  expect(f).not.toBeNull();
+  expect(f.candidateFee).toBeGreaterThan(f.incumbentFee);
+  expect(f.price).toBeGreaterThanOrEqual(3); // 역전은 상위 구간에서만 발생
+});
+
+it('전 구간 지배 성립이면 null', () => {
+  const base = sched([{ from: 0, to: 3, flat: 10 }, { from: 3, to: null, flat: 50 }]);
+  const event = sched([{ from: 0, to: 3, flat: 5 }, { from: 3, to: null, flat: 30 }]);
+  expect(explainDominanceFailure(event, base, sample)).toBeNull();
 });

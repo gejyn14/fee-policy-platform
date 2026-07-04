@@ -22,3 +22,21 @@ export function dominates(
     (p) => calcFee(candidate, sampleExec(p)).customerTotal <= calcFee(incumbent, sampleExec(p)).customerTotal,
   );
 }
+
+export interface DominanceFailure { price: number; candidateFee: number; incumbentFee: number }
+
+/** candidate가 incumbent보다 비싼 지점 중 차액 최대 지점. 지배 성립이면 null */
+export function explainDominanceFailure(
+  candidate: FeeSchedule, incumbent: FeeSchedule,
+  sampleExec: (price: number) => Execution,
+): DominanceFailure | null {
+  let worst: DominanceFailure | null = null;
+  for (const price of probePrices(candidate, incumbent)) {
+    const c = calcFee(candidate, sampleExec(price)).customerTotal;
+    const i = calcFee(incumbent, sampleExec(price)).customerTotal;
+    if (c > i && (!worst || c - i > worst.candidateFee - worst.incumbentFee)) {
+      worst = { price, candidateFee: c, incumbentFee: i };
+    }
+  }
+  return worst;
+}
