@@ -1,7 +1,7 @@
 import type { FeeKey } from './types';
 import { feeKeyString } from './feeKey';
 
-export interface CacheEntry { scheduleId: string; sourceRuleId: string | null }
+export interface CacheEntry { scheduleId: string; sourceRuleId: string | null; source: 'nego' | 'event' | 'base' }
 export interface CacheStat { hits: number; misses: number; size: number }
 
 interface Slot { accountId: string; key: FeeKey; value: CacheEntry }

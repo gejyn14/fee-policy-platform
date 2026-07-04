@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import type { Account, Enrollment, FeeBinding, FeeRule, FeeSchedule, Product, Execution, BatchChange, BatchJobResult } from '../domain/types';
+import type { Account, Enrollment, FeeBinding, FeeRule, FeeSchedule, Product, Execution, BatchChange, BatchJobResult, Session, Channel } from '../domain/types';
 import { TODAY } from '../domain/types';
-import { mockAccounts, mockSchedules, mockRules, mockEnrollments } from './mock';
+import { mockAccounts, mockSchedules, mockRules, mockEnrollments, mockNego } from './mock';
 import { rebindAccount, scopeMatches, isTarget } from '../domain/binding';
 import { calcFee } from '../domain/calc';
 import { dominates, revalidateDominance } from '../domain/dominance';
@@ -11,18 +11,25 @@ import { deriveProducts } from '../masterdata/derive';
 import { nudgeMetrics } from '../domain/metrics';
 import { classifyLifecycle } from '../domain/lifecycle';
 import { evalCondition } from '../domain/eligibility';
+import { deriveFeeKey } from '../domain/feeKey';
+import { resolve, buildScopeIndex, type NegoException, type ResolveResult } from '../domain/resolve';
+import { ResolveCache, type CacheStat } from '../domain/cache';
 
 const MASTER = generateInstruments();
 const SYNC_BATCH_SIZE = 5;
+const resolveCache = new ResolveCache();
 
 export { evalCondition } from '../domain/eligibility';
 
 interface State {
   accounts: Account[]; instruments: Instrument[]; products: Product[]; schedules: FeeSchedule[];
   rules: FeeRule[]; enrollments: Enrollment[]; bindings: FeeBinding[];
+  nego: NegoException[];
   syncCursor: number;
   wizardDraft: { form: unknown; step: number } | null;
   reset(): void; rebindAll(): void;
+  resolveFee(accountId: string, product: Product, session: Session, channel: Channel): (ResolveResult & { cacheHit: boolean }) | null;
+  cacheStat(): CacheStat;
   submitRule(rule: FeeRule, schedule: FeeSchedule): void;
   approveRule(id: string): void;
   rejectRule(id: string, reason: string): void;
@@ -51,16 +58,33 @@ function allBindings(s: Pick<State, 'accounts' | 'rules' | 'schedules' | 'enroll
 export const useStore = create<State>((set) => ({
   accounts: mockAccounts, instruments: MASTER, products: deriveProducts(MASTER), schedules: mockSchedules,
   rules: mockRules, enrollments: mockEnrollments, bindings: [],
+  nego: mockNego,
   syncCursor: 0,
   wizardDraft: null,
 
   reset: () => set(() => {
     const init = { accounts: mockAccounts, instruments: MASTER, products: deriveProducts(MASTER), schedules: mockSchedules,
       rules: mockRules.map(r => ({ ...r, log: [...r.log] })), enrollments: mockEnrollments };
-    return { ...init, bindings: allBindings(init), syncCursor: 0, wizardDraft: null };
+    resolveCache.clear();
+    return { ...init, bindings: allBindings(init), nego: mockNego, syncCursor: 0, wizardDraft: null };
   }),
 
   rebindAll: () => set((s) => ({ bindings: allBindings(s) })),
+
+  resolveFee: (accountId, product, session, channel) => {
+    const s = useStore.getState();
+    const acct = s.accounts.find((a) => a.id === accountId);
+    if (!acct) return null;
+    const key = deriveFeeKey(product, session, channel);
+    const hit = resolveCache.get(accountId, key);
+    if (hit) return { key, scheduleId: hit.scheduleId, sourceRuleId: hit.sourceRuleId, source: hit.source, candidates: [], cacheHit: true };
+    const idx = buildScopeIndex(s.rules, TODAY);
+    const r = resolve(acct, key, s.rules, s.schedules, s.nego, idx, TODAY);
+    if (!r) return null;
+    resolveCache.set(accountId, key, { scheduleId: r.scheduleId, sourceRuleId: r.sourceRuleId, source: r.source });
+    return { ...r, cacheHit: false };
+  },
+  cacheStat: () => resolveCache.stat(),
 
   syncFromLedger: () => {
     let added = 0;

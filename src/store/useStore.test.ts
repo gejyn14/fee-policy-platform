@@ -1,6 +1,6 @@
 import { it, expect, beforeEach, describe } from 'vitest';
 import { useStore, evalCondition } from './useStore';
-import type { FeeRule, FeeSchedule } from '../domain/types';
+import type { FeeRule, FeeSchedule, Product } from '../domain/types';
 
 beforeEach(() => useStore.getState().reset());
 
@@ -165,5 +165,29 @@ describe('배치 잡', () => {
   it('⑥ 지배관계 재검증: 위반 없으면 summary에 위반 0', () => {
     const res = useStore.getState().batchRevalidateDominance();
     expect(res.summary).toMatch(/위반\s*0|이상\s*없/);
+  });
+});
+
+const usStock: Product = { assetClass: '해외주식', exchange: 'NASDAQ', code: 'AAPL', name: '애플', currency: 'USD', sessions: ['정규'] };
+
+describe('resolveFee + 캐시', () => {
+  beforeEach(() => useStore.getState().reset());
+
+  it('A-1001(협의 grant 보유)은 해외주식이 nego로 해석', () => {
+    const r = useStore.getState().resolveFee('110000001001', usStock, '정규', 'MTS');
+    expect(r!.source).toBe('nego');
+    expect(r!.scheduleId).toBe('FS-NEGO-STOCK-US');
+    expect(r!.cacheHit).toBe(false);
+  });
+  it('두 번째 조회는 캐시 적중', () => {
+    const s = useStore.getState();
+    s.resolveFee('110000001001', usStock, '정규', 'MTS');
+    const r2 = s.resolveFee('110000001001', usStock, '정규', 'MTS');
+    expect(r2!.cacheHit).toBe(true);
+    expect(useStore.getState().cacheStat().hits).toBeGreaterThanOrEqual(1);
+  });
+  it('A-1002(협의 grant 없음)는 해외주식이 base로 해석', () => {
+    const r = useStore.getState().resolveFee('110000001002', usStock, '정규', 'MTS');
+    expect(r!.source).toBe('base');
   });
 });
