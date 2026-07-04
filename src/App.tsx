@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Dashboard from './screens/Dashboard';
 import Wizard from './screens/Wizard';
 import Approvals from './screens/Approvals';
+import Negotiated from './screens/Negotiated';
 
 const TABS = ['대시보드', '이벤트 등록', '승인함', '협수 관리', '계좌 조회'] as const;
 type Tab = typeof TABS[number];
@@ -20,7 +21,7 @@ export default function App() {
         {tab === '대시보드' && <Dashboard />}
         {tab === '이벤트 등록' && <Wizard />}
         {tab === '승인함' && <Approvals />}
-        {tab === '협수 관리' && <p>구현 예정 (Task 9)</p>}
+        {tab === '협수 관리' && <Negotiated />}
         {tab === '계좌 조회' && <p>구현 예정 (Task 10)</p>}
       </main>
     </div>

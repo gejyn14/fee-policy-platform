@@ -232,6 +232,14 @@ tbody tr:hover {
   border-radius: 999px;
 }
 
+.bar.ok > div {
+  background: #16a34a;
+}
+
+.bar.fail > div {
+  background: var(--danger);
+}
+
 /* ---------- forms / wizard (shared by later screens) ---------- */
 
 .wizard {
