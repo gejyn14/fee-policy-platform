@@ -53,13 +53,6 @@ it('evalCondition: 6개월평균자산 임계값 판정', () => {
   expect(evalCondition({ ...nego, condition: { ...nego.condition!, threshold: 1_000_000_000 } }, acct)).toBe(false);
 });
 
-it('extendNegotiated → 기간 연장 + log', () => {
-  const nego = useStore.getState().rules.find(r => r.type === 'NEGOTIATED')!;
-  useStore.getState().extendNegotiated(nego.id, '2027-06-30');
-  const r = useStore.getState().rules.find(x => x.id === nego.id)!;
-  expect(r.endDate).toBe('2027-06-30');
-  expect(r.log.at(-1)).toContain('연장');
-});
 
 it('submitRule with zero matching products → 승인대기 + sim { targets: 0, saving: 0 }', () => {
   const noMatchRule: FeeRule = {
@@ -128,25 +121,6 @@ describe('배치 잡', () => {
     expect(a.metric6mAsset).toBeGreaterThan(500_000_000);
   });
 
-  it('④ 협수 grant 평가: 충족(A-1001)은 grant 유지, 미충족(A-1002)은 grant 없음(no-op)', () => {
-    // reset 직후: 110000001001 8.5억(충족·grant 보유), 110000001002 4.9억(미충족·grant 없음).
-    const s = useStore.getState();
-    const res = s.batchEvalNegotiations();
-    expect(res.changes.some(c => c.label.startsWith('110000001001') && c.detail.includes('유지'))).toBe(true);
-    expect(useStore.getState().nego.some(n => n.accountId === '110000001002')).toBe(false); // 미충족 → grant 부여 안 됨
-    expect(res.changes.some(c => c.label.startsWith('110000001002'))).toBe(false);           // !met && !has → 변경 없음(no-op)
-  });
-
-  it('②→④→재해석 캐스케이드: A-1002가 협의 자격 획득해 해외주식이 nego로 해석', () => {
-    const s = useStore.getState();
-    const before = s.resolveFee('110000001002', deriveFeeKey(s.products.find(p => p.assetClass === '해외주식')!, '정규', 'MTS'));
-    expect(before!.source).toBe('base');           // 초기: 미충족 → base
-    s.batchRecomputeMetrics();                       // 4.9억 → 5.14억
-    s.batchEvalNegotiations();                       // grant 부여 + invalidateAccount
-    const after = s.resolveFee('110000001002', deriveFeeKey(s.products.find(p => p.assetClass === '해외주식')!, '정규', 'MTS'));
-    expect(after!.source).toBe('nego');              // 재해석 → nego
-  });
-
   it('⑤ batchReresolve: 계좌 수만큼 재해석 결과 반환, summary에 재해석 표기', () => {
     const s = useStore.getState();
     const res = s.batchReresolve();
@@ -196,18 +170,24 @@ describe('resolveFee + 캐시', () => {
 describe('협의수수료 연장 리뷰/적용', () => {
   beforeEach(() => useStore.getState().reset());
 
-  it('리뷰가 활성 grant를 상품군 그룹으로 산출(유지/탈락 counts)', () => {
+  it('리뷰: 해외주식 그룹에서 001 유지·003 탈락(자산 3천만)', () => {
     const groups = useStore.getState().reviewNegoExtension();
-    const stockG = groups.find(g => g.groupKey === '해외주식');
-    expect(stockG).toBeTruthy();
-    expect(stockG!.candidates.some(c => c.accountId === '110000001001')).toBe(true);
-    expect(stockG!.counts.유지 + stockG!.counts.탈락).toBe(stockG!.candidates.length);
+    const stockG = groups.find(g => g.groupKey === '해외주식')!;
+    const byId = Object.fromEntries(stockG.candidates.map(c => [c.accountId, c.status]));
+    expect(byId['110000001001']).toBe('유지');
+    expect(byId['110000001003']).toBe('탈락');
   });
 
-  it('일괄 승인 결과에 유지·탈락 건수', () => {
-    const res = useStore.getState().applyNegoExtension();
-    expect(res.summary).toContain('유지');
-    expect(typeof res.유지).toBe('number');
-    expect(typeof res.탈락).toBe('number');
+  it('파생 협의는 품목(6A) 축', () => {
+    const groups = useStore.getState().reviewNegoExtension();
+    expect(groups.some(g => g.axis === '품목' && g.groupKey === '6A')).toBe(true);
+  });
+
+  it('일괄 승인: 탈락(003) 협의 해지, 유지(001) 활성 유지', () => {
+    useStore.getState().applyNegoExtension();
+    const nego = useStore.getState().nego;
+    const active = (id: string) => nego.some(n => n.accountId === id && n.scheduleId === 'FS-NEGO-STOCK-US' && n.status === '활성');
+    expect(active('110000001003')).toBe(false); // 탈락 → 반려
+    expect(active('110000001001')).toBe(true);  // 유지
   });
 });

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Account, Enrollment, FeeRule, FeeSchedule, Product, Execution, BatchChange, BatchJobResult, FeeKey } from '../domain/types';
 import { TODAY } from '../domain/types';
-import { mockAccounts, mockSchedules, mockRules, mockEnrollments, mockNego } from './mock';
+import { mockAccounts, mockSchedules, mockRules, mockEnrollments, mockNego, mockQualifyPolicies } from './mock';
 import { scopeMatches, isTarget } from '../domain/binding';
 import { calcFee } from '../domain/calc';
 import { dominates, revalidateDominance } from '../domain/dominance';
@@ -10,7 +10,6 @@ import type { Instrument } from '../masterdata/instruments';
 import { deriveProducts } from '../masterdata/derive';
 import { nudgeMetrics } from '../domain/metrics';
 import { classifyLifecycle } from '../domain/lifecycle';
-import { evalCondition } from '../domain/eligibility';
 import { deriveFeeKey } from '../domain/feeKey';
 import { resolve, buildScopeIndex, scopeMatchesKey, type NegoException, type ResolveResult } from '../domain/resolve';
 import { classifyNegoExtension, type ExtGroup } from '../domain/negoExtension';
@@ -45,7 +44,6 @@ interface State {
   batchActivateExpireRules(): BatchJobResult;
   batchRecomputeMetrics(): BatchJobResult;
   batchSyncInstruments(): BatchJobResult;
-  batchEvalNegotiations(): BatchJobResult;
   batchReresolve(): BatchJobResult;
   batchRevalidateDominance(): BatchJobResult;
 }
@@ -60,7 +58,7 @@ export const useStore = create<State>((set) => ({
   accounts: mockAccounts, instruments: MASTER, products: deriveProducts(MASTER), schedules: mockSchedules,
   rules: mockRules, enrollments: mockEnrollments,
   nego: mockNego,
-  qualifyPolicies: [],
+  qualifyPolicies: mockQualifyPolicies,
   syncCursor: 0,
   wizardDraft: null,
 
@@ -68,7 +66,7 @@ export const useStore = create<State>((set) => ({
     const init = { accounts: mockAccounts, instruments: MASTER, products: deriveProducts(MASTER), schedules: mockSchedules,
       rules: mockRules.map(r => ({ ...r, log: [...r.log] })), enrollments: mockEnrollments };
     resolveCache.clear();
-    return { ...init, nego: mockNego, qualifyPolicies: [], syncCursor: 0, wizardDraft: null };
+    return { ...init, nego: mockNego, qualifyPolicies: mockQualifyPolicies, syncCursor: 0, wizardDraft: null };
   }),
 
   resolveFee: (accountId, key) => {
@@ -280,37 +278,6 @@ export const useStore = create<State>((set) => ({
     return { summary: `신규 품목 ${added}`, changes };
   },
 
-  batchEvalNegotiations: () => {
-    const changes: BatchChange[] = [];
-    set((s) => {
-      let nego = [...s.nego];
-      for (const r of s.rules) {
-        if (r.type !== 'NEGOTIATED' || !r.condition) continue;
-        const enrolled = s.accounts.filter((a) => s.enrollments.some((e) => e.accountId === a.id && e.ruleId === r.id));
-        for (const a of enrolled) {
-          const met = evalCondition(r, a);
-          const has = nego.some((n) => n.accountId === a.id && n.scheduleId === r.scheduleId);
-          if (met && !has) {
-            nego.push({ accountId: a.id, scope: r.scope, scheduleId: r.scheduleId, validFrom: TODAY, validTo: extendOneYear(r.endDate),
-              status: '활성', qualify: '충족', requestId: `LEGACY-${a.id}`, requestedBy: '배치', requestedAt: TODAY, approvedAt: TODAY });
-            changes.push({ label: `${a.id}·${r.scope.assetClass}`, detail: '조건 충족 → 협의 grant 부여' });
-            resolveCache.invalidateAccount(a.id);
-          } else if (!met && has) {
-            nego = nego.filter((n) => !(n.accountId === a.id && n.scheduleId === r.scheduleId));
-            changes.push({ label: `${a.id}·${r.scope.assetClass}`, detail: '조건 미충족 → 협의 grant 해지' });
-            resolveCache.invalidateAccount(a.id);
-          } else if (met && has) {
-            changes.push({ label: `${a.id}·${r.scope.assetClass}`, detail: '조건 충족 → 유지' });
-          }
-        }
-      }
-      return { nego };
-    });
-    const granted = changes.filter(c => c.detail.includes('부여')).length;
-    const revoked = changes.filter(c => c.detail.includes('해지')).length;
-    const kept = changes.filter(c => c.detail.includes('유지')).length;
-    return { summary: `grant 부여 ${granted} · 해지 ${revoked} · 유지 ${kept}`, changes };
-  },
 
   batchReresolve: (): BatchJobResult => {
     const s = useStore.getState();

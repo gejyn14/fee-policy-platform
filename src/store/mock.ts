@@ -1,5 +1,11 @@
-import type { Account, FeeSchedule, FeeRule, Enrollment } from '../domain/types';
+import type { Account, FeeSchedule, FeeRule, Enrollment, QualifyPolicy } from '../domain/types';
 import type { NegoException } from '../domain/resolve';
+
+// 협의수수료 자격 정책 — 상품군별 표준 기준(신청 시 자동 자격판정)
+export const mockQualifyPolicies: QualifyPolicy[] = [
+  { assetClass: '해외주식', metric: '6개월평균자산', threshold: 500_000_000 },
+  { assetClass: '해외파생', metric: '6개월약정액', threshold: 100_000_000 },
+];
 
 export const mockAccounts: Account[] = [
   { id: '110000001001', name: '김철수', grade: 'GOLD', dormantReturned: false, metric6mAsset: 850_000_000, metric6mVolume: 2_100_000_000 },
@@ -189,19 +195,6 @@ export const mockRules: FeeRule[] = [
     createdBy: '마케팅팀-한지민',
     log: ['2026-05-20 마케팅팀 한지민 기안 → 2026-05-25 상품위원회 승인 → 활성'],
   },
-  {
-    id: 'RULE-NEGO-STOCK-US',
-    name: '해외주식 우수고객 협의수수료',
-    type: 'NEGOTIATED', status: '활성', applyMode: '신청형',
-    startDate: '2026-01-01', endDate: '2026-12-31',
-    scope: { assetClass: '해외주식', exchanges: '*', sessions: '*', currencies: '*', products: '*', excludeProducts: [] },
-    scheduleId: 'FS-NEGO-STOCK-US',
-    condition: { metric: '6개월평균자산', threshold: 500_000_000, action: '승인후연장' },
-    warnings: { dominance: true, reverseMargin: false },
-    sim: { targets: 1, saving: 450_000 },
-    createdBy: 'PB팀-오세훈',
-    log: ['2026-01-05 PB팀 오세훈 기안 → 2026-01-10 지점장 승인 → 활성'],
-  },
   // ① 발효 대상: 오늘(2026-07-04) window 안이지만 아직 승인대기
   {
     id: 'RULE-EVENT-KR-PROMO',
@@ -240,26 +233,9 @@ export const mockRules: FeeRule[] = [
     createdBy: '마케팅팀',
     log: ['2026-03-25 기안 → 2026-03-30 승인 → 활성'],
   },
-  // 파생 품목별 협의(연장 리뷰의 '품목' 축) — 만료 임박(2026-08-15)
-  {
-    id: 'RULE-NEGO-DERIV-CME',
-    name: '해외파생 CME 6A 대량약정 협의',
-    type: 'NEGOTIATED', status: '활성', applyMode: '신청형',
-    startDate: '2026-01-01', endDate: '2026-08-15',
-    scope: { assetClass: '해외파생', exchanges: ['CME'], sessions: '*', channels: '*', currencies: '*', products: ['6A'], excludeProducts: [] },
-    scheduleId: 'FS-NEGO-DERIV-CME',
-    condition: { metric: '6개월약정액', threshold: 100_000_000, action: '승인후연장' },
-    warnings: { dominance: true, reverseMargin: false },
-    createdBy: 'PB팀',
-    log: ['2026-01-05 기안 → 2026-01-10 승인 → 활성'],
-  },
 ];
 
 export const mockEnrollments: Enrollment[] = [
-  { accountId: '110000001001', ruleId: 'RULE-NEGO-STOCK-US', enrolledAt: '2026-01-15', channel: 'HTS' },
-  { accountId: '110000001002', ruleId: 'RULE-NEGO-STOCK-US', enrolledAt: '2026-03-02', channel: '지점' },
-  { accountId: '110000001004', ruleId: 'RULE-NEGO-STOCK-US', enrolledAt: '2026-05-10', channel: '지점' }, // 24억 충족·미보유 → 연장 리뷰의 '신규'
-  { accountId: '110000001004', ruleId: 'RULE-NEGO-DERIV-CME', enrolledAt: '2026-02-01', channel: 'API' }, // 파생 품목(6A) 협의 신청(약정 98억 충족)
   // 신규 가입 2개월 무료 — 001은 최근 가입(혜택 유효), 004는 이른 가입(혜택 만료)
   { accountId: '110000001001', ruleId: 'RULE-EVENT-STOCK-SIGNUP2M', enrolledAt: '2026-06-20', channel: 'MTS' }, // +2m=2026-08-20 유효
   { accountId: '110000001004', ruleId: 'RULE-EVENT-STOCK-SIGNUP2M', enrolledAt: '2026-04-10', channel: 'HTS' }, // +2m=2026-06-10 만료
@@ -277,4 +253,14 @@ export const mockNego: NegoException[] = [
     scope: { assetClass: '해외주식', exchanges: '*', sessions: '*', channels: '*', currencies: '*', products: '*', excludeProducts: [] },
     scheduleId: 'FS-NEGO-STOCK-US', validFrom: '2026-01-10', validTo: '2026-07-31',
     status: '활성', qualify: '충족', requestId: 'REQ-SEED-1', requestedBy: 'PB팀-오세훈', requestedAt: '2026-01-05', approvedAt: '2026-01-10' },
+  // 파생 품목(6A) 활성 협의 — 연장 리뷰 '품목' 축 시연
+  { accountId: '110000001004',
+    scope: { assetClass: '해외파생', exchanges: ['CME'], sessions: '*', channels: '*', currencies: '*', products: ['6A'], excludeProducts: [] },
+    scheduleId: 'FS-NEGO-DERIV-CME', validFrom: '2026-02-01', validTo: '2026-08-15',
+    status: '활성', qualify: '충족', requestId: 'REQ-SEED-2', requestedBy: 'PB팀', requestedAt: '2026-01-30', approvedAt: '2026-02-01' },
+  // 승인 대기 요청 — 002 미충족(4.9억)이나 영업 bypass 요청
+  { accountId: '110000001002',
+    scope: { assetClass: '해외주식', exchanges: '*', sessions: '*', channels: '*', currencies: '*', products: '*', excludeProducts: [] },
+    scheduleId: 'FS-NEGO-STOCK-US', validFrom: '', validTo: '',
+    status: '요청', qualify: '예외', reason: '영업상 우대 필요(자산 4.9억)', requestId: 'REQ-PENDING-1', requestedBy: 'PB팀-오세훈', requestedAt: '2026-07-03' },
 ];
