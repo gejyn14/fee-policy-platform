@@ -11,7 +11,7 @@ const JOBS = [
   { key: 'metrics', title: '② 지표 재산정', run: (s: StoreState) => s.batchRecomputeMetrics() },
   { key: 'sync', title: '③ 종목 동기화', run: (s: StoreState) => s.batchSyncInstruments() },
   { key: 'nego', title: '④ 협수 조건 평가', run: (s: StoreState) => s.batchEvalNegotiations() },
-  { key: 'rebind', title: '⑤ 바인딩 재계산', run: (s: StoreState) => s.batchRebind() },
+  { key: 'rebind', title: '⑤ 바인딩 재계산', run: (s: StoreState) => s.batchReresolve() },
   { key: 'dominance', title: '⑥ 지배관계 재검증', run: (s: StoreState) => s.batchRevalidateDominance() },
 ] as const;
 

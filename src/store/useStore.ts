@@ -12,7 +12,7 @@ import { nudgeMetrics } from '../domain/metrics';
 import { classifyLifecycle } from '../domain/lifecycle';
 import { evalCondition } from '../domain/eligibility';
 import { deriveFeeKey } from '../domain/feeKey';
-import { resolve, buildScopeIndex, type NegoException, type ResolveResult } from '../domain/resolve';
+import { resolve, buildScopeIndex, scopeMatchesKey, type NegoException, type ResolveResult } from '../domain/resolve';
 import { ResolveCache, type CacheStat } from '../domain/cache';
 
 const MASTER = generateInstruments();
@@ -41,7 +41,7 @@ interface State {
   batchRecomputeMetrics(): BatchJobResult;
   batchSyncInstruments(): BatchJobResult;
   batchEvalNegotiations(): BatchJobResult;
-  batchRebind(): BatchJobResult;
+  batchReresolve(): BatchJobResult;
   batchRevalidateDominance(): BatchJobResult;
 }
 
@@ -192,34 +192,46 @@ export const useStore = create<State>((set) => ({
 
   batchActivateExpireRules: () => {
     const changes: BatchChange[] = [];
+    const changedRules: FeeRule[] = [];
     set((s) => {
       const rules = s.rules.map((r) => {
         const c = classifyLifecycle(r, TODAY);
         if (c === 'activate') { changes.push({ label: r.id, detail: `발효: 승인대기 → 활성 (${r.name})` });
-          return { ...r, status: '활성' as const, log: [...r.log, `${TODAY} 발효(배치) → 활성`] }; }
+          const next = { ...r, status: '활성' as const, log: [...r.log, `${TODAY} 발효(배치) → 활성`] };
+          changedRules.push(next);
+          return next; }
         if (c === 'expire') { changes.push({ label: r.id, detail: `만료: 활성 → 종료 (${r.name})` });
-          return { ...r, status: '종료' as const, log: [...r.log, `${TODAY} 만료(배치) → 종료`] }; }
+          const next = { ...r, status: '종료' as const, log: [...r.log, `${TODAY} 만료(배치) → 종료`] };
+          changedRules.push(next);
+          return next; }
         return r;
       });
-      return { rules };   // rebind 안 함
+      return { rules };   // 전량 rebind 안 함 — 변경 룰 scope만 캐시 무효화
     });
+    let invalidated = 0;
+    for (const r of changedRules) invalidated += resolveCache.invalidateByScope((k) => scopeMatchesKey(r.scope, k));
     const act = changes.filter(c => c.detail.startsWith('발효')).length;
     const exp = changes.filter(c => c.detail.startsWith('만료')).length;
-    return { summary: `발효 ${act} · 만료 ${exp}`, changes };
+    return { summary: `발효 ${act} · 만료 ${exp} · 캐시무효화 ${invalidated}`, changes };
   },
 
   batchRecomputeMetrics: () => {
     const changes: BatchChange[] = [];
+    let invalidatedAccounts = 0;
     set((s) => {
       const accounts = s.accounts.map((a) => {
         const n = nudgeMetrics(a);
-        if (n.metric6mAsset !== a.metric6mAsset) changes.push({ label: a.id,
-          detail: `6개월평균자산 ${a.metric6mAsset.toLocaleString()} → ${n.metric6mAsset.toLocaleString()}` });
+        if (n.metric6mAsset !== a.metric6mAsset) {
+          changes.push({ label: a.id,
+            detail: `6개월평균자산 ${a.metric6mAsset.toLocaleString()} → ${n.metric6mAsset.toLocaleString()}` });
+          resolveCache.invalidateAccount(a.id);
+          invalidatedAccounts++;
+        }
         return { ...a, ...n };
       });
       return { accounts };
     });
-    return { summary: `지표변경 ${changes.length}`, changes };
+    return { summary: `지표변경 ${changes.length} · 캐시무효화 ${invalidatedAccounts}계좌`, changes };
   },
 
   batchSyncInstruments: () => {
@@ -238,45 +250,43 @@ export const useStore = create<State>((set) => ({
   batchEvalNegotiations: () => {
     const changes: BatchChange[] = [];
     set((s) => {
-      const rules = s.rules.map((r) => {
-        if (r.type !== 'NEGOTIATED' || !r.condition) return r;
-        const enrolledAccts = s.accounts.filter((a) => s.enrollments.some((e) => e.accountId === a.id && e.ruleId === r.id));
-        let anyMet = false;
-        for (const a of enrolledAccts) {
+      let nego = [...s.nego];
+      for (const r of s.rules) {
+        if (r.type !== 'NEGOTIATED' || !r.condition) continue;
+        const enrolled = s.accounts.filter((a) => s.enrollments.some((e) => e.accountId === a.id && e.ruleId === r.id));
+        for (const a of enrolled) {
           const met = evalCondition(r, a);
-          changes.push({ label: `${a.id}·${r.scope.assetClass}`,
-            detail: met ? `조건 충족 → 자격 유지/연장` : `조건 미충족 → 해지 후보` });
-          if (met) anyMet = true;
+          const has = nego.some((n) => n.accountId === a.id && n.scheduleId === r.scheduleId);
+          if (met && !has) {
+            nego.push({ accountId: a.id, scope: r.scope, scheduleId: r.scheduleId, validFrom: TODAY, validTo: extendOneYear(r.endDate) });
+            changes.push({ label: `${a.id}·${r.scope.assetClass}`, detail: '조건 충족 → 협의 grant 부여' });
+            resolveCache.invalidateAccount(a.id);
+          } else if (!met && has) {
+            nego = nego.filter((n) => !(n.accountId === a.id && n.scheduleId === r.scheduleId));
+            changes.push({ label: `${a.id}·${r.scope.assetClass}`, detail: '조건 미충족 → 협의 grant 해지' });
+            resolveCache.invalidateAccount(a.id);
+          } else if (met && has) {
+            changes.push({ label: `${a.id}·${r.scope.assetClass}`, detail: '조건 충족 → 유지' });
+          }
         }
-        return anyMet ? { ...r, endDate: extendOneYear(r.endDate), log: [...r.log, `${TODAY} 배치 자동연장`] } : r;
-      });
-      return { rules };
+      }
+      return { nego };
     });
-    const met = changes.filter(c => c.detail.includes('충족') && !c.detail.includes('미충족')).length;
-    const unmet = changes.filter(c => c.detail.includes('미충족')).length;
-    return { summary: `자격 유지 ${met} · 해지후보 ${unmet}`, changes };
+    const granted = changes.filter(c => c.detail.includes('부여')).length;
+    const revoked = changes.filter(c => c.detail.includes('해지')).length;
+    const kept = changes.filter(c => c.detail.includes('유지')).length;
+    return { summary: `grant 부여 ${granted} · 해지 ${revoked} · 유지 ${kept}`, changes };
   },
 
-  batchRebind: () => {
-    const before = new Map<string, string>(useStore.getState().bindings.map((b) => [`${b.accountId}|${b.scopeKey}`, b.scheduleId]));
-    set((s) => ({ bindings: allBindings(s) }));
-    const after = useStore.getState().bindings;
-    // 변경 행을 새 바인딩 출처 룰 유형(협수>이벤트>기본) 순으로 정렬해, 소수의 협수 캐스케이드가
-    // 대량 이벤트 변경(예: 국내주식 프로모션 일괄 적용)에 묻히지 않고 상단에 오게 한다.
-    const typeOf = new Map(useStore.getState().rules.map((r) => [r.id, r.type] as const));
-    const rank: Record<string, number> = { NEGOTIATED: 0, EVENT: 1, BASE: 2 };
-    const rows: { change: BatchChange; r: number }[] = [];
-    for (const b of after) {
-      const key = `${b.accountId}|${b.scopeKey}`;
-      const prev = before.get(key);
-      if (prev !== b.scheduleId) rows.push({
-        change: { label: `${b.accountId} ${b.scopeKey}`, detail: `${prev ?? '(신규)'} → ${b.scheduleId}` },
-        r: rank[typeOf.get(b.sourceRuleId) ?? 'BASE'] ?? 2,
-      });
+  batchReresolve: (): BatchJobResult => {
+    const s = useStore.getState();
+    const sample = s.products.find((p) => p.assetClass === '해외주식');   // 대표 해외주식 품목으로 캐스케이드 가시화
+    const changes: BatchChange[] = [];
+    if (sample) for (const a of s.accounts) {
+      const r = s.resolveFee(a.id, sample, '정규', 'MTS');
+      if (r) changes.push({ label: `${a.id} ${sample.exchange}:${sample.code}`, detail: `${r.source} (${r.scheduleId})` });
     }
-    rows.sort((a, b) => a.r - b.r);
-    const changes = rows.map((x) => x.change);
-    return { summary: `바인딩 변경 ${changes.length}`, changes };
+    return { summary: `재해석 ${changes.length} · 캐시 ${s.cacheStat().size}건`, changes };
   },
 
   batchRevalidateDominance: () => {

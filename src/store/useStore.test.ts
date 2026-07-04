@@ -135,31 +135,30 @@ describe('배치 잡', () => {
     expect(a.metric6mAsset).toBeGreaterThan(500_000_000);
   });
 
-  it('④ 협수 조건 평가가 load-bearing: 충족 계좌는 자동 연장(endDate↑), 미충족 계좌는 해지 후보', () => {
-    // reset 직후: 110000001001 8.5억(충족), 110000001002 4.9억(미충족). ② 없이 ④만 실행해 ④의 고유 효과를 검증.
+  it('④ 협수 grant 평가: 충족(A-1001)은 grant 유지, 미충족(A-1002)은 grant 없음(no-op)', () => {
+    // reset 직후: 110000001001 8.5억(충족·grant 보유), 110000001002 4.9억(미충족·grant 없음).
     const s = useStore.getState();
-    const beforeEnd = s.rules.find(r => r.id === 'RULE-NEGO-STOCK-US')!.endDate;
     const res = s.batchEvalNegotiations();
-    const afterEnd = useStore.getState().rules.find(r => r.id === 'RULE-NEGO-STOCK-US')!.endDate;
-    expect(afterEnd > beforeEnd).toBe(true);                                                      // 충족 계좌 존재 → 자동 연장
-    expect(res.changes.some(c => c.detail.includes('미충족'))).toBe(true);                         // 110000001002 해지 후보
-    expect(res.changes.some(c => c.detail.includes('충족') && !c.detail.includes('미충족'))).toBe(true); // 110000001001 자격 유지
+    expect(res.changes.some(c => c.label.startsWith('110000001001') && c.detail.includes('유지'))).toBe(true);
+    expect(useStore.getState().nego.some(n => n.accountId === '110000001002')).toBe(false); // 미충족 → grant 부여 안 됨
+    expect(res.changes.some(c => c.label.startsWith('110000001002'))).toBe(false);           // !met && !has → 변경 없음(no-op)
   });
 
-  it('④+⑤ 캐스케이드: 지표 재산정 후 110000001002가 해외주식 협수 자격을 얻어 바인딩에 반영', () => {
+  it('②→④→재해석 캐스케이드: A-1002가 협의 자격 획득해 해외주식이 nego로 해석', () => {
     const s = useStore.getState();
-    s.batchRecomputeMetrics();     // 110000001002 → 5.145억
-    s.batchEvalNegotiations();     // 조건 충족 → 자격/연장
-    s.batchRebind();               // 수렴
-    const b = useStore.getState().bindings.find(x => x.accountId === '110000001002' && x.scheduleId === 'FS-NEGO-STOCK-US');
-    expect(b).toBeTruthy();
+    const before = s.resolveFee('110000001002', s.products.find(p => p.assetClass === '해외주식')!, '정규', 'MTS');
+    expect(before!.source).toBe('base');           // 초기: 미충족 → base
+    s.batchRecomputeMetrics();                       // 4.9억 → 5.14억
+    s.batchEvalNegotiations();                       // grant 부여 + invalidateAccount
+    const after = s.resolveFee('110000001002', s.products.find(p => p.assetClass === '해외주식')!, '정규', 'MTS');
+    expect(after!.source).toBe('nego');              // 재해석 → nego
   });
 
-  it('⑤ batchRebind는 before/after 변경 건수를 델타로 반환', () => {
+  it('⑤ batchReresolve: 계좌 수만큼 재해석 결과 반환, summary에 재해석 표기', () => {
     const s = useStore.getState();
-    s.batchRecomputeMetrics(); s.batchEvalNegotiations();
-    const res = s.batchRebind();
-    expect(res.changes.length).toBeGreaterThan(0);
+    const res = s.batchReresolve();
+    expect(res.changes.length).toBe(s.accounts.length);
+    expect(res.summary).toContain('재해석');
   });
 
   it('⑥ 지배관계 재검증: 위반 없으면 summary에 위반 0', () => {
