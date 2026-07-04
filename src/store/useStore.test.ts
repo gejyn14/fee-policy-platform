@@ -135,6 +135,17 @@ describe('배치 잡', () => {
     expect(a.metric6mAsset).toBeGreaterThan(500_000_000);
   });
 
+  it('④ 협수 조건 평가가 load-bearing: 충족 계좌는 자동 연장(endDate↑), 미충족 계좌는 해지 후보', () => {
+    // reset 직후: A-1001 8.5억(충족), A-1002 4.9억(미충족). ② 없이 ④만 실행해 ④의 고유 효과를 검증.
+    const s = useStore.getState();
+    const beforeEnd = s.rules.find(r => r.id === 'RULE-NEGO-STOCK-US')!.endDate;
+    const res = s.batchEvalNegotiations();
+    const afterEnd = useStore.getState().rules.find(r => r.id === 'RULE-NEGO-STOCK-US')!.endDate;
+    expect(afterEnd > beforeEnd).toBe(true);                                                      // 충족 계좌 존재 → 자동 연장
+    expect(res.changes.some(c => c.detail.includes('미충족'))).toBe(true);                         // A-1002 해지 후보
+    expect(res.changes.some(c => c.detail.includes('충족') && !c.detail.includes('미충족'))).toBe(true); // A-1001 자격 유지
+  });
+
   it('④+⑤ 캐스케이드: 지표 재산정 후 A-1002가 해외주식 협수 자격을 얻어 바인딩에 반영', () => {
     const s = useStore.getState();
     s.batchRecomputeMetrics();     // A-1002 → 5.145억
