@@ -107,6 +107,11 @@ it('registerInstruments: 중복 코드 거부', () => {
   expect(r.rejected).toContain(dup.code);
 });
 
+it('reset() 이후 bindings는 비어있지 않다 (마스터데이터 변경으로 0건이 되는 회귀 방지)', () => {
+  useStore.getState().reset();
+  expect(useStore.getState().bindings.length).toBeGreaterThan(0);
+});
+
 it('성능: rebindAll이 2초 이내', () => {
   const t0 = performance.now();
   useStore.getState().rebindAll();

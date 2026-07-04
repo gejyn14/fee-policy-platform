@@ -30,4 +30,15 @@ describe('parseMasterCsv', () => {
     expect(rejected).toHaveLength(1);
     expect(rejected[0].reason).toMatch(/중복/);
   });
+
+  it('같은 배치 내 동일 코드가 두 번 나오면 두 번째는 거부된다', () => {
+    const { accepted, rejected } = parseMasterCsv(
+      '000660,SK하이닉스,국내주식,KRX,KRW\n000660,SK하이닉스,국내주식,KRX,KRW',
+      new Set(),
+    );
+    expect(accepted).toHaveLength(1);
+    expect(accepted[0].code).toBe('000660');
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].reason).toMatch(/중복/);
+  });
 });

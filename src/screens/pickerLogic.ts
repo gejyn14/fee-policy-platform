@@ -26,7 +26,10 @@ export function toggleCode(s: Selection, code: string): Selection {
   };
 }
 
-/** 지정 모드로 코드 목록을 merge한다(중복 제거, 제외 목록에서는 삭제). */
+/** 지정 모드로 코드 목록을 merge한다(중복 제거, 제외 목록에서는 삭제).
+ * 명시적 products 목록은 그 자체로 완결된 스코프이므로 exchanges를 '*'로 리셋한다 —
+ * scopeMatches는 exchanges∧products를 AND로 평가하므로, 이전에 selectAllMode로 설정된
+ * exchanges(예: ['CME'])가 남아있으면 다른 거래소 코드가 0매칭으로 조용히 탈락한다. */
 export function selectCodes(s: Selection, codes: string[]): Selection {
   const current = s.products === '*' ? [] : s.products;
   const merged = new Set([...current, ...codes]);
@@ -34,6 +37,7 @@ export function selectCodes(s: Selection, codes: string[]): Selection {
   return {
     ...s,
     products: [...merged],
+    exchanges: '*',
     excludeProducts: s.excludeProducts.filter((c) => !excludeSet.has(c)),
   };
 }

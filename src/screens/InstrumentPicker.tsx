@@ -93,8 +93,13 @@ export default function InstrumentPicker({ assetClass, value, onChange }: Props)
     });
   };
 
-  const isRowSelected = (code: string): boolean =>
-    value.products === '*' ? !value.excludeProducts.includes(code) : value.products.includes(code);
+  const isRowSelected = (code: string, exchange: string): boolean => {
+    if (value.products === '*') {
+      if (value.excludeProducts.includes(code)) return false;
+      return value.exchanges === '*' || value.exchanges.includes(exchange);
+    }
+    return value.products.includes(code);
+  };
 
   const handleRowClick = (code: string) => onChange(toggleCode(value, code));
 
@@ -194,7 +199,7 @@ export default function InstrumentPicker({ assetClass, value, onChange }: Props)
                 {capped.map((i) => (
                   <tr
                     key={i.code}
-                    className={isRowSelected(i.code) ? 'active' : ''}
+                    className={isRowSelected(i.code, i.exchange) ? 'active' : ''}
                     onClick={() => handleRowClick(i.code)}
                     style={{ cursor: 'pointer' }}
                   >

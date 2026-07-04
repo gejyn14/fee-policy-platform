@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { calcFee } from '../domain/calc';
 import { explainDominanceFailure, type DominanceFailure } from '../domain/dominance';
@@ -44,6 +44,7 @@ const RATE_TYPES: FeeComponent['rateType'][] = ['정률', '정액', '구간표']
 const METRICS: NegotiatedCondition['metric'][] = ['6개월평균자산', '6개월약정액'];
 const ACTIONS: NegotiatedCondition['action'][] = ['자동연장', '승인후연장'];
 const STEP_LABELS = ['기본정보', '적용범위', '요율표', '대상', '시뮬레이션', '상신'];
+const STEP5_DISPLAY_CAP = 50;
 
 // ---------------------------------------------------------------------------
 // 폼 상태
@@ -185,7 +186,12 @@ export default function Wizard() {
     updateComponent(idx, { bands });
   }
 
-  function computeSimulation() {
+  // computeSimulation은 매 렌더/키입력마다 전체 상품 목록을 scopeMatches로 훑고 지배관계
+  // 검사까지 수행하므로 비용이 크다 — 실제 입력(form/products/rules/schedules/accounts/
+  // enrollments)이 바뀔 때만 재계산되도록 useMemo로 감싼다. 게이트(canProceed5 = sim.dominanceOk)와
+  // draft 동기화 effect(deps: [form, step])는 이 메모의 영향을 받지 않는다 — sim은 파생 값일 뿐
+  // 별도 state를 쓰지 않는다.
+  const sim = useMemo(() => {
     const scope = buildScope();
     const schedule: FeeSchedule = { id: 'PREVIEW', name: form.name || '(임시)', components: form.components };
     const targetProducts = products.filter((p) => scopeMatches(scope, p));
@@ -240,16 +246,15 @@ export default function Wizard() {
       return { code: p.code, name: p.name, current, next };
     });
     return { targetProducts, targets, dominanceFailures, dominanceOk: dominanceFailures.length === 0, reverseMargin, rows };
-  }
-
-  const sim = computeSimulation();
-  // 2단계 매칭 품목 수 — computeSimulation()이 이미 scopeMatches 기반으로 계산한
+  }, [form, products, rules, schedules, accounts, enrollments]);
+  // 2단계 매칭 품목 수 — sim(useMemo)이 이미 scopeMatches 기반으로 계산한
   // targetProducts를 그대로 재사용한다(중복 계산 방지).
   const matchedProductCount = sim.targetProducts.length;
 
   const canProceed1 = form.name.trim() !== '' && form.startDate <= form.endDate &&
     (form.type !== 'NEGOTIATED' || form.condThreshold > 0);
-  const canProceed2 = matchedProductCount > 0 && form.sessionsSel.length > 0 &&
+  const canProceed2 = matchedProductCount > 0 &&
+    (!showSessionCheckboxes || form.sessionsSel.length > 0) &&
     (!showExchangeCheckboxes || form.exchangesSel.length > 0);
   const canProceed3 = form.components.length > 0 && form.components.every((c) => c.name.trim() !== '');
   const canProceed4 = showTrigger || form.targetMode === 'all' || accountsParsed.accepted.length > 0;
@@ -551,23 +556,33 @@ export default function Wizard() {
         <h2>매칭 품목</h2>
         {sim.targetProducts.length === 0
           ? <p className="empty">매칭되는 품목이 없습니다. 적용범위를 다시 확인하세요.</p>
-          : <p>{sim.targetProducts.map((p) => `${p.code}(${p.name})`).join(', ')}</p>}
+          : (
+            <p>
+              {sim.targetProducts.slice(0, STEP5_DISPLAY_CAP).map((p) => `${p.code}(${p.name})`).join(', ')}
+              {sim.targetProducts.length > STEP5_DISPLAY_CAP && ` 외 ${sim.targetProducts.length - STEP5_DISPLAY_CAP}건`}
+            </p>
+          )}
 
         <h2>표본 체결 기준 수수료 비교 (가격 100, 수량 10)</h2>
         {sim.rows.length === 0 ? <p className="empty">비교할 품목이 없습니다.</p> : (
-          <table>
-            <thead><tr><th>품목</th><th>현행 고객부담</th><th>신규 고객부담</th><th>차이</th></tr></thead>
-            <tbody>
-              {sim.rows.map((r) => (
-                <tr key={r.code}>
-                  <td>{r.code} ({r.name})</td>
-                  <td>{r.current === null ? '해당없음' : r.current.toLocaleString()}</td>
-                  <td>{r.next.toLocaleString()}</td>
-                  <td>{r.current === null ? '-' : (r.current - r.next).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            <table>
+              <thead><tr><th>품목</th><th>현행 고객부담</th><th>신규 고객부담</th><th>차이</th></tr></thead>
+              <tbody>
+                {sim.rows.slice(0, STEP5_DISPLAY_CAP).map((r) => (
+                  <tr key={r.code}>
+                    <td>{r.code} ({r.name})</td>
+                    <td>{r.current === null ? '해당없음' : r.current.toLocaleString()}</td>
+                    <td>{r.next.toLocaleString()}</td>
+                    <td>{r.current === null ? '-' : (r.current - r.next).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {sim.rows.length > STEP5_DISPLAY_CAP && (
+              <p className="empty">그 외 {sim.rows.length - STEP5_DISPLAY_CAP}건 — 표는 상위 {STEP5_DISPLAY_CAP}건만 표시합니다.</p>
+            )}
+          </>
         )}
 
         <h2>지배관계 검증</h2>

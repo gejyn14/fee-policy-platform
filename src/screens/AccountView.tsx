@@ -1,12 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { calcFee } from '../domain/calc';
 import type { FeeBinding, FeeComponent, Execution } from '../domain/types';
 
-function productName(scopeKey: string, products: ReturnType<typeof useStore.getState>['products']): string {
-  const [exchange, code] = scopeKey.split(':');
-  const p = products.find((x) => x.exchange === exchange && x.code === code);
-  return p ? `${p.name} (${scopeKey})` : scopeKey;
+function productName(scopeKey: string, nameByScopeKey: Map<string, string>): string {
+  const name = nameByScopeKey.get(scopeKey);
+  return name ? `${name} (${scopeKey})` : scopeKey;
 }
 
 function valueText(c: FeeComponent): string {
@@ -32,20 +31,30 @@ export default function AccountView() {
   const [qty, setQty] = useState(10);
   const [search, setSearch] = useState('');
 
+  const nameByScopeKey = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of products) m.set(`${p.exchange}:${p.code}`, p.name);
+    return m;
+  }, [products]);
+
   const account = accounts.find((a) => a.id === accountId);
-  const accountBindings = bindings.filter((b) => b.accountId === accountId);
+  const accountBindings = useMemo(
+    () => bindings.filter((b) => b.accountId === accountId),
+    [bindings, accountId],
+  );
   const query = search.trim().toLowerCase();
-  const filteredBindings = query
-    ? accountBindings.filter((b) => {
-        const [, code] = b.scopeKey.split(':');
-        const name = productName(b.scopeKey, products);
-        return (
-          (code ?? '').toLowerCase().includes(query) ||
-          name.toLowerCase().includes(query) ||
-          b.reason.toLowerCase().includes(query)
-        );
-      })
-    : accountBindings;
+  const filteredBindings = useMemo(() => {
+    if (!query) return accountBindings;
+    return accountBindings.filter((b) => {
+      const [, code] = b.scopeKey.split(':');
+      const name = productName(b.scopeKey, nameByScopeKey);
+      return (
+        (code ?? '').toLowerCase().includes(query) ||
+        name.toLowerCase().includes(query) ||
+        b.reason.toLowerCase().includes(query)
+      );
+    });
+  }, [accountBindings, query, nameByScopeKey]);
   const BINDING_DISPLAY_CAP = 50;
   const displayBindings = filteredBindings.slice(0, BINDING_DISPLAY_CAP);
   const hiddenCount = filteredBindings.length - displayBindings.length;
@@ -117,7 +126,7 @@ export default function AccountView() {
                   className={isSelected ? 'active' : undefined}
                   style={{ cursor: 'pointer' }}
                 >
-                  <td>{productName(b.scopeKey, products)}</td>
+                  <td>{productName(b.scopeKey, nameByScopeKey)}</td>
                   <td>{sched?.name ?? b.scheduleId}</td>
                   <td>{b.reason}</td>
                   <td>{b.validFrom} ~ {b.validTo}</td>

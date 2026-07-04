@@ -24,6 +24,13 @@ it('selectCodes는 merge + 제외 해제', () => {
   expect(a.excludeProducts).toEqual([]);
 });
 
+it('selectCodes는 selectAllMode로 남은 stale exchanges를 리셋한다', () => {
+  const afterAll = selectAllMode(empty, ['CME']);
+  const a = selectCodes(afterAll, ['6A']);
+  expect(a.products).toEqual(['6A']);
+  expect(a.exchanges).toBe('*');
+});
+
 it('selectAllMode → 전체+거래소, clearSelection → 초기화', () => {
   const a = selectAllMode(empty, ['CME']);
   expect(a.products).toBe('*');
