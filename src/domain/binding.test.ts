@@ -1,5 +1,5 @@
 import { it, expect, describe } from 'vitest';
-import { scopeMatches, isTarget, rebindAccount } from './binding';
+import { scopeMatches, isTarget, rebindAccount, explainBinding } from './binding';
 import type { ScopeSelector, Product, FeeRule, FeeSchedule, Account, Enrollment } from './types';
 
 const p6A: Product = { assetClass: '해외파생', exchange: 'CME', code: '6A', name: 'AUD', currency: 'USD', sessions: ['주간'] };
@@ -91,5 +91,49 @@ describe('rebindAccount', () => {
     const bs = rebindAccount(acct, [rA, rB], [sA, sB], [], [p6A], '2026-07-04');
     expect(bs[0].scheduleId).toBe('S-B');
     expect(bs[0].sourceRuleId).toBe('R-B');
+  });
+});
+
+describe('explainBinding', () => {
+  const schedules = [flatSched('S-BASE', 50), flatSched('S-EVT', 30)];
+  const base = rule({ id: 'R-BASE', scheduleId: 'S-BASE' });
+  const evt = rule({ id: 'R-EVT', type: 'EVENT', scheduleId: 'S-EVT' });
+
+  it('승자가 rebindAccount 바인딩과 일치하고 candidates가 비용 오름차순', () => {
+    const t = explainBinding(acct, p6A, [base, evt], schedules, [], '2026-07-04');
+    expect(t.binding!.sourceRuleId).toBe('R-EVT');
+    expect(t.candidates.map(c => c.rule.id)).toEqual(['R-EVT', 'R-BASE']);
+    expect(t.candidates[0].isWinner).toBe(true);
+    expect(t.candidates[1].isWinner).toBe(false);
+    expect(t.candidates[0].avgCustomerFee).toBeLessThan(t.candidates[1].avgCustomerFee);
+    const bs = rebindAccount(acct, [base, evt], schedules, [], [p6A], '2026-07-04');
+    expect(t.binding!.scheduleId).toBe(bs[0].scheduleId);
+  });
+
+  it('동률이면 tieBreakApplied=true + 협수 승', () => {
+    const nego = rule({ id: 'R-NEGO', type: 'NEGOTIATED', applyMode: '신청형', scheduleId: 'S-EVT' });
+    const enr = [{ accountId: acct.id, ruleId: 'R-NEGO', enrolledAt: '2026-01-02', channel: '지점' }];
+    const t = explainBinding(acct, p6A, [base, evt, nego], schedules, enr, '2026-07-04');
+    expect(t.binding!.sourceRuleId).toBe('R-NEGO');
+    expect(t.tieBreakApplied).toBe(true);
+  });
+
+  it('rejected에 탈락 사유가 분류됨', () => {
+    const expired = rule({ id: 'R-EXP', type: 'EVENT', scheduleId: 'S-EVT', endDate: '2026-06-30' });
+    const wrongScope = rule({ id: 'R-6E', type: 'EVENT', scheduleId: 'S-EVT',
+      scope: { assetClass: '해외파생', exchanges: '*', sessions: '*', currencies: '*', products: ['6E'], excludeProducts: [] } });
+    const notTarget = rule({ id: 'R-APPLY', type: 'EVENT', applyMode: '신청형', scheduleId: 'S-EVT' }); // 신청 없음
+    const t = explainBinding(acct, p6A, [base, expired, wrongScope, notTarget], schedules, [], '2026-07-04');
+    const reason = (id: string) => t.rejected.find(r => r.rule.id === id)?.reason;
+    expect(reason('R-EXP')).toBe('기간 밖');
+    expect(reason('R-6E')).toBe('범위 불일치');
+    expect(reason('R-APPLY')).toBe('대상 아님');
+    expect(t.candidates.map(c => c.rule.id)).toEqual(['R-BASE']);
+  });
+
+  it('후보 0건이면 binding null', () => {
+    const t = explainBinding(acct, p6A, [], schedules, [], '2026-07-04');
+    expect(t.binding).toBeNull();
+    expect(t.candidates).toEqual([]);
   });
 });
