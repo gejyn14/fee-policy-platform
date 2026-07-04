@@ -594,3 +594,27 @@ tbody tr.active {
   font-style: italic;
   color: var(--text-muted);
 }
+
+/* ---------- BatchOps pipeline (Task 5, v0.4) ---------- */
+
+.batch-step {
+  border-left: 3px solid var(--border);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.batch-running {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.batch-done {
+  border-left-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.batch-arrow {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 4px 0;
+  font-size: 14px;
+}
