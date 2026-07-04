@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import type { Account, Enrollment, FeeBinding, FeeRule, FeeSchedule, Product, Execution, BatchChange, BatchJobResult, Session, Channel } from '../domain/types';
+import type { Account, Enrollment, FeeRule, FeeSchedule, Product, Execution, BatchChange, BatchJobResult, Session, Channel } from '../domain/types';
 import { TODAY } from '../domain/types';
 import { mockAccounts, mockSchedules, mockRules, mockEnrollments, mockNego } from './mock';
-import { rebindAccount, scopeMatches, isTarget } from '../domain/binding';
+import { scopeMatches, isTarget } from '../domain/binding';
 import { calcFee } from '../domain/calc';
 import { dominates, revalidateDominance } from '../domain/dominance';
 import { generateInstruments, NEW_LISTING_POOL } from '../masterdata/instruments';
@@ -23,11 +23,11 @@ export { evalCondition } from '../domain/eligibility';
 
 interface State {
   accounts: Account[]; instruments: Instrument[]; products: Product[]; schedules: FeeSchedule[];
-  rules: FeeRule[]; enrollments: Enrollment[]; bindings: FeeBinding[];
+  rules: FeeRule[]; enrollments: Enrollment[];
   nego: NegoException[];
   syncCursor: number;
   wizardDraft: { form: unknown; step: number } | null;
-  reset(): void; rebindAll(): void;
+  reset(): void;
   resolveFee(accountId: string, product: Product, session: Session, channel: Channel): (ResolveResult & { cacheHit: boolean }) | null;
   cacheStat(): CacheStat;
   submitRule(rule: FeeRule, schedule: FeeSchedule): void;
@@ -51,13 +51,9 @@ function extendOneYear(dateStr: string): string {
   return [String(Number(y) + 1), ...rest].join('-');
 }
 
-function allBindings(s: Pick<State, 'accounts' | 'rules' | 'schedules' | 'enrollments' | 'products'>): FeeBinding[] {
-  return s.accounts.flatMap((a) => rebindAccount(a, s.rules, s.schedules, s.enrollments, s.products, TODAY));
-}
-
 export const useStore = create<State>((set) => ({
   accounts: mockAccounts, instruments: MASTER, products: deriveProducts(MASTER), schedules: mockSchedules,
-  rules: mockRules, enrollments: mockEnrollments, bindings: [],
+  rules: mockRules, enrollments: mockEnrollments,
   nego: mockNego,
   syncCursor: 0,
   wizardDraft: null,
@@ -66,10 +62,8 @@ export const useStore = create<State>((set) => ({
     const init = { accounts: mockAccounts, instruments: MASTER, products: deriveProducts(MASTER), schedules: mockSchedules,
       rules: mockRules.map(r => ({ ...r, log: [...r.log] })), enrollments: mockEnrollments };
     resolveCache.clear();
-    return { ...init, bindings: allBindings(init), nego: mockNego, syncCursor: 0, wizardDraft: null };
+    return { ...init, nego: mockNego, syncCursor: 0, wizardDraft: null };
   }),
-
-  rebindAll: () => set((s) => ({ bindings: allBindings(s) })),
 
   resolveFee: (accountId, product, session, channel) => {
     const s = useStore.getState();
@@ -94,8 +88,7 @@ export const useStore = create<State>((set) => ({
       if (batch.length === 0) return {};
       const instruments = [...s.instruments, ...batch];
       const products = deriveProducts(instruments);
-      const next = { ...s, instruments, products };
-      return { instruments, products, syncCursor: s.syncCursor + batch.length, bindings: allBindings(next) };
+      return { instruments, products, syncCursor: s.syncCursor + batch.length };
     });
     return { added };
   },
@@ -118,8 +111,7 @@ export const useStore = create<State>((set) => ({
       if (toAdd.length === 0) return {};
       const instruments = [...s.instruments, ...toAdd];
       const products = deriveProducts(instruments);
-      const next = { ...s, instruments, products };
-      return { instruments, products, bindings: allBindings(next) };
+      return { instruments, products };
     });
     return { accepted, rejected };
   },
@@ -169,24 +161,37 @@ export const useStore = create<State>((set) => ({
       rules: [...s.rules.filter((x) => x.id !== rule.id), submitted] };
   }),
 
-  approveRule: (id) => set((s) => {
-    const rules = s.rules.map((r) => r.id === id
-      ? { ...r, status: '활성' as const, log: [...r.log, `${TODAY} 승인 → 활성`] } : r);
-    const next = { ...s, rules };
-    return { rules, bindings: allBindings(next) };
-  }),
+  approveRule: (id) => {
+    let scope: FeeRule['scope'] | null = null;
+    set((s) => {
+      const rules = s.rules.map((r) => {
+        if (r.id !== id) return r;
+        scope = r.scope;
+        return { ...r, status: '활성' as const, log: [...r.log, `${TODAY} 승인 → 활성`] };
+      });
+      return { rules };
+    });
+    // 활성화된 룰의 scope가 해석 결과를 바꿀 수 있으므로 캐시 무효화(안 하면 resolveFee가 stale 응답)
+    if (scope) resolveCache.invalidateByScope((k) => scopeMatchesKey(scope!, k));
+  },
 
   rejectRule: (id, reason) => set((s) => ({
     rules: s.rules.map((r) => r.id === id
       ? { ...r, status: '반려' as const, log: [...r.log, `${TODAY} 반려: ${reason}`] } : r),
   })),
 
-  extendNegotiated: (id, newEndDate) => set((s) => {
-    const rules = s.rules.map((r) => r.id === id
-      ? { ...r, endDate: newEndDate, log: [...r.log, `${TODAY} 기간 연장 → ${newEndDate}`] } : r);
-    const next = { ...s, rules };
-    return { rules, bindings: allBindings(next) };
-  }),
+  extendNegotiated: (id, newEndDate) => {
+    let scope: FeeRule['scope'] | null = null;
+    set((s) => {
+      const rules = s.rules.map((r) => {
+        if (r.id !== id) return r;
+        scope = r.scope;
+        return { ...r, endDate: newEndDate, log: [...r.log, `${TODAY} 기간 연장 → ${newEndDate}`] };
+      });
+      return { rules };
+    });
+    if (scope) resolveCache.invalidateByScope((k) => scopeMatchesKey(scope!, k));
+  },
 
   setWizardDraft: (d) => set({ wizardDraft: d }),
 
@@ -206,7 +211,7 @@ export const useStore = create<State>((set) => ({
           return next; }
         return r;
       });
-      return { rules };   // 전량 rebind 안 함 — 변경 룰 scope만 캐시 무효화
+      return { rules };   // 전량 재해석 안 함 — 변경 룰 scope만 캐시 무효화
     });
     let invalidated = 0;
     for (const r of changedRules) invalidated += resolveCache.invalidateByScope((k) => scopeMatchesKey(r.scope, k));
@@ -242,7 +247,7 @@ export const useStore = create<State>((set) => ({
       if (batch.length === 0) return {};
       batch.forEach((i) => changes.push({ label: i.code, detail: `신규 상장: ${i.name} (${i.exchange})` }));
       const instruments = [...s.instruments, ...batch];
-      return { instruments, products: deriveProducts(instruments), syncCursor: s.syncCursor + batch.length }; // rebind 안 함
+      return { instruments, products: deriveProducts(instruments), syncCursor: s.syncCursor + batch.length }; // 재해석 안 함(신규 품목은 캐시에 없음)
     });
     return { summary: `신규 품목 ${added}`, changes };
   },
@@ -299,4 +304,4 @@ export const useStore = create<State>((set) => ({
   },
 }));
 
-useStore.getState().reset(); // 초기 바인딩 생성
+useStore.getState().reset(); // 초기 상태 세팅 + 캐시 클리어
