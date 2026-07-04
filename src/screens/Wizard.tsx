@@ -10,7 +10,7 @@ import { ruleTypeLabel } from './labels';
 import InstrumentPicker from './InstrumentPicker';
 import { parseCsvCodes, summarize, type Selection } from './pickerLogic';
 import type {
-  ApplyMode, AssetClass, Channel, Execution, FeeComponent, FeeKey, FeeRule, FeeSchedule,
+  ApplyMode, AssetClass, BenefitPeriod, Channel, Execution, FeeComponent, FeeKey, FeeRule, FeeSchedule,
   NegotiatedCondition, Payer, Product, RateBand, ScopeSelector, Session,
 } from '../domain/types';
 
@@ -69,6 +69,9 @@ interface WizardForm {
   condThreshold: number;
   condAction: NegotiatedCondition['action'];
 
+  benefitKind: '캘린더' | '상대';   // 적용기간 유형
+  benefitMonths: number;            // 상대일 때 개월 수
+
   assetClass: AssetClass;
   exchangesSel: string[];       // 국내주식 전용(KRX/NXT 체크박스) — 그 외 상품군은 미사용(picker가 selection.exchanges로 처리)
   sessionsSel: string[];
@@ -89,6 +92,7 @@ function makeInitialForm(products: Product[]): WizardForm {
     name: '', type: 'EVENT', applyMode: '일괄적용형',
     startDate: TODAY, endDate: '2026-12-31',
     condMetric: '6개월평균자산', condThreshold: 500_000_000, condAction: '승인후연장',
+    benefitKind: '캘린더', benefitMonths: 2,
     assetClass,
     exchangesSel: exchanges, sessionsSel: sessions,
     channelsSel: [...CHANNELS],
@@ -155,6 +159,13 @@ export default function Wizard() {
     });
   }
 
+  // 적용기간(혜택 기간). 일괄적용형은 신청 개념이 없어 항상 캘린더.
+  function buildBenefit(): BenefitPeriod {
+    return (form.applyMode !== '일괄적용형' && form.benefitKind === '상대')
+      ? { kind: '상대', months: form.benefitMonths }
+      : { kind: '캘린더' };
+  }
+
   function buildScope(): ScopeSelector {
     // 국내주식: 거래소는 위저드 체크박스(KRX/NXT)가 결정. 그 외 상품군: 픽커의 selection.exchanges
     // (전체선택 시 특정 거래소로, 개별 선택 시 '*'로 유지)가 결정.
@@ -218,7 +229,7 @@ export default function Wizard() {
     // 대상 계좌(트리거/전체/명시) — 상품군 무관
     const previewRule: FeeRule = {
       id: 'PREVIEW', name: form.name, type: form.type, status: '활성', applyMode: form.applyMode,
-      startDate: form.startDate, endDate: form.endDate, scope, scheduleId: 'PREVIEW',
+      startDate: form.startDate, endDate: form.endDate, benefit: buildBenefit(), scope, scheduleId: 'PREVIEW',
       targetAccountIds: !showTrigger && form.targetMode === 'accounts' ? accountsParsed.accepted : undefined,
       warnings: { dominance: true, reverseMargin: false }, createdBy: '', log: [],
     };
@@ -349,7 +360,7 @@ export default function Wizard() {
     const targetAccountIds = !showTrigger && form.targetMode === 'accounts' ? accountsParsed.accepted : undefined;
     const rule: FeeRule = {
       id: ruleId, name: form.name, type: form.type, status: '기안', applyMode: form.applyMode,
-      startDate: form.startDate, endDate: form.endDate,
+      startDate: form.startDate, endDate: form.endDate, benefit: buildBenefit(),
       scope: buildScope(), scheduleId,
       condition, targetAccountIds,
       warnings: { dominance: true, reverseMargin: false },
@@ -401,14 +412,32 @@ export default function Wizard() {
             </select>
           </div>
           <div className="field">
-            <label>시작일</label>
+            <label>{form.applyMode === '일괄적용형' ? '시작일' : '신청 가능 시작'}</label>
             <input type="date" value={form.startDate} onChange={(e) => update({ startDate: e.target.value })} />
           </div>
           <div className="field">
-            <label>종료일</label>
+            <label>{form.applyMode === '일괄적용형' ? '종료일' : '신청 가능 종료'}</label>
             <input type="date" value={form.endDate} onChange={(e) => update({ endDate: e.target.value })} />
           </div>
         </div>
+        {form.applyMode !== '일괄적용형' && (
+          <div className="form-grid">
+            <div className="field">
+              <label>적용기간 유형</label>
+              <select value={form.benefitKind} onChange={(e) => update({ benefitKind: e.target.value as '캘린더' | '상대' })}>
+                <option value="캘린더">캘린더 고정(신청 가능기간 종료까지)</option>
+                <option value="상대">유입시점 상대(가입일 +N개월)</option>
+              </select>
+            </div>
+            {form.benefitKind === '상대' && (
+              <div className="field">
+                <label>혜택 개월(가입일 기준)</label>
+                <input type="number" min={1} value={form.benefitMonths}
+                  onChange={(e) => update({ benefitMonths: Math.max(1, Number(e.target.value)) })} />
+              </div>
+            )}
+          </div>
+        )}
         {form.type === 'NEGOTIATED' && (
           <div className="form-grid">
             <div className="field">
@@ -702,6 +731,7 @@ export default function Wizard() {
         <table>
           <tbody>
             <tr><td>상품군</td><td>{form.assetClass}</td></tr>
+            <tr><td>적용기간</td><td>{form.applyMode === '일괄적용형' || form.benefitKind === '캘린더' ? '캘린더(신청/룰 기간)' : `가입일 +${form.benefitMonths}개월`}</td></tr>
             <tr>
               <td>거래소</td>
               <td>
