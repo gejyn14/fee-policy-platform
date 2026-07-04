@@ -1,6 +1,7 @@
 import type { Account, Enrollment, Execution, FeeBinding, FeeRule, FeeSchedule, Product, ScopeSelector } from './types';
 import { calcFee } from './calc';
 import { probePrices } from './dominance';
+import { evalCondition } from './eligibility';
 
 export function scopeMatches(s: ScopeSelector, p: Product): boolean {
   if (s.assetClass !== p.assetClass) return false;
@@ -12,6 +13,7 @@ export function scopeMatches(s: ScopeSelector, p: Product): boolean {
 }
 
 export function isTarget(rule: FeeRule, acct: Account, enrollments: Enrollment[]): boolean {
+  if (rule.condition && !evalCondition(rule, acct)) return false;   // 조건 하드 게이트 (신청+조건)
   if (rule.type === 'BASE') return true;
   if (rule.applyMode === '일괄적용형')
     return !rule.targetAccountIds || rule.targetAccountIds.includes(acct.id);

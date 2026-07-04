@@ -12,11 +12,7 @@ import { deriveProducts } from '../masterdata/derive';
 const MASTER = generateInstruments();
 const SYNC_BATCH_SIZE = 5;
 
-export function evalCondition(rule: FeeRule, acct: Account): boolean {
-  if (!rule.condition) return true;
-  const value = rule.condition.metric === '6개월평균자산' ? acct.metric6mAsset : acct.metric6mVolume;
-  return value >= rule.condition.threshold;
-}
+export { evalCondition } from '../domain/eligibility';
 
 interface State {
   accounts: Account[]; instruments: Instrument[]; products: Product[]; schedules: FeeSchedule[];

@@ -39,6 +39,27 @@ describe('isTarget', () => {
   });
 });
 
+describe('isTarget 조건 게이트', () => {
+  const acctRich = { ...acct, metric6mAsset: 600_000_000 };
+  const negoCond = rule({ id: 'R-COND', type: 'NEGOTIATED', applyMode: '신청형',
+    condition: { metric: '6개월평균자산', threshold: 500_000_000, action: '승인후연장' } });
+  const enr = [{ accountId: acct.id, ruleId: 'R-COND', enrolledAt: '2026-01-02', channel: '지점' }];
+
+  it('condition 미충족이면 신청했어도 대상 아님', () => {
+    expect(isTarget(negoCond, acct, enr)).toBe(false);        // acct.metric6mAsset 0 < 5억
+  });
+  it('condition 충족 + 신청이면 대상', () => {
+    expect(isTarget(negoCond, acctRich, enr)).toBe(true);     // 6억 ≥ 5억
+  });
+  it('condition 충족이어도 신청 없으면 대상 아님', () => {
+    expect(isTarget(negoCond, acctRich, [])).toBe(false);     // 신청+조건 둘 다 필요
+  });
+  it('condition 없는 룰은 기존 로직 그대로', () => {
+    const evt = rule({ id: 'R-NC', type: 'EVENT', applyMode: '일괄적용형' });
+    expect(isTarget(evt, acct, [])).toBe(true);
+  });
+});
+
 describe('rebindAccount', () => {
   const schedules = [flatSched('S-BASE', 50), flatSched('S-EVT', 30)];
   const base = rule({ id: 'R-BASE', scheduleId: 'S-BASE' });
