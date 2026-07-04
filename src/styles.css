@@ -372,3 +372,37 @@ tbody tr:hover {
   padding: 24px;
   text-align: center;
 }
+
+/* ---------- wizard step content (Task 7) ---------- */
+
+.stack > * + * {
+  margin-top: 16px;
+}
+
+.check-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 6px;
+}
+
+.check-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.radio-row {
+  display: flex;
+  gap: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.radio-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
