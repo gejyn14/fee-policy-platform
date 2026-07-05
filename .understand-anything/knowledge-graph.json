@@ -1,0 +1,4073 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "수수료 정책 플랫폼",
+    "languages": [
+      "typescript",
+      "markdown",
+      "json",
+      "html",
+      "css"
+    ],
+    "frameworks": [
+      "React",
+      "Vite",
+      "Vitest",
+      "Zustand"
+    ],
+    "description": "증권사 상품군(국내주식/해외주식/국내파생/해외파생/금현물)별 BASE 수수료 위에 EVENT(일괄 이벤트)와 NEGOTIATED(개별 협의) 룰을 등록·검증·승인하고, 체결 시점에 계좌×feeKey별 활성 룰 중 최저가를 즉석 해석(resolve)하여 적용 근거를 투명하게 확인하는 해석형 수수료 이벤트 플랫폼 프로토타입입니다. 백엔드 없이 mock 데이터와 zustand store만으로 동작하며 지배관계·역마진 검증을 자동 계산하고 resolved_cache에 결과를 캐시합니다.",
+    "analyzedAt": "2026-07-05T10:44:48.531Z",
+    "gitCommitHash": "91b8e13a12b57072987cc89cdb00fc5ec90d558e"
+  },
+  "nodes": [
+    {
+      "id": "file:src/domain/binding.ts",
+      "type": "file",
+      "name": "binding.ts",
+      "filePath": "src/domain/binding.ts",
+      "summary": "레거시 계좌-정책 바인딩(전량 사전 매칭) 로직으로, 계좌·상품별 후보 룰을 순위화(rankCandidates)하고 최저가 기준으로 재바인딩(rebindAccount)하며 그 근거를 설명(explainBinding)한다.",
+      "tags": [
+        "domain",
+        "binding",
+        "policy-matching",
+        "utility"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "flatMap+Set으로 가격 프로브 그리드를 만들어 스케줄 비용을 비교하는 함수형 파이프라인."
+    },
+    {
+      "id": "file:src/domain/calc.ts",
+      "type": "file",
+      "name": "calc.ts",
+      "filePath": "src/domain/calc.ts",
+      "summary": "체결 정보(exec)와 수수료 스케줄로부터 컴포넌트별 금액을 산출(componentAmount)하고 고객/회사 부담을 합산해 총 수수료를 계산(calcFee)하는 핵심 계산 엔진.",
+      "tags": [
+        "domain",
+        "calculation",
+        "fee-engine",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/dateutil.ts",
+      "type": "file",
+      "name": "dateutil.ts",
+      "filePath": "src/domain/dateutil.ts",
+      "summary": "YYYY-MM-DD 문자열에 개월 수를 더해 말일 보정까지 처리하는 날짜 유틸(addMonths). 협의/이벤트 혜택 기간 계산에 사용된다.",
+      "tags": [
+        "domain",
+        "date",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/dominance.ts",
+      "type": "file",
+      "name": "dominance.ts",
+      "filePath": "src/domain/dominance.ts",
+      "summary": "이벤트/후보 정책이 기본 정책 대비 전 가격 구간에서 우위(dominance)를 보이는지 가격 프로브로 검증(dominates)하고 실패 사유 설명 및 전체 재검증(revalidateDominance)을 제공한다.",
+      "tags": [
+        "domain",
+        "validation",
+        "dominance",
+        "pricing"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/domain/policyRank.ts",
+      "type": "file",
+      "name": "policyRank.ts",
+      "filePath": "src/domain/policyRank.ts",
+      "summary": "계좌 비의존(account-independent) 활성 정책들을 스케줄 비용(rankValue) 기준으로 우선순위화하여 정책 랭킹 목록(buildPolicyPriority)을 구성한다.",
+      "tags": [
+        "domain",
+        "policy-rank",
+        "ranking",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/resolve.ts",
+      "type": "file",
+      "name": "resolve.ts",
+      "filePath": "src/domain/resolve.ts",
+      "summary": "해석형 코어의 중심. 체결 시점에 feeKey/세션·채널 입력으로 적용 후보(기본·이벤트·협의)를 모아 최저 고객수수료 기준으로 승자를 해석(resolve)하고 근거 후보 목록을 반환한다.",
+      "tags": [
+        "domain",
+        "resolve",
+        "fee-engine",
+        "core"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "협의 우선(negoFirst)·스코프 특정성(scopeSpecificity)·평균 고객수수료를 다단계 정렬 키로 사용하는 해석 알고리즘."
+    },
+    {
+      "id": "file:src/screens/AccountView.tsx",
+      "type": "file",
+      "name": "AccountView.tsx",
+      "filePath": "src/screens/AccountView.tsx",
+      "summary": "계좌 조회 화면. 계좌·자산군·품목·세션·채널을 선택해 resolve를 호출하고 승자 스케줄·수수료 계산·협의 목록·혜택 적용기간을 시각적으로 보여주는 React 컴포넌트.",
+      "tags": [
+        "screen",
+        "component",
+        "account-view",
+        "resolve"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:src/screens/FeeTrace.tsx",
+      "type": "file",
+      "name": "FeeTrace.tsx",
+      "filePath": "src/screens/FeeTrace.tsx",
+      "summary": "수수료 결정 흐름(FeeTrace) 화면. 세션·채널 입력으로 해석 과정을 추적 시연하고 캐시 적중(cacheStat), 정책 우선순위, 협의 그랜트/가입 내역과 최종 수수료 내역을 단계별로 서술한다.",
+      "tags": [
+        "screen",
+        "component",
+        "fee-trace",
+        "resolve"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:src/screens/Wizard.tsx",
+      "type": "file",
+      "name": "Wizard.tsx",
+      "filePath": "src/screens/Wizard.tsx",
+      "summary": "수수료 정책 등록 위저드. 6단계(대상·채널축·수수료표·계좌·시뮬레이션·검토)로 룰과 스케줄을 작성하고 우위 검증·시뮬레이션을 거쳐 정책을 제출하는 대형 React 컴포넌트.",
+      "tags": [
+        "screen",
+        "component",
+        "wizard",
+        "policy-authoring"
+      ],
+      "complexity": "complex",
+      "languageNotes": "step별 render 함수와 useRef 기반 draft 저장, 다단계 폼 상태를 하나의 form 객체로 관리."
+    },
+    {
+      "id": "file:src/store/mock.ts",
+      "type": "file",
+      "name": "mock.ts",
+      "filePath": "src/store/mock.ts",
+      "summary": "백엔드 없이 클라이언트 상태를 채우는 목 데이터 모음. 계좌·스케줄·룰·가입·협의·자격정책 시드 데이터를 export하여 store가 초기화에 사용한다.",
+      "tags": [
+        "mock-data",
+        "fixtures",
+        "store",
+        "data-model"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/domain/binding.ts:scopeMatches",
+      "type": "function",
+      "name": "scopeMatches",
+      "filePath": "src/domain/binding.ts",
+      "lineRange": [
+        7,
+        14
+      ],
+      "summary": "룰의 스코프(거래소·통화·품목·제외품목)가 주어진 상품과 일치하는지 판정한다.",
+      "tags": [
+        "scope-matching",
+        "predicate",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/binding.ts:isTarget",
+      "type": "function",
+      "name": "isTarget",
+      "filePath": "src/domain/binding.ts",
+      "lineRange": [
+        16,
+        24
+      ],
+      "summary": "룰의 대상 조건(조건식·대상계좌·가입여부)을 평가해 계좌가 해당 룰의 적용 대상인지 판정한다.",
+      "tags": [
+        "eligibility",
+        "predicate",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/binding.ts:isBenefitActive",
+      "type": "function",
+      "name": "isBenefitActive",
+      "filePath": "src/domain/binding.ts",
+      "lineRange": [
+        28,
+        36
+      ],
+      "summary": "상대 혜택의 가입일+개월 유효기간을 계산해 오늘 기준으로 혜택이 활성인지 판정한다.",
+      "tags": [
+        "benefit",
+        "date-check",
+        "predicate"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/binding.ts:rankCandidates",
+      "type": "function",
+      "name": "rankCandidates",
+      "filePath": "src/domain/binding.ts",
+      "lineRange": [
+        44,
+        65
+      ],
+      "summary": "적용 가능한 후보 룰을 가격 프로브 그리드 기준 평균 비용으로 정렬해 최저가 후보를 상위로 순위화한다.",
+      "tags": [
+        "ranking",
+        "pricing",
+        "core-logic"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/domain/binding.ts:rebindAccount",
+      "type": "function",
+      "name": "rebindAccount",
+      "filePath": "src/domain/binding.ts",
+      "lineRange": [
+        67,
+        86
+      ],
+      "summary": "계좌별로 후보를 재순위화해 최적 룰 바인딩 목록을 산출하는 레거시 전량 바인딩 함수.",
+      "tags": [
+        "binding",
+        "rebind",
+        "legacy"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/domain/binding.ts:explainBinding",
+      "type": "function",
+      "name": "explainBinding",
+      "filePath": "src/domain/binding.ts",
+      "lineRange": [
+        92,
+        128
+      ],
+      "summary": "후보 순위와 탈락 룰을 함께 설명하는 바인딩 근거 리포트를 생성한다.",
+      "tags": [
+        "explanation",
+        "binding",
+        "diagnostics"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/domain/calc.ts:componentAmount",
+      "type": "function",
+      "name": "componentAmount",
+      "filePath": "src/domain/calc.ts",
+      "lineRange": [
+        6,
+        23
+      ],
+      "summary": "수수료 컴포넌트(정액·정률·구간)와 체결 정보로 단일 컴포넌트 금액을 산출한다.",
+      "tags": [
+        "calculation",
+        "fee-component",
+        "core-logic"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/calc.ts:calcFee",
+      "type": "function",
+      "name": "calcFee",
+      "filePath": "src/domain/calc.ts",
+      "lineRange": [
+        25,
+        36
+      ],
+      "summary": "스케줄의 모든 컴포넌트를 계산해 고객 부담·회사 부담·총 수수료로 합산하는 핵심 수수료 계산 함수.",
+      "tags": [
+        "calculation",
+        "fee-engine",
+        "core-logic"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/dateutil.ts:addMonths",
+      "type": "function",
+      "name": "addMonths",
+      "filePath": "src/domain/dateutil.ts",
+      "lineRange": [
+        2,
+        10
+      ],
+      "summary": "YYYY-MM-DD 문자열에 n개월을 더하고 말일을 보정한 날짜 문자열을 반환한다.",
+      "tags": [
+        "date",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/dominance.ts:probePrices",
+      "type": "function",
+      "name": "probePrices",
+      "filePath": "src/domain/dominance.ts",
+      "lineRange": [
+        5,
+        14
+      ],
+      "summary": "두 스케줄의 구간 경계를 모아 비교용 가격 프로브 포인트 집합을 생성한다.",
+      "tags": [
+        "pricing",
+        "probe",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/dominance.ts:dominates",
+      "type": "function",
+      "name": "dominates",
+      "filePath": "src/domain/dominance.ts",
+      "lineRange": [
+        17,
+        24
+      ],
+      "summary": "후보 스케줄이 모든 프로브 가격에서 기존 스케줄 이하 비용인지 검증해 우위 여부를 판정한다.",
+      "tags": [
+        "dominance",
+        "validation",
+        "predicate"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/dominance.ts:explainDominanceFailure",
+      "type": "function",
+      "name": "explainDominanceFailure",
+      "filePath": "src/domain/dominance.ts",
+      "lineRange": [
+        29,
+        42
+      ],
+      "summary": "우위 검증이 실패한 가격 구간과 비용 차이를 찾아 실패 사유를 설명한다.",
+      "tags": [
+        "dominance",
+        "explanation",
+        "diagnostics"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/dominance.ts:revalidateDominance",
+      "type": "function",
+      "name": "revalidateDominance",
+      "filePath": "src/domain/dominance.ts",
+      "lineRange": [
+        44,
+        64
+      ],
+      "summary": "활성 룰 전체에 대해 기본 정책 대비 우위를 재검증하고 위반 결과 목록을 반환한다.",
+      "tags": [
+        "dominance",
+        "revalidation",
+        "core-logic"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/domain/policyRank.ts:rankValue",
+      "type": "function",
+      "name": "rankValue",
+      "filePath": "src/domain/policyRank.ts",
+      "lineRange": [
+        16,
+        18
+      ],
+      "summary": "샘플 체결에 대한 calcFee 결과로 스케줄의 랭킹 비용 값을 산출한다.",
+      "tags": [
+        "ranking",
+        "pricing",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/policyRank.ts:isAccountIndependent",
+      "type": "function",
+      "name": "isAccountIndependent",
+      "filePath": "src/domain/policyRank.ts",
+      "lineRange": [
+        24,
+        28
+      ],
+      "summary": "룰이 특정 계좌·가입 조건에 의존하지 않는(계좌 비의존) 정책인지 판정한다.",
+      "tags": [
+        "predicate",
+        "policy-rank",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/policyRank.ts:buildPolicyPriority",
+      "type": "function",
+      "name": "buildPolicyPriority",
+      "filePath": "src/domain/policyRank.ts",
+      "lineRange": [
+        35,
+        52
+      ],
+      "summary": "활성·계좌비의존 정책들을 랭킹 값으로 정렬해 정책 우선순위 목록과 스코프별 승자 조회기를 구성한다.",
+      "tags": [
+        "ranking",
+        "policy-rank",
+        "core-logic"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/domain/resolve.ts:scopeMatchesKey",
+      "type": "function",
+      "name": "scopeMatchesKey",
+      "filePath": "src/domain/resolve.ts",
+      "lineRange": [
+        6,
+        17
+      ],
+      "summary": "룰 스코프가 feeKey(거래소·세션·채널·품목)와 일치하는지 판정하는 해석용 매칭 함수.",
+      "tags": [
+        "scope-matching",
+        "feekey",
+        "predicate"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/resolve.ts:findBaseSchedule",
+      "type": "function",
+      "name": "findBaseSchedule",
+      "filePath": "src/domain/resolve.ts",
+      "lineRange": [
+        21,
+        31
+      ],
+      "summary": "feeKey에 매칭되는 활성 기본(BASE) 룰의 스케줄을 찾아 반환한다.",
+      "tags": [
+        "resolve",
+        "base-policy",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/resolve.ts:buildScopeIndex",
+      "type": "function",
+      "name": "buildScopeIndex",
+      "filePath": "src/domain/resolve.ts",
+      "lineRange": [
+        34,
+        39
+      ],
+      "summary": "스코프 오버레이 룰을 인덱싱해 feeKey별 후보 룰을 빠르게 조회하는 인덱스를 만든다.",
+      "tags": [
+        "resolve",
+        "indexing",
+        "performance"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/resolve.ts:resolve",
+      "type": "function",
+      "name": "resolve",
+      "filePath": "src/domain/resolve.ts",
+      "lineRange": [
+        78,
+        125
+      ],
+      "summary": "기본·이벤트·협의 후보를 모아 협의 우선·스코프 특정성·평균 고객수수료 순으로 정렬해 최종 적용 정책(승자)을 해석하는 코어 함수.",
+      "tags": [
+        "resolve",
+        "fee-engine",
+        "core-logic"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/screens/AccountView.tsx:AccountView",
+      "type": "function",
+      "name": "AccountView",
+      "filePath": "src/screens/AccountView.tsx",
+      "lineRange": [
+        49,
+        326
+      ],
+      "summary": "계좌 조회 화면 컴포넌트. 입력 선택 상태를 관리하고 resolve 결과·수수료 계산·협의·혜택 기간을 렌더링한다.",
+      "tags": [
+        "component",
+        "account-view",
+        "screen"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/screens/FeeTrace.tsx:FeeTrace",
+      "type": "function",
+      "name": "FeeTrace",
+      "filePath": "src/screens/FeeTrace.tsx",
+      "lineRange": [
+        42,
+        401
+      ],
+      "summary": "수수료 결정 흐름을 추적 시연하는 화면 컴포넌트. 캐시 적중·정책 우선순위·협의/가입 내역과 최종 수수료 내역을 단계별로 렌더링한다.",
+      "tags": [
+        "component",
+        "fee-trace",
+        "screen"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/screens/Wizard.tsx:Wizard",
+      "type": "function",
+      "name": "Wizard",
+      "filePath": "src/screens/Wizard.tsx",
+      "lineRange": [
+        102,
+        757
+      ],
+      "summary": "6단계 정책 등록 위저드 컴포넌트. 폼 상태·스텝 렌더·우위 검증·시뮬레이션·제출 흐름을 총괄한다.",
+      "tags": [
+        "component",
+        "wizard",
+        "policy-authoring"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/screens/Wizard.tsx:makeInitialForm",
+      "type": "function",
+      "name": "makeInitialForm",
+      "filePath": "src/screens/Wizard.tsx",
+      "lineRange": [
+        81,
+        96
+      ],
+      "summary": "상품 목록을 기반으로 위저드 폼의 초기 상태(선택·컴포넌트·기본값)를 생성한다.",
+      "tags": [
+        "form",
+        "initialization",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/cache.ts",
+      "type": "file",
+      "name": "cache.ts",
+      "filePath": "src/domain/cache.ts",
+      "summary": "체결 시 feeKey 해석 결과를 계정+feeKey 단위로 캐싱하고, 계정별·scope 조건별로 무효화하는 ResolveCache를 제공한다. hits/misses 통계로 해석형 코어의 캐시 적중을 시연한다.",
+      "tags": [
+        "cache",
+        "resolve",
+        "domain",
+        "invalidation",
+        "singleton"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Map 기반 캐시에 계정 키와 feeKeyString을 합성한 문자열 키를 사용."
+    },
+    {
+      "id": "class:src/domain/cache.ts:ResolveCache",
+      "type": "class",
+      "name": "ResolveCache",
+      "filePath": "src/domain/cache.ts",
+      "lineRange": [
+        9,
+        36
+      ],
+      "summary": "계정 ID와 feeKey를 합성한 키로 해석 결과(CacheEntry)를 저장/조회하며, 계정 단위(invalidateAccount) 및 scope 술어 단위(invalidateByScope) 무효화와 적중 통계(stat)를 지원한다.",
+      "tags": [
+        "cache",
+        "resolve",
+        "invalidation",
+        "data-model"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/eligibility.ts",
+      "type": "file",
+      "name": "eligibility.ts",
+      "filePath": "src/domain/eligibility.ts",
+      "summary": "룰 조건(condition)을 계정 지표(6개월 평균자산/약정액)에 대해 평가하여 자격 충족 여부를 판정하는 evalCondition을 제공한다.",
+      "tags": [
+        "domain",
+        "validation",
+        "eligibility",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/eligibility.ts:evalCondition",
+      "type": "function",
+      "name": "evalCondition",
+      "filePath": "src/domain/eligibility.ts",
+      "lineRange": [
+        3,
+        7
+      ],
+      "summary": "NegotiatedCondition의 metric·threshold를 계정 지표와 비교해 조건 충족 여부를 반환한다.",
+      "tags": [
+        "validation",
+        "eligibility",
+        "domain"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/feeKey.ts",
+      "type": "file",
+      "name": "feeKey.ts",
+      "filePath": "src/domain/feeKey.ts",
+      "summary": "해석(resolve)의 핵심 축인 feeKey를 차원 값(자산군·거래소·세션·채널·품목)에서 조립·파생·직렬화한다. 주식형은 품목 차원이 붕괴되어 product가 null이 되는 불변식을 강제한다.",
+      "tags": [
+        "domain",
+        "feeKey",
+        "resolve",
+        "factory",
+        "serialization"
+      ],
+      "complexity": "simple",
+      "languageNotes": "파생만 품목 차원을 가진다는 도메인 불변식을 isDerivative 분기로 표현."
+    },
+    {
+      "id": "function:src/domain/feeKey.ts:isDerivative",
+      "type": "function",
+      "name": "isDerivative",
+      "filePath": "src/domain/feeKey.ts",
+      "lineRange": [
+        3,
+        3
+      ],
+      "summary": "자산군이 국내파생/해외파생인지 판정하는 술어. feeKey 조립과 협의 연장 그룹 축 결정에 사용된다.",
+      "tags": [
+        "domain",
+        "feeKey",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/feeKey.ts:buildFeeKey",
+      "type": "function",
+      "name": "buildFeeKey",
+      "filePath": "src/domain/feeKey.ts",
+      "lineRange": [
+        7,
+        14
+      ],
+      "summary": "자산군·거래소·세션·채널·품목코드로 FeeKey를 조립하며, 주식형이면 productCode를 넘겨도 product를 null로 고정한다.",
+      "tags": [
+        "factory",
+        "feeKey",
+        "domain"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/feeKey.ts:deriveFeeKey",
+      "type": "function",
+      "name": "deriveFeeKey",
+      "filePath": "src/domain/feeKey.ts",
+      "lineRange": [
+        16,
+        18
+      ],
+      "summary": "Product·세션·채널에서 buildFeeKey를 호출해 FeeKey를 파생한다.",
+      "tags": [
+        "factory",
+        "feeKey",
+        "domain"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/feeKey.ts:feeKeyString",
+      "type": "function",
+      "name": "feeKeyString",
+      "filePath": "src/domain/feeKey.ts",
+      "lineRange": [
+        20,
+        23
+      ],
+      "summary": "FeeKey를 파이프 구분 문자열로 직렬화하며 품목이 있을 때만 뒤에 붙인다. 캐시 키 생성에 사용된다.",
+      "tags": [
+        "serialization",
+        "feeKey",
+        "domain"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/lifecycle.ts",
+      "type": "file",
+      "name": "lifecycle.ts",
+      "filePath": "src/domain/lifecycle.ts",
+      "summary": "룰의 시작·종료일과 기준일(today)을 비교해 룰의 생애주기 단계를 분류하는 classifyLifecycle을 제공한다.",
+      "tags": [
+        "domain",
+        "lifecycle",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/lifecycle.ts:classifyLifecycle",
+      "type": "function",
+      "name": "classifyLifecycle",
+      "filePath": "src/domain/lifecycle.ts",
+      "lineRange": [
+        2,
+        7
+      ],
+      "summary": "룰의 startDate·endDate를 기준일과 비교해 예정/진행/종료 등 생애주기 상태를 반환한다.",
+      "tags": [
+        "lifecycle",
+        "domain",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/metrics.ts",
+      "type": "file",
+      "name": "metrics.ts",
+      "filePath": "src/domain/metrics.ts",
+      "summary": "계정의 6개월 지표(평균자산·약정액)를 소폭 조정(nudge)하는 시연용 헬퍼 nudgeMetrics를 제공한다.",
+      "tags": [
+        "domain",
+        "metrics",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/metrics.ts:nudgeMetrics",
+      "type": "function",
+      "name": "nudgeMetrics",
+      "filePath": "src/domain/metrics.ts",
+      "lineRange": [
+        3,
+        8
+      ],
+      "summary": "계정 지표를 반올림 기반으로 미세 조정해 자격 재평가 시연 데이터를 만든다.",
+      "tags": [
+        "metrics",
+        "utility",
+        "domain"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/negoExtension.ts",
+      "type": "file",
+      "name": "negoExtension.ts",
+      "filePath": "src/domain/negoExtension.ts",
+      "summary": "만료 임박 협의수수료를 재평가해 유지/탈락으로 분류하고, 주식형은 상품군·파생은 품목 축으로 그룹화한 연장 대상(ExtGroup)을 산출한다. 영업예외(bypass) 건은 자격과 무관하게 유지한다.",
+      "tags": [
+        "domain",
+        "negotiated",
+        "eligibility",
+        "extension"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/domain/negoExtension.ts:classifyNegoExtension",
+      "type": "function",
+      "name": "classifyNegoExtension",
+      "filePath": "src/domain/negoExtension.ts",
+      "lineRange": [
+        19,
+        45
+      ],
+      "summary": "활성 협의 예외를 계정별로 순회하며 qualifyOf 자격판정과 예외 여부로 유지/탈락을 정하고, isDerivative 기반 축(상품군/품목)으로 묶어 ExtGroup 배열을 반환한다.",
+      "tags": [
+        "negotiated",
+        "eligibility",
+        "grouping",
+        "domain"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/domain/qualify.ts",
+      "type": "file",
+      "name": "qualify.ts",
+      "filePath": "src/domain/qualify.ts",
+      "summary": "상품군별 협의수수료 자격 정책(QualifyPolicy)을 계정 지표에 대해 판정해 충족 여부(met)를 산출하는 qualifyOf를 제공한다.",
+      "tags": [
+        "domain",
+        "qualify",
+        "eligibility",
+        "utility"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/domain/qualify.ts:qualifyOf",
+      "type": "function",
+      "name": "qualifyOf",
+      "filePath": "src/domain/qualify.ts",
+      "lineRange": [
+        4,
+        9
+      ],
+      "summary": "자산군에 해당하는 QualifyPolicy를 찾아 계정 지표가 기준을 충족하는지 판정 결과를 반환한다.",
+      "tags": [
+        "qualify",
+        "eligibility",
+        "domain"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/domain/types.ts",
+      "type": "file",
+      "name": "types.ts",
+      "filePath": "src/domain/types.ts",
+      "summary": "FeeKey·FeeRule·FeeSchedule·ScopeSelector·NegotiatedCondition·QualifyPolicy·Account 등 플랫폼 도메인의 핵심 type과 상수 TODAY를 정의하는 중심 타입 모듈이다.",
+      "tags": [
+        "type-definition",
+        "domain",
+        "data-model"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "리터럴 유니언 타입(한글 라벨)으로 룰 상태·자산군·채널 등 도메인 열거값을 표현."
+    },
+    {
+      "id": "file:src/screens/PolicyPriority.tsx",
+      "type": "file",
+      "name": "PolicyPriority.tsx",
+      "filePath": "src/screens/PolicyPriority.tsx",
+      "summary": "자산군·거래소·세션·채널 등 차원 입력으로 feeKey를 구성하고, store의 정책 우선순위 인덱스에서 승자 룰(winnerFor)을 해석해 우선순위와 scope를 시각화하는 화면 컴포넌트이다.",
+      "tags": [
+        "component",
+        "screen",
+        "resolve",
+        "feeKey"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/screens/PolicyPriority.tsx:PolicyPriority",
+      "type": "function",
+      "name": "PolicyPriority",
+      "filePath": "src/screens/PolicyPriority.tsx",
+      "lineRange": [
+        18,
+        123
+      ],
+      "summary": "store에서 정책 우선순위를 구독하고 차원 입력 state로 buildFeeKey→winnerFor 해석을 수행해 승자 룰과 자산군별 정책 목록을 렌더링하는 메인 컴포넌트.",
+      "tags": [
+        "component",
+        "screen",
+        "resolve",
+        "state"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:src/App.tsx",
+      "type": "file",
+      "name": "App.tsx",
+      "filePath": "src/App.tsx",
+      "summary": "탭 라우팅 루트 component. useState로 현재 tab을 관리하며 대시보드/승인/협의/위저드 등 모든 화면 component를 조건부로 렌더링한다.",
+      "tags": [
+        "entry-point",
+        "component",
+        "routing",
+        "tab",
+        "root"
+      ],
+      "complexity": "simple",
+      "languageNotes": "라이브러리 없는 tab 상태 기반 수동 라우팅 패턴."
+    },
+    {
+      "id": "function:src/App.tsx:App",
+      "type": "function",
+      "name": "App",
+      "filePath": "src/App.tsx",
+      "lineRange": [
+        16,
+        40
+      ],
+      "summary": "TABS 배열을 순회해 상단 탭 네비게이션을 그리고 선택된 tab에 해당하는 화면 component를 렌더링하는 루트 React component.",
+      "tags": [
+        "component",
+        "routing",
+        "tab",
+        "entry-point"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/main.tsx",
+      "type": "file",
+      "name": "main.tsx",
+      "filePath": "src/main.tsx",
+      "summary": "애플리케이션 엔트리 포인트. React DOM root를 생성하고 App component와 전역 styles.css를 마운트한다.",
+      "tags": [
+        "entry-point",
+        "bootstrap",
+        "react",
+        "dom-mount"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/screens/Approvals.tsx",
+      "type": "file",
+      "name": "Approvals.tsx",
+      "filePath": "src/screens/Approvals.tsx",
+      "summary": "수수료 규칙 승인 대기 목록 화면. 대기(pending) 규칙을 필터링해 승인(approveRule)/반려(rejectRule, 사유 입력)를 처리하고 RuleDetail로 상세를 펼쳐 보여준다.",
+      "tags": [
+        "component",
+        "api-handler",
+        "approval",
+        "screen",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/screens/Approvals.tsx:Approvals",
+      "type": "function",
+      "name": "Approvals",
+      "filePath": "src/screens/Approvals.tsx",
+      "lineRange": [
+        5,
+        62
+      ],
+      "summary": "store에서 규칙을 읽어 대기 상태만 필터링하고, 반려 사유 상태를 관리하며 승인/반려 액션을 store에 위임하는 승인 화면 component.",
+      "tags": [
+        "component",
+        "approval",
+        "state-management",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/screens/Dashboard.tsx",
+      "type": "file",
+      "name": "Dashboard.tsx",
+      "filePath": "src/screens/Dashboard.tsx",
+      "summary": "수수료 규칙 대시보드 화면. 검색어/유형/상태/자산 필터로 규칙을 조회하고 캐시 적중 통계·절감액 요약과 D-day 진행률을 해석형으로 표시하며 RuleDetail 상세를 펼친다.",
+      "tags": [
+        "component",
+        "dashboard",
+        "screen",
+        "filtering",
+        "interpretive"
+      ],
+      "complexity": "complex",
+      "languageNotes": "여러 useState 필터를 조합한 파생 목록 계산과 cacheStat 해석형 통계 표시."
+    },
+    {
+      "id": "function:src/screens/Dashboard.tsx:Dashboard",
+      "type": "function",
+      "name": "Dashboard",
+      "filePath": "src/screens/Dashboard.tsx",
+      "lineRange": [
+        19,
+        134
+      ],
+      "summary": "store 규칙과 캐시 통계를 읽어 다중 필터(검색·유형·상태·자산)로 가시 목록을 만들고, 활성 규칙의 절감액 합계와 기간 진행률(pct)을 계산해 렌더링하는 대시보드 component.",
+      "tags": [
+        "component",
+        "dashboard",
+        "filtering",
+        "aggregation",
+        "interpretive"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:src/screens/NegoApproval.tsx",
+      "type": "file",
+      "name": "NegoApproval.tsx",
+      "filePath": "src/screens/NegoApproval.tsx",
+      "summary": "협의수수료 신청 승인 화면. 신청(request)을 계좌·스케줄 기준으로 그룹핑하고 scope를 텍스트로 요약해 승인(approveNegoRequest)/반려(rejectNegoRequest)를 처리한다.",
+      "tags": [
+        "component",
+        "approval",
+        "negotiated-fee",
+        "screen",
+        "workflow"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/screens/NegoApproval.tsx:NegoApproval",
+      "type": "function",
+      "name": "NegoApproval",
+      "filePath": "src/screens/NegoApproval.tsx",
+      "lineRange": [
+        13,
+        70
+      ],
+      "summary": "협의 신청을 그룹 단위로 묶어 계좌명·스케줄명·scope 요약과 함께 나열하고, 반려 사유 상태를 관리하며 승인/반려 액션을 store에 위임하는 협의 승인 component.",
+      "tags": [
+        "component",
+        "approval",
+        "negotiated-fee",
+        "grouping"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/screens/Negotiated.tsx",
+      "type": "file",
+      "name": "Negotiated.tsx",
+      "filePath": "src/screens/Negotiated.tsx",
+      "summary": "협의수수료 연장 검토 화면. reviewNegoExtension으로 만료 임박 대상을 산출·그룹핑하고 D-day를 계산해 연장 적용(applyNegoExtension)을 수행하며 활성 grant 목록을 표시한다.",
+      "tags": [
+        "component",
+        "negotiated-fee",
+        "screen",
+        "date-calculation",
+        "workflow"
+      ],
+      "complexity": "complex",
+      "languageNotes": "월 단위 날짜 가산(addMonths)과 D-day 산정 등 날짜 유틸을 포함한 연장 검토 로직."
+    },
+    {
+      "id": "function:src/screens/Negotiated.tsx:addMonths",
+      "type": "function",
+      "name": "addMonths",
+      "filePath": "src/screens/Negotiated.tsx",
+      "lineRange": [
+        8,
+        16
+      ],
+      "summary": "YYYY-MM-DD 문자열에 n개월을 더해 말일 보정(clamp)까지 처리한 새 날짜 문자열을 반환하는 exported 날짜 유틸.",
+      "tags": [
+        "utility",
+        "date",
+        "date-calculation",
+        "helper"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/screens/Negotiated.tsx:Negotiated",
+      "type": "function",
+      "name": "Negotiated",
+      "filePath": "src/screens/Negotiated.tsx",
+      "lineRange": [
+        29,
+        133
+      ],
+      "summary": "연장 대상 그룹을 펼침 상태로 관리하며 후보별 D-day와 scope·스케줄 정보를 보여주고, 연장 적용 액션과 활성 grant 현황을 렌더링하는 협의 연장 검토 component.",
+      "tags": [
+        "component",
+        "negotiated-fee",
+        "date-calculation",
+        "state-management"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:src/screens/RuleDetail.tsx",
+      "type": "file",
+      "name": "RuleDetail.tsx",
+      "filePath": "src/screens/RuleDetail.tsx",
+      "summary": "수수료 규칙 상세 패널 component. scope·수수료 component(값·최소수수료)·시뮬레이션 절감액·적용 대상 요약·변경 로그를 표 형태로 렌더링하며 승인/대시보드 화면에서 재사용된다.",
+      "tags": [
+        "component",
+        "detail-view",
+        "presentation",
+        "reusable"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/screens/RuleDetail.tsx:RuleDetail",
+      "type": "function",
+      "name": "RuleDetail",
+      "filePath": "src/screens/RuleDetail.tsx",
+      "lineRange": [
+        30,
+        89
+      ],
+      "summary": "rule prop을 받아 store의 스케줄을 조회하고 유형·scope·수수료 component·절감액·대상·로그를 요약해 상세 뷰로 렌더링하는 재사용 component.",
+      "tags": [
+        "component",
+        "detail-view",
+        "presentation",
+        "reusable"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/screens/labels.ts",
+      "type": "file",
+      "name": "labels.ts",
+      "filePath": "src/screens/labels.ts",
+      "summary": "규칙 유형(RuleType)을 사람이 읽는 한글 라벨로 매핑하는 ruleTypeLabel 헬퍼를 제공하는 화면 계층 유틸 모듈.",
+      "tags": [
+        "utility",
+        "label",
+        "presentation",
+        "helper"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/screens/labels.ts:ruleTypeLabel",
+      "type": "function",
+      "name": "ruleTypeLabel",
+      "filePath": "src/screens/labels.ts",
+      "lineRange": [
+        3,
+        4
+      ],
+      "summary": "규칙 유형 값을 한글 표시 라벨로 변환해 반환하는 exported 라벨 유틸. Dashboard·RuleDetail에서 공통 사용된다.",
+      "tags": [
+        "utility",
+        "label",
+        "presentation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/masterdata/derive.ts",
+      "type": "file",
+      "name": "derive.ts",
+      "filePath": "src/masterdata/derive.ts",
+      "summary": "종목 마스터(instruments)로부터 파생상품용 품목(Product) 목록을 도출하는 소형 유틸 모듈. 주식은 품목 차원이 없으므로 파생만 대상으로 삼는다.",
+      "tags": [
+        "utility",
+        "data-model",
+        "masterdata",
+        "derivation"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/masterdata/instruments.ts",
+      "type": "file",
+      "name": "instruments.ts",
+      "filePath": "src/masterdata/instruments.ts",
+      "summary": "결정론적 LCG 난수로 종목 마스터 데이터를 생성하는 목데이터 모듈. 자산군별 종목·거래소·상태·상장일을 만들어 store 초기 상태와 신규상장 풀을 공급한다.",
+      "tags": [
+        "masterdata",
+        "mock-data",
+        "data-model",
+        "factory"
+      ],
+      "complexity": "complex",
+      "languageNotes": "LCG(linear congruential generator) 시드 기반으로 재현 가능한 목데이터를 생성한다."
+    },
+    {
+      "id": "file:src/screens/InstrumentMaster.tsx",
+      "type": "file",
+      "name": "InstrumentMaster.tsx",
+      "filePath": "src/screens/InstrumentMaster.tsx",
+      "summary": "종목 마스터 관리 화면. 자산군/거래소/상태 필터와 검색, CSV 파싱 등록, 원장 동기화(syncFromLedger)를 제공하는 React 화면 컴포넌트.",
+      "tags": [
+        "component",
+        "screen",
+        "masterdata",
+        "api-handler"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:src/screens/InstrumentPicker.tsx",
+      "type": "file",
+      "name": "InstrumentPicker.tsx",
+      "filePath": "src/screens/InstrumentPicker.tsx",
+      "summary": "자산군 범위 내 종목을 선택/제외하는 재사용 피커 컴포넌트. 거래소·상태 필터, 전체선택 모드, CSV 일괄 입력, 선택 칩 요약을 렌더링한다.",
+      "tags": [
+        "component",
+        "picker",
+        "masterdata",
+        "reusable"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:src/screens/NegoRequest.tsx",
+      "type": "file",
+      "name": "NegoRequest.tsx",
+      "filePath": "src/screens/NegoRequest.tsx",
+      "summary": "협의수수료 신청 화면. 자산군·범위·스케줄·요율을 입력받아 계좌별 자격(qualifyStatus)을 확인하고 협의 신청(submitNegoRequest)을 제출한다.",
+      "tags": [
+        "component",
+        "screen",
+        "nego",
+        "api-handler"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/screens/pickerLogic.ts",
+      "type": "file",
+      "name": "pickerLogic.ts",
+      "filePath": "src/screens/pickerLogic.ts",
+      "summary": "InstrumentPicker의 선택 상태를 순수 함수로 조작하는 로직 모듈. 코드 토글·일괄 선택·전체선택 모드·칩 제거·요약·CSV 파싱을 무상태 헬퍼로 제공한다.",
+      "tags": [
+        "utility",
+        "picker",
+        "pure-functions",
+        "state-logic"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:src/store/useStore.ts",
+      "type": "file",
+      "name": "useStore.ts",
+      "filePath": "src/store/useStore.ts",
+      "summary": "zustand 기반 중앙 store. 상태(계좌·종목·스케줄·규칙·협의·자격정책)와 모든 액션(resolveFee·policyPriority·submitNegoRequest·배치잡 등)을 보유하며 해석형 코어와 화면을 잇는 허브다.",
+      "tags": [
+        "store",
+        "singleton",
+        "state-management",
+        "entry-point",
+        "service"
+      ],
+      "complexity": "complex",
+      "languageNotes": "zustand create()로 상태와 액션을 한 객체에 정의하고, ResolveCache로 수수료 해석 결과를 캐싱한다."
+    },
+    {
+      "id": "function:src/masterdata/derive.ts:deriveProducts",
+      "type": "function",
+      "name": "deriveProducts",
+      "filePath": "src/masterdata/derive.ts",
+      "lineRange": [
+        4,
+        14
+      ],
+      "summary": "종목 배열을 순회해 파생상품 종목만 품목(Product)으로 변환·수집한다. 주식은 품목 차원이 없어 제외된다.",
+      "tags": [
+        "utility",
+        "derivation",
+        "data-model"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/masterdata/instruments.ts:generateInstruments",
+      "type": "function",
+      "name": "generateInstruments",
+      "filePath": "src/masterdata/instruments.ts",
+      "lineRange": [
+        102,
+        179
+      ],
+      "summary": "LCG 시드 난수로 자산군별 종목 마스터를 생성한다. 코드·이름·거래소·상태·상장일을 채워 재현 가능한 목데이터 배열을 반환한다.",
+      "tags": [
+        "factory",
+        "mock-data",
+        "masterdata"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/screens/InstrumentMaster.tsx:parseMasterCsv",
+      "type": "function",
+      "name": "parseMasterCsv",
+      "filePath": "src/screens/InstrumentMaster.tsx",
+      "lineRange": [
+        26,
+        68
+      ],
+      "summary": "CSV 텍스트를 파싱해 자산군 유효성·중복·기존코드 충돌을 검증하고 수용/거부 종목 목록을 분리해 반환한다.",
+      "tags": [
+        "validation",
+        "serialization",
+        "csv"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/screens/InstrumentMaster.tsx:InstrumentMaster",
+      "type": "function",
+      "name": "InstrumentMaster",
+      "filePath": "src/screens/InstrumentMaster.tsx",
+      "lineRange": [
+        76,
+        261
+      ],
+      "summary": "종목 마스터 관리 화면 컴포넌트. 필터·검색된 종목 테이블, CSV 등록, 원장 동기화 결과를 렌더링하고 store 액션을 호출한다.",
+      "tags": [
+        "component",
+        "screen",
+        "masterdata"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/screens/InstrumentPicker.tsx:InstrumentPicker",
+      "type": "function",
+      "name": "InstrumentPicker",
+      "filePath": "src/screens/InstrumentPicker.tsx",
+      "lineRange": [
+        32,
+        305
+      ],
+      "summary": "자산군 내 종목을 선택/제외하는 피커 컴포넌트. 거래소·상태 필터, 전체선택 모드, CSV 입력, 선택 칩 요약을 관리하며 onChange로 상위에 값을 전달한다.",
+      "tags": [
+        "component",
+        "picker",
+        "reusable"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/screens/NegoRequest.tsx:NegoRequest",
+      "type": "function",
+      "name": "NegoRequest",
+      "filePath": "src/screens/NegoRequest.tsx",
+      "lineRange": [
+        18,
+        149
+      ],
+      "summary": "협의수수료 신청 폼 컴포넌트. 자산군·범위·스케줄·요율 입력을 받아 계좌 자격을 검증하고 협의 신청을 store에 제출한다.",
+      "tags": [
+        "component",
+        "screen",
+        "nego"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:src/screens/pickerLogic.ts:toggleCode",
+      "type": "function",
+      "name": "toggleCode",
+      "filePath": "src/screens/pickerLogic.ts",
+      "lineRange": [
+        12,
+        27
+      ],
+      "summary": "선택 상태에서 종목 코드의 포함/제외를 토글하는 순수 함수. products·excludeProducts 배열을 불변식으로 갱신해 새 상태를 반환한다.",
+      "tags": [
+        "utility",
+        "pure-function",
+        "state-logic"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/screens/pickerLogic.ts:selectCodes",
+      "type": "function",
+      "name": "selectCodes",
+      "filePath": "src/screens/pickerLogic.ts",
+      "lineRange": [
+        33,
+        43
+      ],
+      "summary": "여러 종목 코드를 한 번에 선택 상태에 병합하는 순수 함수. 제외 목록과의 충돌을 정리하며 새 상태를 반환한다.",
+      "tags": [
+        "utility",
+        "pure-function",
+        "state-logic"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:src/screens/pickerLogic.ts:removeChip",
+      "type": "function",
+      "name": "removeChip",
+      "filePath": "src/screens/pickerLogic.ts",
+      "lineRange": [
+        56,
+        61
+      ],
+      "summary": "선택 요약 칩에서 특정 코드를 제거하는 순수 함수. products·excludeProducts에서 해당 코드를 걸러 새 상태를 반환한다.",
+      "tags": [
+        "utility",
+        "pure-function",
+        "state-logic"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:src/screens/pickerLogic.ts:parseCsvCodes",
+      "type": "function",
+      "name": "parseCsvCodes",
+      "filePath": "src/screens/pickerLogic.ts",
+      "lineRange": [
+        77,
+        89
+      ],
+      "summary": "CSV/개행 구분 텍스트를 파싱해 유효 코드 집합 대비 수용/거부를 분리하고 중복을 제거해 반환하는 순수 파서.",
+      "tags": [
+        "utility",
+        "validation",
+        "csv"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "config:.oxlintrc.json",
+      "type": "config",
+      "name": ".oxlintrc.json",
+      "filePath": ".oxlintrc.json",
+      "summary": "oxlint 린터 설정 파일. 플러그인과 규칙을 정의해 프로젝트 소스 코드의 정적 검사 기준을 지정한다.",
+      "tags": [
+        "configuration",
+        "linting",
+        "code-quality",
+        "oxlint"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:README.md",
+      "type": "document",
+      "name": "README.md",
+      "filePath": "README.md",
+      "summary": "수수료 이벤트 플랫폼 v0.5 프로토타입 개요 문서. 실행/테스트/빌드 방법, 시연 시나리오, 프로토타입 한계, 설계 문서 링크를 7개 섹션으로 정리한다.",
+      "tags": [
+        "documentation",
+        "entry-point",
+        "overview",
+        "getting-started"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:index.html",
+      "type": "file",
+      "name": "index.html",
+      "filePath": "index.html",
+      "summary": "Vite 앱의 HTML 진입점. root div를 마운트 지점으로 두고 /src/main.tsx 모듈 스크립트를 로드해 React 앱을 부팅한다.",
+      "tags": [
+        "entry-point",
+        "markup",
+        "html",
+        "vite"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:package.json",
+      "type": "config",
+      "name": "package.json",
+      "filePath": "package.json",
+      "summary": "프로젝트 매니페스트. React 19, zustand, Vite, Vitest, oxlint 의존성과 dev/build/lint/preview/test 스크립트를 정의한다.",
+      "tags": [
+        "configuration",
+        "build-system",
+        "dependencies",
+        "npm"
+      ],
+      "complexity": "simple",
+      "languageNotes": "\"type\": \"module\" 로 ESM 모드를 사용하며 빌드는 tsc -b 후 vite build 2단계로 구성된다."
+    },
+    {
+      "id": "config:tsconfig.app.json",
+      "type": "config",
+      "name": "tsconfig.app.json",
+      "filePath": "tsconfig.app.json",
+      "summary": "애플리케이션 소스(src)용 TypeScript 컴파일러 설정. bundler 모듈 해석과 strict 옵션 등을 적용해 프론트엔드 코드를 컴파일한다.",
+      "tags": [
+        "configuration",
+        "typescript",
+        "build-system"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:tsconfig.json",
+      "type": "config",
+      "name": "tsconfig.json",
+      "filePath": "tsconfig.json",
+      "summary": "TypeScript 프로젝트 루트 설정. tsconfig.app.json과 tsconfig.node.json을 project reference로 묶는 진입 config다.",
+      "tags": [
+        "configuration",
+        "typescript",
+        "build-system",
+        "entry-point"
+      ],
+      "complexity": "simple",
+      "languageNotes": "files는 비우고 references로 app/node 서브 config를 조합하는 TypeScript project references 패턴."
+    },
+    {
+      "id": "config:tsconfig.node.json",
+      "type": "config",
+      "name": "tsconfig.node.json",
+      "filePath": "tsconfig.node.json",
+      "summary": "빌드 도구(Node 환경)용 TypeScript 컴파일러 설정. vite.config.ts 같은 설정 파일 컴파일 기준을 지정한다.",
+      "tags": [
+        "configuration",
+        "typescript",
+        "build-system",
+        "tooling"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-07-04-fee-platform-prototype.md",
+      "type": "document",
+      "name": "2026-07-04-fee-platform-prototype.md",
+      "filePath": "docs/superpowers/plans/2026-07-04-fee-platform-prototype.md",
+      "summary": "수수료 이벤트 플랫폼 v0 프로토타입의 전체 구현 계획서로, 도메인 타입·mock 데이터 스캐폴드부터 calcFee 계산기, dominates 지배관계 검증, rebindAccount 바인딩, zustand 스토어, 대시보드·위저드·승인함 UI, 업무 프로세스 정의서까지 11개 Task를 TDD 순서로 정의한다.",
+      "tags": [
+        "documentation",
+        "implementation-plan",
+        "prototype",
+        "tdd",
+        "entry-point"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Task별 TDD(RED→GREEN→REFACTOR) 절차와 파일 구조 트리를 명시한 슈퍼파워 계획 문서 포맷."
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-07-04-v01-dashboard-detail-search.md",
+      "type": "document",
+      "name": "2026-07-04-v01-dashboard-detail-search.md",
+      "filePath": "docs/superpowers/plans/2026-07-04-v01-dashboard-detail-search.md",
+      "summary": "v0.1 대시보드 상세·검색 및 UX 개선 계획서로, explainDominanceFailure·sim.matchedProducts 순수 함수, wizardDraft 스토어 슬라이스, 행 확장 상세·검색/필터·감면액 카드 등 7개 Task를 정의한다.",
+      "tags": [
+        "documentation",
+        "implementation-plan",
+        "dashboard",
+        "search",
+        "ux"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-07-04-v02-instrument-master.md",
+      "type": "document",
+      "name": "2026-07-04-v02-instrument-master.md",
+      "filePath": "docs/superpowers/plans/2026-07-04-v02-instrument-master.md",
+      "summary": "v0.2 종목 마스터·차원 관련성·대량 선택 UX 계획서로, Instrument 타입과 결정적 생성기, deriveProducts, 픽커 선택 로직, InstrumentPicker 듀얼 패널, Wizard 재구성 등 8개 Task를 TDD로 정의한다.",
+      "tags": [
+        "documentation",
+        "implementation-plan",
+        "data-model",
+        "instrument",
+        "ux"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-07-04-v03-fee-decision-trace.md",
+      "type": "document",
+      "name": "2026-07-04-v03-fee-decision-trace.md",
+      "filePath": "docs/superpowers/plans/2026-07-04-v03-fee-decision-trace.md",
+      "summary": "v0.3 수수료 결정 흐름 trace 계획서로, rankCandidates 추출과 explainBinding 순수 함수, FeeTrace 화면·탭 추가 등 3개 Task를 통해 수수료 선택 근거를 시각화한다.",
+      "tags": [
+        "documentation",
+        "implementation-plan",
+        "fee-trace",
+        "explainability"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-07-04-v04-batch-pipeline.md",
+      "type": "document",
+      "name": "2026-07-04-v04-batch-pipeline.md",
+      "filePath": "docs/superpowers/plans/2026-07-04-v04-batch-pipeline.md",
+      "summary": "v0.4 배치 플로우 파이프라인 계획서로, evalCondition 도메인 이동과 isTarget 조건 게이트, nudgeMetrics·classifyLifecycle·revalidateDominance 순수 헬퍼, 배치 잡 액션 6종, BatchOps 화면 등 6개 Task를 정의한다.",
+      "tags": [
+        "documentation",
+        "implementation-plan",
+        "batch",
+        "data-pipeline"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-07-04-v05-scalable-fee-architecture.md",
+      "type": "document",
+      "name": "2026-07-04-v05-scalable-fee-architecture.md",
+      "filePath": "docs/superpowers/plans/2026-07-04-v05-scalable-fee-architecture.md",
+      "summary": "v0.5 규모 대응 수수료 아키텍처 계획서로, feeKey·channel·12자리 계좌 체계, scope_index 기반 BASE 조회, nego→event→base 최저가 resolve(), read-through ResolveCache와 증분 무효화, 전량 바인딩(rebindAll) 폐기 등 10개 Task를 정의한다.",
+      "tags": [
+        "documentation",
+        "implementation-plan",
+        "architecture",
+        "cache",
+        "scalability"
+      ],
+      "complexity": "complex",
+      "languageNotes": "레거시 전량 바인딩을 resolve+캐시 기반 지연 해석으로 전환하는 아키텍처 리팩터링 계획."
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-07-05-v06-event-period.md",
+      "type": "document",
+      "name": "2026-07-05-v06-event-period.md",
+      "filePath": "docs/superpowers/plans/2026-07-05-v06-event-period.md",
+      "summary": "v0.6 이벤트 기간 2축 계획서로, addMonths 날짜 헬퍼, BenefitPeriod 타입과 isBenefitActive, 가입 이력·적용기간을 반영하는 resolve, 위저드의 적용기간 유형 입력, 결정 흐름·계좌 조회의 혜택 근거 표시 등 6개 Task를 TDD로 정의한다.",
+      "tags": [
+        "documentation",
+        "implementation-plan",
+        "event-period",
+        "benefit",
+        "temporal"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/plans/2026-07-05-v07-negotiated-request-approval.md",
+      "type": "document",
+      "name": "2026-07-05-v07-negotiated-request-approval.md",
+      "filePath": "docs/superpowers/plans/2026-07-05-v07-negotiated-request-approval.md",
+      "summary": "v0.7 협의수수료 신청·승인 재설계 계획서로, qualifyOf 자격 정책, grant 상태·자격 필드 확장, grant+정책 기반 연장 리뷰, 협의 신청·승인 스토어 액션과 전용 화면, 이벤트 위저드의 EVENT 전용화 등 9개 Task를 정의한다.",
+      "tags": [
+        "documentation",
+        "implementation-plan",
+        "negotiated-fee",
+        "approval-workflow",
+        "policy"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-07-04-fee-event-platform-design.md",
+      "type": "document",
+      "name": "2026-07-04-fee-event-platform-design.md",
+      "filePath": "docs/superpowers/specs/2026-07-04-fee-event-platform-design.md",
+      "summary": "수수료 이벤트 정형화 플랫폼의 최초(v0) 설계 문서로, 배경·핵심 설계 결정·전체 아키텍처와 FeeRule/ScopeSelector/FeeSchedule/Enrollment/NegotiatedCondition/FeeBinding 도메인 모델 및 바인딩 엔진을 정의한다.",
+      "tags": [
+        "documentation",
+        "design-spec",
+        "architecture",
+        "domain-model",
+        "entry-point"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "전체 플랫폼의 기반 설계서로 이후 v0.1~v0.8 스펙이 이 문서의 도메인 모델을 확장·개정한다."
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-07-04-v01-dashboard-detail-search-design.md",
+      "type": "document",
+      "name": "2026-07-04-v01-dashboard-detail-search-design.md",
+      "filePath": "docs/superpowers/specs/2026-07-04-v01-dashboard-detail-search-design.md",
+      "summary": "v0.1 설계 문서로, 공용 RuleDetail 기반 대시보드 룰 상세 조회·이벤트 검색/필터와 품목 0개 상신 차단, 위저드 입력 보존 등 UX High/Medium 수정 사항을 다룬다.",
+      "tags": [
+        "documentation",
+        "design-spec",
+        "ux",
+        "dashboard",
+        "search"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-07-04-v02-instrument-master-design.md",
+      "type": "document",
+      "name": "2026-07-04-v02-instrument-master-design.md",
+      "filePath": "docs/superpowers/specs/2026-07-04-v02-instrument-master-design.md",
+      "summary": "v0.2 설계 문서로, 종목 마스터(가상 원장) 연동, 상품군별 거래소 차원 관련성 매트릭스, 결정적 종목 생성기와 Product 파생, 공용 InstrumentPicker 대량 선택 UX를 정의한다.",
+      "tags": [
+        "documentation",
+        "design-spec",
+        "data-model",
+        "masterdata",
+        "ux"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "거래소 차원의 성격이 상품군마다 다르다는 차원 관련성 매트릭스가 핵심 도메인 결정이다."
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-07-04-v03-fee-decision-trace-design.md",
+      "type": "document",
+      "name": "2026-07-04-v03-fee-decision-trace-design.md",
+      "filePath": "docs/superpowers/specs/2026-07-04-v03-fee-decision-trace-design.md",
+      "summary": "v0.3 설계 문서로, 수수료 결정 흐름(To-Be 로직 trace 워크스루) 신규 탭과 핵심 도메인 함수 explainBinding()을 TDD 대상으로 정의하며, 등급을 수수료 결정 경로에서 제거한 개정(v0.3.1)을 포함한다.",
+      "tags": [
+        "documentation",
+        "design-spec",
+        "trace",
+        "domain-model",
+        "tdd"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-07-04-v04-batch-pipeline-design.md",
+      "type": "document",
+      "name": "2026-07-04-v04-batch-pipeline-design.md",
+      "filePath": "docs/superpowers/specs/2026-07-04-v04-batch-pipeline-design.md",
+      "summary": "v0.4 설계 문서로, 야간 배치 정형화 파이프라인의 배치 플로우 화면, 6개 잡의 엔진 매핑·델타·의존 순서, 잡 결과 계약·rebind 분리·협수 자격 lifecycle 연결 등 도메인/스토어 변경을 다룬다.",
+      "tags": [
+        "documentation",
+        "design-spec",
+        "batch",
+        "pipeline",
+        "domain-model"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-07-04-v05-scalable-fee-architecture-design.md",
+      "type": "document",
+      "name": "2026-07-04-v05-scalable-fee-architecture-design.md",
+      "filePath": "docs/superpowers/specs/2026-07-04-v05-scalable-fee-architecture-design.md",
+      "summary": "v0.5 설계 문서로, 규모 대응을 위한 해석형(resolve) 아키텍처와 상품군별 가변 feeKey, 한국 리테일 표준 요율표 구성요소, 3계층 룰 모델, 계좌 수와 무관한 소형 저장 모델을 정의한다.",
+      "tags": [
+        "documentation",
+        "design-spec",
+        "architecture",
+        "scalability",
+        "domain-model"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "전량 바인딩 대신 해석(읽기)/갱신(쓰기) 경로 분리로 계좌 규모에 무관한 저장 구조를 지향한다."
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-07-05-v06-event-period-design.md",
+      "type": "document",
+      "name": "2026-07-05-v06-event-period-design.md",
+      "filePath": "docs/superpowers/specs/2026-07-05-v06-event-period-design.md",
+      "summary": "v0.6 설계 문서로, 이벤트 기간을 신청/유입 가능기간과 적용기간(혜택 기간) 2축으로 분리하고, 순수 날짜 헬퍼(dateutil.ts)와 멤버십/시간 분리 혜택 유효 판정 및 resolve 통합을 정의한다.",
+      "tags": [
+        "documentation",
+        "design-spec",
+        "event-period",
+        "domain-model",
+        "date-logic"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-07-05-v07-negotiated-request-approval-design.md",
+      "type": "document",
+      "name": "2026-07-05-v07-negotiated-request-approval-design.md",
+      "filePath": "docs/superpowers/specs/2026-07-05-v07-negotiated-request-approval-design.md",
+      "summary": "v0.7 설계 문서로, 협의수수료 신청·승인 흐름(계좌 단위 신청 → 자격확인 → 요청 → 승인)을 재설계하고, 자격 판정(qualify.ts), resolve 정리, 연장 리뷰(classifyNegoExtension) 적응 및 스토어/화면 변경을 다룬다.",
+      "tags": [
+        "documentation",
+        "design-spec",
+        "negotiated-fee",
+        "approval-workflow",
+        "domain-model"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:docs/superpowers/specs/2026-07-05-v08-policy-priority-precompute-design.md",
+      "type": "document",
+      "name": "2026-07-05-v08-policy-priority-precompute-design.md",
+      "filePath": "docs/superpowers/specs/2026-07-05-v08-policy-priority-precompute-design.md",
+      "summary": "v0.8 설계 문서로, feeKey별 정적 최저가 랭킹을 사전 산정하는 정책 우선순위 프리컴퓨트 설계를 불변식 통찰과 함께 정의한다.",
+      "tags": [
+        "documentation",
+        "design-spec",
+        "precompute",
+        "priority",
+        "optimization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:.understand-anything/.understandignore",
+      "type": "file",
+      "name": ".understandignore",
+      "filePath": ".understand-anything/.understandignore",
+      "summary": "Understand-Anything 지식 그래프 분석에서 제외할 파일·디렉터리 패턴을 정의하는 ignore 목록 파일이다.",
+      "tags": [
+        "configuration",
+        "ignore-list",
+        "tooling",
+        "knowledge-graph"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "config:.understand-anything/config.json",
+      "type": "config",
+      "name": "config.json",
+      "filePath": ".understand-anything/config.json",
+      "summary": "Understand-Anything 플러그인 설정으로, 분석 산출물의 출력 언어를 한국어(ko)로 지정한다.",
+      "tags": [
+        "configuration",
+        "tooling",
+        "knowledge-graph",
+        "localization"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:docs/business-process.md",
+      "type": "document",
+      "name": "business-process.md",
+      "filePath": "docs/business-process.md",
+      "summary": "수수료 이벤트 정형화 플랫폼의 업무 프로세스 정의서로, 이벤트 등록~승인~바인딩부터 신청형 고객 신청, 협수 조건 평가·연장, 휴면복귀 감지, 일 배치 만료·reconciliation, 체결 시 수수료 적용까지 6개 흐름을 서술한다.",
+      "tags": [
+        "documentation",
+        "business-process",
+        "fee-platform",
+        "workflow"
+      ],
+      "complexity": "complex",
+      "languageNotes": "①~⑥ 번호로 6개 핵심 업무 흐름을 절 단위로 구성한 프로세스 설계 문서."
+    },
+    {
+      "id": "document:docs/table-design.md",
+      "type": "document",
+      "name": "table-design.md",
+      "filePath": "docs/table-design.md",
+      "summary": "수수료 이벤트 정형화 플랫폼의 테이블 설계서로, 엔티티→물리 테이블 매핑, Oracle DDL 초안(FEE_SCHEDULE·FEE_RULE·FEE_ENROLLMENT·FEE_BINDING 등), mermaid ERD, 인덱스 설계 근거, 원장-플랫폼 계약, 이력·감사 테이블을 정의한다.",
+      "tags": [
+        "documentation",
+        "database",
+        "schema-definition",
+        "ddl",
+        "fee-platform"
+      ],
+      "complexity": "complex",
+      "languageNotes": "Oracle DDL과 mermaid ERD를 포함한 데이터 모델 설계 문서로, 원장 연계 계약(FEE_BINDING)을 핵심으로 다룸."
+    },
+    {
+      "id": "file:src/styles.css",
+      "type": "file",
+      "name": "styles.css",
+      "filePath": "src/styles.css",
+      "summary": "애플리케이션 전역 스타일시트로, CSS 변수 기반 디자인 토큰(색상·반경·그림자)과 레이아웃·컴포넌트 스타일을 정의한다.",
+      "tags": [
+        "stylesheet",
+        "css",
+        "design-tokens",
+        "ui",
+        "theming"
+      ],
+      "complexity": "complex",
+      "languageNotes": ":root의 CSS custom properties로 accent·text·border 등 디자인 토큰을 중앙 관리."
+    },
+    {
+      "id": "file:vite.config.ts",
+      "type": "file",
+      "name": "vite.config.ts",
+      "filePath": "vite.config.ts",
+      "summary": "Vite 빌드 도구 설정 파일로, React 플러그인(@vitejs/plugin-react)을 활성화하여 개발 서버와 번들링을 구성한다.",
+      "tags": [
+        "configuration",
+        "build-system",
+        "vite",
+        "react"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:src/domain/binding.ts",
+      "target": "file:src/domain/calc.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/binding.ts",
+      "target": "file:src/domain/dateutil.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/binding.ts",
+      "target": "file:src/domain/dominance.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/binding.ts",
+      "target": "file:src/domain/eligibility.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/binding.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/calc.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/dominance.ts",
+      "target": "file:src/domain/calc.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/dominance.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/policyRank.ts",
+      "target": "file:src/domain/calc.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/policyRank.ts",
+      "target": "file:src/domain/resolve.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/policyRank.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/resolve.ts",
+      "target": "file:src/domain/binding.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/resolve.ts",
+      "target": "file:src/domain/calc.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/resolve.ts",
+      "target": "file:src/domain/dominance.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/resolve.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/AccountView.tsx",
+      "target": "file:src/domain/calc.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/AccountView.tsx",
+      "target": "file:src/domain/dateutil.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/AccountView.tsx",
+      "target": "file:src/domain/feeKey.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/AccountView.tsx",
+      "target": "file:src/domain/resolve.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/AccountView.tsx",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/AccountView.tsx",
+      "target": "file:src/store/useStore.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/FeeTrace.tsx",
+      "target": "file:src/domain/calc.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/FeeTrace.tsx",
+      "target": "file:src/domain/dateutil.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/FeeTrace.tsx",
+      "target": "file:src/domain/feeKey.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/FeeTrace.tsx",
+      "target": "file:src/domain/resolve.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/FeeTrace.tsx",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/FeeTrace.tsx",
+      "target": "file:src/store/useStore.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Wizard.tsx",
+      "target": "file:src/domain/binding.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Wizard.tsx",
+      "target": "file:src/domain/calc.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Wizard.tsx",
+      "target": "file:src/domain/dominance.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Wizard.tsx",
+      "target": "file:src/domain/feeKey.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Wizard.tsx",
+      "target": "file:src/domain/resolve.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Wizard.tsx",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Wizard.tsx",
+      "target": "file:src/screens/InstrumentPicker.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Wizard.tsx",
+      "target": "file:src/screens/pickerLogic.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Wizard.tsx",
+      "target": "file:src/store/useStore.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/mock.ts",
+      "target": "file:src/domain/resolve.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/mock.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/binding.ts",
+      "target": "function:src/domain/binding.ts:scopeMatches",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/binding.ts",
+      "target": "function:src/domain/binding.ts:isTarget",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/binding.ts",
+      "target": "function:src/domain/binding.ts:isBenefitActive",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/binding.ts",
+      "target": "function:src/domain/binding.ts:rankCandidates",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/binding.ts",
+      "target": "function:src/domain/binding.ts:rebindAccount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/binding.ts",
+      "target": "function:src/domain/binding.ts:explainBinding",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/calc.ts",
+      "target": "function:src/domain/calc.ts:componentAmount",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/calc.ts",
+      "target": "function:src/domain/calc.ts:calcFee",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/dateutil.ts",
+      "target": "function:src/domain/dateutil.ts:addMonths",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/dominance.ts",
+      "target": "function:src/domain/dominance.ts:probePrices",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/dominance.ts",
+      "target": "function:src/domain/dominance.ts:dominates",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/dominance.ts",
+      "target": "function:src/domain/dominance.ts:explainDominanceFailure",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/dominance.ts",
+      "target": "function:src/domain/dominance.ts:revalidateDominance",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/policyRank.ts",
+      "target": "function:src/domain/policyRank.ts:rankValue",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/policyRank.ts",
+      "target": "function:src/domain/policyRank.ts:isAccountIndependent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/policyRank.ts",
+      "target": "function:src/domain/policyRank.ts:buildPolicyPriority",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/resolve.ts",
+      "target": "function:src/domain/resolve.ts:scopeMatchesKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/resolve.ts",
+      "target": "function:src/domain/resolve.ts:findBaseSchedule",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/resolve.ts",
+      "target": "function:src/domain/resolve.ts:buildScopeIndex",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/resolve.ts",
+      "target": "function:src/domain/resolve.ts:resolve",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/AccountView.tsx",
+      "target": "function:src/screens/AccountView.tsx:AccountView",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/FeeTrace.tsx",
+      "target": "function:src/screens/FeeTrace.tsx:FeeTrace",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/Wizard.tsx",
+      "target": "function:src/screens/Wizard.tsx:Wizard",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/Wizard.tsx",
+      "target": "function:src/screens/Wizard.tsx:makeInitialForm",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/binding.ts",
+      "target": "function:src/domain/binding.ts:scopeMatches",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/binding.ts",
+      "target": "function:src/domain/binding.ts:isTarget",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/binding.ts",
+      "target": "function:src/domain/binding.ts:isBenefitActive",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/binding.ts",
+      "target": "function:src/domain/binding.ts:rebindAccount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/binding.ts",
+      "target": "function:src/domain/binding.ts:explainBinding",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/calc.ts",
+      "target": "function:src/domain/calc.ts:componentAmount",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/calc.ts",
+      "target": "function:src/domain/calc.ts:calcFee",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/dateutil.ts",
+      "target": "function:src/domain/dateutil.ts:addMonths",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/dominance.ts",
+      "target": "function:src/domain/dominance.ts:probePrices",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/dominance.ts",
+      "target": "function:src/domain/dominance.ts:dominates",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/dominance.ts",
+      "target": "function:src/domain/dominance.ts:explainDominanceFailure",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/dominance.ts",
+      "target": "function:src/domain/dominance.ts:revalidateDominance",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/policyRank.ts",
+      "target": "function:src/domain/policyRank.ts:rankValue",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/policyRank.ts",
+      "target": "function:src/domain/policyRank.ts:isAccountIndependent",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/policyRank.ts",
+      "target": "function:src/domain/policyRank.ts:buildPolicyPriority",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/resolve.ts",
+      "target": "function:src/domain/resolve.ts:scopeMatchesKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/resolve.ts",
+      "target": "function:src/domain/resolve.ts:findBaseSchedule",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/resolve.ts",
+      "target": "function:src/domain/resolve.ts:buildScopeIndex",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/resolve.ts",
+      "target": "function:src/domain/resolve.ts:resolve",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/AccountView.tsx",
+      "target": "function:src/screens/AccountView.tsx:AccountView",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/FeeTrace.tsx",
+      "target": "function:src/screens/FeeTrace.tsx:FeeTrace",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/Wizard.tsx",
+      "target": "function:src/screens/Wizard.tsx:Wizard",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/binding.ts:rankCandidates",
+      "target": "function:src/domain/calc.ts:calcFee",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/binding.ts:rankCandidates",
+      "target": "function:src/domain/dominance.ts:probePrices",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/binding.ts:isBenefitActive",
+      "target": "function:src/domain/dateutil.ts:addMonths",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/binding.ts:isTarget",
+      "target": "function:src/domain/eligibility.ts:evalCondition",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/binding.ts:rebindAccount",
+      "target": "function:src/domain/binding.ts:rankCandidates",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/calc.ts:calcFee",
+      "target": "function:src/domain/calc.ts:componentAmount",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/dominance.ts:dominates",
+      "target": "function:src/domain/calc.ts:calcFee",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/dominance.ts:dominates",
+      "target": "function:src/domain/dominance.ts:probePrices",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/dominance.ts:explainDominanceFailure",
+      "target": "function:src/domain/calc.ts:calcFee",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/dominance.ts:revalidateDominance",
+      "target": "function:src/domain/dominance.ts:dominates",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/policyRank.ts:rankValue",
+      "target": "function:src/domain/calc.ts:calcFee",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/policyRank.ts:buildPolicyPriority",
+      "target": "function:src/domain/resolve.ts:scopeMatchesKey",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/resolve.ts:resolve",
+      "target": "function:src/domain/dominance.ts:probePrices",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/resolve.ts:resolve",
+      "target": "function:src/domain/calc.ts:calcFee",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/resolve.ts:resolve",
+      "target": "function:src/domain/binding.ts:isTarget",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/resolve.ts:resolve",
+      "target": "function:src/domain/binding.ts:isBenefitActive",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/resolve.ts:resolve",
+      "target": "function:src/domain/resolve.ts:scopeMatchesKey",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/resolve.ts:resolve",
+      "target": "function:src/domain/resolve.ts:findBaseSchedule",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/screens/AccountView.tsx:AccountView",
+      "target": "function:src/domain/calc.ts:calcFee",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/screens/AccountView.tsx:AccountView",
+      "target": "function:src/domain/dateutil.ts:addMonths",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/screens/FeeTrace.tsx:FeeTrace",
+      "target": "function:src/domain/calc.ts:calcFee",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/screens/FeeTrace.tsx:FeeTrace",
+      "target": "function:src/domain/dateutil.ts:addMonths",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/screens/FeeTrace.tsx:FeeTrace",
+      "target": "function:src/domain/resolve.ts:scopeMatchesKey",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/screens/Wizard.tsx:Wizard",
+      "target": "function:src/domain/dominance.ts:revalidateDominance",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/cache.ts",
+      "target": "file:src/domain/feeKey.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/cache.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/eligibility.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/feeKey.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/lifecycle.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/metrics.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/negoExtension.ts",
+      "target": "file:src/domain/feeKey.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/negoExtension.ts",
+      "target": "file:src/domain/qualify.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/negoExtension.ts",
+      "target": "file:src/domain/resolve.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/negoExtension.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/qualify.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/PolicyPriority.tsx",
+      "target": "file:src/domain/feeKey.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/PolicyPriority.tsx",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/PolicyPriority.tsx",
+      "target": "file:src/store/useStore.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/domain/cache.ts",
+      "target": "class:src/domain/cache.ts:ResolveCache",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/cache.ts",
+      "target": "class:src/domain/cache.ts:ResolveCache",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/eligibility.ts",
+      "target": "function:src/domain/eligibility.ts:evalCondition",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/eligibility.ts",
+      "target": "function:src/domain/eligibility.ts:evalCondition",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/feeKey.ts",
+      "target": "function:src/domain/feeKey.ts:isDerivative",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/feeKey.ts",
+      "target": "function:src/domain/feeKey.ts:isDerivative",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/feeKey.ts",
+      "target": "function:src/domain/feeKey.ts:buildFeeKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/feeKey.ts",
+      "target": "function:src/domain/feeKey.ts:buildFeeKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/feeKey.ts",
+      "target": "function:src/domain/feeKey.ts:deriveFeeKey",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/feeKey.ts",
+      "target": "function:src/domain/feeKey.ts:deriveFeeKey",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/feeKey.ts",
+      "target": "function:src/domain/feeKey.ts:feeKeyString",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/feeKey.ts",
+      "target": "function:src/domain/feeKey.ts:feeKeyString",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/lifecycle.ts",
+      "target": "function:src/domain/lifecycle.ts:classifyLifecycle",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/lifecycle.ts",
+      "target": "function:src/domain/lifecycle.ts:classifyLifecycle",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/metrics.ts",
+      "target": "function:src/domain/metrics.ts:nudgeMetrics",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/metrics.ts",
+      "target": "function:src/domain/metrics.ts:nudgeMetrics",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/negoExtension.ts",
+      "target": "function:src/domain/negoExtension.ts:classifyNegoExtension",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/negoExtension.ts",
+      "target": "function:src/domain/negoExtension.ts:classifyNegoExtension",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/domain/qualify.ts",
+      "target": "function:src/domain/qualify.ts:qualifyOf",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/domain/qualify.ts",
+      "target": "function:src/domain/qualify.ts:qualifyOf",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/PolicyPriority.tsx",
+      "target": "function:src/screens/PolicyPriority.tsx:PolicyPriority",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/PolicyPriority.tsx",
+      "target": "function:src/screens/PolicyPriority.tsx:PolicyPriority",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/feeKey.ts:deriveFeeKey",
+      "target": "function:src/domain/feeKey.ts:buildFeeKey",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/feeKey.ts:buildFeeKey",
+      "target": "function:src/domain/feeKey.ts:isDerivative",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "class:src/domain/cache.ts:ResolveCache",
+      "target": "function:src/domain/feeKey.ts:feeKeyString",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/negoExtension.ts:classifyNegoExtension",
+      "target": "function:src/domain/feeKey.ts:isDerivative",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/domain/negoExtension.ts:classifyNegoExtension",
+      "target": "function:src/domain/qualify.ts:qualifyOf",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/screens/PolicyPriority.tsx:PolicyPriority",
+      "target": "function:src/domain/feeKey.ts:buildFeeKey",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/screens/PolicyPriority.tsx:PolicyPriority",
+      "target": "function:src/domain/feeKey.ts:isDerivative",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/App.tsx",
+      "target": "file:src/screens/AccountView.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/App.tsx",
+      "target": "file:src/screens/Approvals.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/App.tsx",
+      "target": "file:src/screens/Dashboard.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/App.tsx",
+      "target": "file:src/screens/FeeTrace.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/App.tsx",
+      "target": "file:src/screens/InstrumentMaster.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/App.tsx",
+      "target": "file:src/screens/NegoApproval.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/App.tsx",
+      "target": "file:src/screens/NegoRequest.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/App.tsx",
+      "target": "file:src/screens/Negotiated.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/App.tsx",
+      "target": "file:src/screens/PolicyPriority.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/App.tsx",
+      "target": "file:src/screens/Wizard.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/main.tsx",
+      "target": "file:src/App.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/main.tsx",
+      "target": "file:src/styles.css",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Approvals.tsx",
+      "target": "file:src/screens/RuleDetail.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Approvals.tsx",
+      "target": "file:src/store/useStore.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Dashboard.tsx",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Dashboard.tsx",
+      "target": "file:src/screens/labels.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Dashboard.tsx",
+      "target": "file:src/screens/RuleDetail.tsx",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Dashboard.tsx",
+      "target": "file:src/store/useStore.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/NegoApproval.tsx",
+      "target": "file:src/domain/resolve.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/NegoApproval.tsx",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/NegoApproval.tsx",
+      "target": "file:src/store/useStore.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Negotiated.tsx",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/Negotiated.tsx",
+      "target": "file:src/store/useStore.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/RuleDetail.tsx",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/RuleDetail.tsx",
+      "target": "file:src/screens/labels.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/RuleDetail.tsx",
+      "target": "file:src/store/useStore.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/labels.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/App.tsx",
+      "target": "function:src/App.tsx:App",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/App.tsx",
+      "target": "function:src/App.tsx:App",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/Approvals.tsx",
+      "target": "function:src/screens/Approvals.tsx:Approvals",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/Approvals.tsx",
+      "target": "function:src/screens/Approvals.tsx:Approvals",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/Dashboard.tsx",
+      "target": "function:src/screens/Dashboard.tsx:Dashboard",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/Dashboard.tsx",
+      "target": "function:src/screens/Dashboard.tsx:Dashboard",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/NegoApproval.tsx",
+      "target": "function:src/screens/NegoApproval.tsx:NegoApproval",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/NegoApproval.tsx",
+      "target": "function:src/screens/NegoApproval.tsx:NegoApproval",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/Negotiated.tsx",
+      "target": "function:src/screens/Negotiated.tsx:addMonths",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/Negotiated.tsx",
+      "target": "function:src/screens/Negotiated.tsx:addMonths",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/Negotiated.tsx",
+      "target": "function:src/screens/Negotiated.tsx:Negotiated",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/Negotiated.tsx",
+      "target": "function:src/screens/Negotiated.tsx:Negotiated",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/RuleDetail.tsx",
+      "target": "function:src/screens/RuleDetail.tsx:RuleDetail",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/RuleDetail.tsx",
+      "target": "function:src/screens/RuleDetail.tsx:RuleDetail",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/labels.ts",
+      "target": "function:src/screens/labels.ts:ruleTypeLabel",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/labels.ts",
+      "target": "function:src/screens/labels.ts:ruleTypeLabel",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/screens/Dashboard.tsx:Dashboard",
+      "target": "function:src/screens/labels.ts:ruleTypeLabel",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/screens/RuleDetail.tsx:RuleDetail",
+      "target": "function:src/screens/labels.ts:ruleTypeLabel",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/masterdata/derive.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/masterdata/derive.ts",
+      "target": "file:src/masterdata/instruments.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/masterdata/instruments.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/InstrumentMaster.tsx",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/InstrumentMaster.tsx",
+      "target": "file:src/masterdata/instruments.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/InstrumentMaster.tsx",
+      "target": "file:src/store/useStore.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/InstrumentPicker.tsx",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/InstrumentPicker.tsx",
+      "target": "file:src/masterdata/instruments.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/InstrumentPicker.tsx",
+      "target": "file:src/screens/pickerLogic.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/InstrumentPicker.tsx",
+      "target": "file:src/store/useStore.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/NegoRequest.tsx",
+      "target": "file:src/domain/feeKey.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/NegoRequest.tsx",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/NegoRequest.tsx",
+      "target": "file:src/screens/pickerLogic.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/screens/NegoRequest.tsx",
+      "target": "file:src/store/useStore.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "file:src/domain/binding.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "file:src/domain/cache.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "file:src/domain/calc.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "file:src/domain/dominance.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "file:src/domain/feeKey.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "file:src/domain/lifecycle.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "file:src/domain/metrics.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "file:src/domain/negoExtension.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "file:src/domain/policyRank.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "file:src/domain/qualify.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "file:src/domain/resolve.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "file:src/domain/types.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "file:src/masterdata/derive.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "file:src/masterdata/instruments.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "file:src/store/mock.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/masterdata/derive.ts",
+      "target": "function:src/masterdata/derive.ts:deriveProducts",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/masterdata/derive.ts",
+      "target": "function:src/masterdata/derive.ts:deriveProducts",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/masterdata/instruments.ts",
+      "target": "function:src/masterdata/instruments.ts:generateInstruments",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/masterdata/instruments.ts",
+      "target": "function:src/masterdata/instruments.ts:generateInstruments",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/InstrumentMaster.tsx",
+      "target": "function:src/screens/InstrumentMaster.tsx:parseMasterCsv",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/InstrumentMaster.tsx",
+      "target": "function:src/screens/InstrumentMaster.tsx:parseMasterCsv",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/InstrumentMaster.tsx",
+      "target": "function:src/screens/InstrumentMaster.tsx:InstrumentMaster",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/InstrumentMaster.tsx",
+      "target": "function:src/screens/InstrumentMaster.tsx:InstrumentMaster",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/InstrumentPicker.tsx",
+      "target": "function:src/screens/InstrumentPicker.tsx:InstrumentPicker",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/InstrumentPicker.tsx",
+      "target": "function:src/screens/InstrumentPicker.tsx:InstrumentPicker",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/NegoRequest.tsx",
+      "target": "function:src/screens/NegoRequest.tsx:NegoRequest",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/NegoRequest.tsx",
+      "target": "function:src/screens/NegoRequest.tsx:NegoRequest",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/pickerLogic.ts",
+      "target": "function:src/screens/pickerLogic.ts:toggleCode",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/pickerLogic.ts",
+      "target": "function:src/screens/pickerLogic.ts:toggleCode",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/pickerLogic.ts",
+      "target": "function:src/screens/pickerLogic.ts:selectCodes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/pickerLogic.ts",
+      "target": "function:src/screens/pickerLogic.ts:selectCodes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/pickerLogic.ts",
+      "target": "function:src/screens/pickerLogic.ts:removeChip",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/pickerLogic.ts",
+      "target": "function:src/screens/pickerLogic.ts:removeChip",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/screens/pickerLogic.ts",
+      "target": "function:src/screens/pickerLogic.ts:parseCsvCodes",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/screens/pickerLogic.ts",
+      "target": "function:src/screens/pickerLogic.ts:parseCsvCodes",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/screens/InstrumentPicker.tsx:InstrumentPicker",
+      "target": "function:src/screens/pickerLogic.ts:toggleCode",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/screens/InstrumentPicker.tsx:InstrumentPicker",
+      "target": "function:src/screens/pickerLogic.ts:selectCodes",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/screens/InstrumentPicker.tsx:InstrumentPicker",
+      "target": "function:src/screens/pickerLogic.ts:removeChip",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/screens/InstrumentPicker.tsx:InstrumentPicker",
+      "target": "function:src/screens/pickerLogic.ts:parseCsvCodes",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/screens/NegoRequest.tsx:NegoRequest",
+      "target": "function:src/screens/pickerLogic.ts:parseCsvCodes",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "function:src/screens/NegoRequest.tsx:NegoRequest",
+      "target": "function:src/domain/feeKey.ts:isDerivative",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "function:src/masterdata/instruments.ts:generateInstruments",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/store/useStore.ts",
+      "target": "function:src/masterdata/derive.ts:deriveProducts",
+      "type": "calls",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:index.html",
+      "target": "file:src/main.tsx",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "config:tsconfig.json",
+      "target": "config:tsconfig.app.json",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "config:tsconfig.json",
+      "target": "config:tsconfig.node.json",
+      "type": "depends_on",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "config:tsconfig.app.json",
+      "target": "file:src/main.tsx",
+      "type": "configures",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "config:package.json",
+      "target": "file:src/main.tsx",
+      "type": "configures",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "config:.oxlintrc.json",
+      "target": "file:src/main.tsx",
+      "type": "configures",
+      "direction": "forward",
+      "weight": 0.6
+    },
+    {
+      "source": "document:README.md",
+      "target": "file:src/main.tsx",
+      "type": "documents",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-07-04-fee-platform-prototype.md",
+      "target": "document:docs/superpowers/plans/2026-07-04-v01-dashboard-detail-search.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-07-04-v01-dashboard-detail-search.md",
+      "target": "document:docs/superpowers/plans/2026-07-04-v02-instrument-master.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-07-04-v02-instrument-master.md",
+      "target": "document:docs/superpowers/plans/2026-07-04-v03-fee-decision-trace.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-07-04-v03-fee-decision-trace.md",
+      "target": "document:docs/superpowers/plans/2026-07-04-v04-batch-pipeline.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-07-04-v04-batch-pipeline.md",
+      "target": "document:docs/superpowers/plans/2026-07-04-v05-scalable-fee-architecture.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-07-04-v05-scalable-fee-architecture.md",
+      "target": "document:docs/superpowers/plans/2026-07-05-v06-event-period.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/plans/2026-07-05-v06-event-period.md",
+      "target": "document:docs/superpowers/plans/2026-07-05-v07-negotiated-request-approval.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-07-04-v01-dashboard-detail-search-design.md",
+      "target": "document:docs/superpowers/specs/2026-07-04-fee-event-platform-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-07-04-v02-instrument-master-design.md",
+      "target": "document:docs/superpowers/specs/2026-07-04-v01-dashboard-detail-search-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-07-04-v03-fee-decision-trace-design.md",
+      "target": "document:docs/superpowers/specs/2026-07-04-v02-instrument-master-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-07-04-v04-batch-pipeline-design.md",
+      "target": "document:docs/superpowers/specs/2026-07-04-v03-fee-decision-trace-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-07-04-v05-scalable-fee-architecture-design.md",
+      "target": "document:docs/superpowers/specs/2026-07-04-v04-batch-pipeline-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-07-05-v06-event-period-design.md",
+      "target": "document:docs/superpowers/specs/2026-07-04-v05-scalable-fee-architecture-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-07-05-v07-negotiated-request-approval-design.md",
+      "target": "document:docs/superpowers/specs/2026-07-05-v06-event-period-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-07-05-v08-policy-priority-precompute-design.md",
+      "target": "document:docs/superpowers/specs/2026-07-05-v07-negotiated-request-approval-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-07-04-v05-scalable-fee-architecture-design.md",
+      "target": "document:docs/superpowers/specs/2026-07-04-fee-event-platform-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "document:docs/superpowers/specs/2026-07-05-v07-negotiated-request-approval-design.md",
+      "target": "document:docs/superpowers/specs/2026-07-04-fee-event-platform-design.md",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:src/styles.css",
+      "target": "file:src/main.tsx",
+      "type": "related",
+      "direction": "forward",
+      "weight": 0.5
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer:domain",
+      "name": "도메인 로직",
+      "description": "수수료 정책의 순수 계산·검증·해석(resolve) 로직으로 feeKey 해석, calc 계산 엔진, dominance/qualify/eligibility 검증, cache·negoExtension·lifecycle·metrics 등 프레임워크에 의존하지 않는 핵심 비즈니스 규칙을 담는다.",
+      "nodeIds": [
+        "file:src/domain/binding.ts",
+        "file:src/domain/calc.ts",
+        "file:src/domain/dateutil.ts",
+        "file:src/domain/dominance.ts",
+        "file:src/domain/policyRank.ts",
+        "file:src/domain/resolve.ts",
+        "file:src/domain/cache.ts",
+        "file:src/domain/eligibility.ts",
+        "file:src/domain/feeKey.ts",
+        "file:src/domain/lifecycle.ts",
+        "file:src/domain/metrics.ts",
+        "file:src/domain/negoExtension.ts",
+        "file:src/domain/qualify.ts",
+        "file:src/domain/types.ts"
+      ]
+    },
+    {
+      "id": "layer:store",
+      "name": "상태 관리",
+      "description": "Zustand 중앙 store(useStore)와 mock 시드 데이터로, 도메인 로직과 화면을 잇는 애플리케이션 상태·액션·초기 데이터를 관리한다.",
+      "nodeIds": [
+        "file:src/store/mock.ts",
+        "file:src/store/useStore.ts"
+      ]
+    },
+    {
+      "id": "layer:ui",
+      "name": "화면(UI)",
+      "description": "Dashboard·Wizard·Approvals·NegoRequest 등 React 화면 컴포넌트와 pickerLogic·labels 같은 화면 보조 로직으로, 정책 등록·검증·승인 및 체결 해석 흐름을 사용자에게 렌더링한다.",
+      "nodeIds": [
+        "file:src/screens/AccountView.tsx",
+        "file:src/screens/FeeTrace.tsx",
+        "file:src/screens/Wizard.tsx",
+        "file:src/screens/PolicyPriority.tsx",
+        "file:src/screens/Approvals.tsx",
+        "file:src/screens/Dashboard.tsx",
+        "file:src/screens/NegoApproval.tsx",
+        "file:src/screens/Negotiated.tsx",
+        "file:src/screens/RuleDetail.tsx",
+        "file:src/screens/labels.ts",
+        "file:src/screens/InstrumentMaster.tsx",
+        "file:src/screens/InstrumentPicker.tsx",
+        "file:src/screens/NegoRequest.tsx",
+        "file:src/screens/pickerLogic.ts"
+      ]
+    },
+    {
+      "id": "layer:masterdata",
+      "name": "마스터데이터",
+      "description": "종목 마스터(instruments)와 파생 도출(derive) 데이터로, 파생상품 품목 차원을 도메인·화면 계층에 공급하는 참조 데이터 계층이다.",
+      "nodeIds": [
+        "file:src/masterdata/derive.ts",
+        "file:src/masterdata/instruments.ts"
+      ]
+    },
+    {
+      "id": "layer:app-shell",
+      "name": "앱 셸·진입점",
+      "description": "App.tsx 탭 라우팅, main.tsx 부트스트랩 엔트리, index.html, 전역 styles.css로 구성된 애플리케이션 셸과 진입점 계층이다.",
+      "nodeIds": [
+        "file:src/App.tsx",
+        "file:src/main.tsx",
+        "file:index.html",
+        "file:src/styles.css"
+      ]
+    },
+    {
+      "id": "layer:documentation",
+      "name": "설계 문서",
+      "description": "superpowers specs·plans, business-process, table-design, README 등 프로토타입의 요구·설계·업무 흐름을 기록한 프로젝트 문서 계층이다.",
+      "nodeIds": [
+        "document:README.md",
+        "document:docs/superpowers/plans/2026-07-04-fee-platform-prototype.md",
+        "document:docs/superpowers/plans/2026-07-04-v01-dashboard-detail-search.md",
+        "document:docs/superpowers/plans/2026-07-04-v02-instrument-master.md",
+        "document:docs/superpowers/plans/2026-07-04-v03-fee-decision-trace.md",
+        "document:docs/superpowers/plans/2026-07-04-v04-batch-pipeline.md",
+        "document:docs/superpowers/plans/2026-07-04-v05-scalable-fee-architecture.md",
+        "document:docs/superpowers/plans/2026-07-05-v06-event-period.md",
+        "document:docs/superpowers/plans/2026-07-05-v07-negotiated-request-approval.md",
+        "document:docs/superpowers/specs/2026-07-04-fee-event-platform-design.md",
+        "document:docs/superpowers/specs/2026-07-04-v01-dashboard-detail-search-design.md",
+        "document:docs/superpowers/specs/2026-07-04-v02-instrument-master-design.md",
+        "document:docs/superpowers/specs/2026-07-04-v03-fee-decision-trace-design.md",
+        "document:docs/superpowers/specs/2026-07-04-v04-batch-pipeline-design.md",
+        "document:docs/superpowers/specs/2026-07-04-v05-scalable-fee-architecture-design.md",
+        "document:docs/superpowers/specs/2026-07-05-v06-event-period-design.md",
+        "document:docs/superpowers/specs/2026-07-05-v07-negotiated-request-approval-design.md",
+        "document:docs/superpowers/specs/2026-07-05-v08-policy-priority-precompute-design.md",
+        "document:docs/business-process.md",
+        "document:docs/table-design.md"
+      ]
+    },
+    {
+      "id": "layer:config",
+      "name": "빌드·설정",
+      "description": "package.json, tsconfig 계열, vite.config.ts, .oxlintrc.json 및 understand-anything 설정 등 빌드·타입·린트·도구 구성을 담는 설정 계층이다.",
+      "nodeIds": [
+        "config:.oxlintrc.json",
+        "config:package.json",
+        "config:tsconfig.app.json",
+        "config:tsconfig.json",
+        "config:tsconfig.node.json",
+        "file:.understand-anything/.understandignore",
+        "config:.understand-anything/config.json",
+        "file:vite.config.ts"
+      ]
+    }
+  ],
+  "tour": [
+    {
+      "order": 1,
+      "title": "프로젝트 개요",
+      "description": "README.md로 시작해 이 프로토타입이 무엇을 푸는지 파악합니다. 증권사의 기본·이벤트·협의 수수료 정책을 등록·검증·승인하고, 체결 시점에 최저가로 해석(resolve)하는 '해석형' 수수료 플랫폼이며, 계좌마다 정책을 미리 붙이던 전량 바인딩 방식을 폐기한 것이 핵심 전환입니다. 실행/테스트 방법과 시연 시나리오, 설계 문서 링크가 정리되어 있어 이후 투어의 지도 역할을 합니다.",
+      "nodeIds": [
+        "document:README.md"
+      ]
+    },
+    {
+      "order": 2,
+      "title": "진입점과 탭 라우팅",
+      "description": "index.html이 root div와 main.tsx 모듈을 로드하면 main.tsx가 React DOM root를 만들어 App과 전역 styles.css를 마운트합니다. App.tsx는 useState 하나로 현재 탭을 관리하며 대시보드·승인·협의·위저드 등 모든 화면을 조건부로 렌더링하는 얇은 라우팅 루트입니다. 백엔드나 라우터 라이브러리 없이 상태 기반 탭 전환만으로 전체 앱 구조를 한눈에 보여줍니다.",
+      "nodeIds": [
+        "file:index.html",
+        "file:src/main.tsx",
+        "file:src/App.tsx"
+      ],
+      "languageLesson": "Vite 앱은 index.html을 진입점으로 삼아 <script type=\"module\"> 로 main.tsx를 로드합니다. 번들러가 이 모듈 그래프를 따라 의존성을 추적합니다."
+    },
+    {
+      "order": 3,
+      "title": "도메인 타입 (아키텍처의 어휘)",
+      "description": "types.ts는 그래프 전체에서 가장 많이 참조되는(fan-in 28) 중심 모듈로, FeeKey·FeeRule·FeeSchedule·ScopeSelector·NegotiatedCondition·QualifyPolicy·Account 같은 핵심 타입과 기준일 상수 TODAY를 정의합니다. 이 타입들이 도메인 로직과 화면 사이의 계약이자 공통 언어이므로, 여기서 정의된 개념을 이해하면 나머지 코드가 훨씬 잘 읽힙니다. 이후 모든 단계는 이 타입 위에서 동작합니다.",
+      "nodeIds": [
+        "file:src/domain/types.ts"
+      ],
+      "languageLesson": "TypeScript의 discriminated union과 interface로 도메인 모델을 표현합니다. 하나의 중심 타입 모듈을 두면 계층 간 계약이 한곳에 모여 타입 안정성이 높아집니다."
+    },
+    {
+      "order": 4,
+      "title": "조회키 feeKey와 품목 차원",
+      "description": "feeKey.ts는 해석의 축이 되는 feeKey를 자산군·거래소·세션·채널·품목 차원값에서 조립·파생·직렬화합니다. 핵심 불변식은 '주식형은 품목 차원이 붕괴되어 product가 null'이라는 규칙으로, 파생상품만 품목(Product) 차원을 갖습니다. 이 품목 목록은 masterdata의 instruments.ts(결정론적 종목 마스터 생성)에서 derive.ts가 파생상품만 걸러 도출합니다.",
+      "nodeIds": [
+        "file:src/domain/feeKey.ts",
+        "file:src/masterdata/derive.ts",
+        "file:src/masterdata/instruments.ts"
+      ]
+    },
+    {
+      "order": 5,
+      "title": "수수료 계산 엔진",
+      "description": "calc.ts는 체결 정보(exec)와 수수료 스케줄로부터 컴포넌트별 금액을 산출(componentAmount)하고 고객·회사 부담을 합산해 총 수수료를 계산(calcFee)하는 순수 계산 엔진입니다. 정률·정액·구간표 같은 요율 컴포넌트를 해석해 실제 금액으로 환산하는 곳으로, Step 3의 FeeSchedule 타입을 입력으로 받습니다. fan-in이 8로 여러 화면과 도메인 로직이 이 계산기를 공유합니다.",
+      "nodeIds": [
+        "file:src/domain/calc.ts"
+      ]
+    },
+    {
+      "order": 6,
+      "title": "해석 코어 resolve (플랫폼의 심장)",
+      "description": "resolve.ts는 해석형 아키텍처의 중심으로, 체결 시점에 feeKey와 세션·채널 입력을 받아 적용 후보(기본·이벤트·협의)를 모은 뒤 최저 고객수수료 기준으로 승자를 해석하고 근거 후보 목록을 반환합니다. 협의 최우선 → 이벤트 → 기본의 우선순위가 아니라, 모든 후보를 놓고 실제 계산(Step 5의 calcFee)으로 최저가를 고르는 것이 핵심 설계 결정입니다. 계좌에 정책을 미리 붙이지 않고 체결 때 그 자리에서 계산하기에 전량 바인딩이 필요 없어졌습니다.",
+      "nodeIds": [
+        "file:src/domain/resolve.ts"
+      ]
+    },
+    {
+      "order": 7,
+      "title": "정책 우선순위 사전 산정과 캐시",
+      "description": "매 체결마다 전 후보를 계산하면 비싸므로, policyRank.ts는 계좌에 의존하지 않는 활성 정책들을 스케줄 비용(rankValue) 기준으로 미리 우선순위화(buildPolicyPriority)해 둡니다. cache.ts의 ResolveCache는 체결 시 feeKey 해석 결과를 계정+feeKey 단위로 캐싱하고 scope 조건별로 증분 무효화하며, hits/misses 통계로 캐시 적중을 시연합니다. dominance.ts는 이벤트 정책이 기본 대비 전 가격 구간에서 우위인지 가격 프로브로 검증(dominates)해 등록 단계에서 정합성을 보장합니다.",
+      "nodeIds": [
+        "file:src/domain/policyRank.ts",
+        "file:src/domain/cache.ts",
+        "file:src/domain/dominance.ts"
+      ]
+    },
+    {
+      "order": 8,
+      "title": "협의수수료 자격·연장 도메인",
+      "description": "협의 수수료는 자격과 기간 관리가 핵심입니다. qualify.ts는 상품군별 자격 정책(QualifyPolicy)을 계정 지표에 대해 판정(qualifyOf)하고, eligibility.ts는 룰 조건을 계정 지표(6개월 평균자산·약정액)에 대해 평가(evalCondition)합니다. negoExtension.ts는 만료 임박 협의를 재평가해 유지/탈락으로 분류하고 주식형은 상품군·파생은 품목 축으로 그룹화한 연장 대상을 산출하며, 영업예외(bypass) 건은 자격과 무관하게 유지합니다.",
+      "nodeIds": [
+        "file:src/domain/qualify.ts",
+        "file:src/domain/eligibility.ts",
+        "file:src/domain/negoExtension.ts"
+      ]
+    },
+    {
+      "order": 9,
+      "title": "중앙 store (도메인과 화면의 허브)",
+      "description": "useStore.ts는 zustand 기반 중앙 store로 상태(계좌·종목·스케줄·규칙·협의·자격정책)와 모든 액션(resolveFee·policyPriority·submitNegoRequest 등)을 보유하며, 앞서 본 도메인 로직과 화면을 잇는 허브입니다. fan-out 15로 가장 많은 것을 끌어오고 fan-in 12로 대부분의 화면이 여기서 상태를 읽습니다. mock.ts는 백엔드 없이 계좌·스케줄·룰·협의·자격정책 시드 데이터를 export하여 store 초기화에 사용됩니다.",
+      "nodeIds": [
+        "file:src/store/useStore.ts",
+        "file:src/store/mock.ts"
+      ],
+      "languageLesson": "zustand는 hook 하나(useStore)로 전역 상태와 액션을 노출하는 경량 상태 관리 라이브러리입니다. Provider 래핑 없이 컴포넌트가 필요한 상태 조각만 구독합니다."
+    },
+    {
+      "order": 10,
+      "title": "핵심 화면: 체결 해석 시연",
+      "description": "여기서 도메인 로직이 화면으로 드러납니다. FeeTrace.tsx는 세션·채널 입력으로 해석 과정을 단계별로 추적 시연하며 캐시 적중(cacheStat)·정책 우선순위·협의 내역·최종 수수료를 서술하고, AccountView.tsx는 계좌·자산군·품목·세션·채널을 골라 resolve를 호출해 승자 스케줄과 혜택 적용기간을 보여줍니다. PolicyPriority.tsx는 차원 입력으로 feeKey를 구성해 store의 우선순위 인덱스에서 승자 룰(winnerFor)을 해석합니다. 셋 모두 Step 6의 resolve와 Step 7의 우선순위/캐시를 시각화합니다.",
+      "nodeIds": [
+        "file:src/screens/FeeTrace.tsx",
+        "file:src/screens/AccountView.tsx",
+        "file:src/screens/PolicyPriority.tsx"
+      ]
+    },
+    {
+      "order": 11,
+      "title": "정책 등록 위저드와 승인",
+      "description": "Wizard.tsx는 6단계(대상·채널축·수수료표·계좌·시뮬레이션·검토)로 룰과 스케줄을 작성하고 우위 검증(Step 7의 dominance)·시뮬레이션을 거쳐 정책을 제출하는 대형 컴포넌트로, fan-out 9의 등록 흐름 관문입니다. Dashboard.tsx는 검색·필터로 규칙을 조회하고 캐시 적중·절감액을 해석형으로 표시하며, Approvals.tsx는 대기 규칙을 승인/반려합니다. RuleDetail.tsx는 scope·컴포넌트·시뮬레이션 절감액을 렌더링하는 공용 상세 패널로 대시보드와 승인 화면에서 재사용됩니다.",
+      "nodeIds": [
+        "file:src/screens/Wizard.tsx",
+        "file:src/screens/Dashboard.tsx",
+        "file:src/screens/Approvals.tsx",
+        "file:src/screens/RuleDetail.tsx"
+      ]
+    },
+    {
+      "order": 12,
+      "title": "협의수수료 신청·승인·연장",
+      "description": "협의 수수료의 계좌 단위 흐름을 담당하는 화면들입니다. NegoRequest.tsx는 자산군·범위·스케줄·요율을 입력받아 계좌별 자격(Step 8의 qualifyOf)을 확인하고 신청을 제출하며, NegoApproval.tsx는 신청을 계좌·스케줄로 그룹핑해 scope를 요약하고 승인/반려합니다. Negotiated.tsx는 만료 임박 대상을 산출·그룹핑(Step 8의 negoExtension)하고 D-day를 계산해 연장을 적용하며 활성 grant 목록을 표시합니다.",
+      "nodeIds": [
+        "file:src/screens/NegoRequest.tsx",
+        "file:src/screens/NegoApproval.tsx",
+        "file:src/screens/Negotiated.tsx"
+      ]
+    },
+    {
+      "order": 13,
+      "title": "업무 프로세스와 테이블 설계",
+      "description": "코드 뒤의 업무 맥락을 담은 두 설계 문서입니다. business-process.md는 이벤트 등록~승인~바인딩, 신청형 고객 신청, 협수 조건 평가·연장, 휴면복귀 감지, 일 배치 만료·reconciliation, 체결 시 수수료 적용까지 6개 업무 흐름을 서술해 각 화면이 어느 업무 단계에 대응하는지 알려줍니다. table-design.md는 엔티티→물리 테이블 매핑과 Oracle DDL 초안, ERD, 인덱스 설계 근거를 담아, 프로토타입의 mock 데이터가 실제 운영에서 어떤 스키마로 앉을지 보여줍니다.",
+      "nodeIds": [
+        "document:docs/business-process.md",
+        "document:docs/table-design.md"
+      ]
+    },
+    {
+      "order": 14,
+      "title": "빌드·타입·설정",
+      "description": "마지막으로 프로젝트를 묶어 실행하는 설정 계층입니다. package.json은 React 19·zustand·Vite·Vitest·oxlint 의존성과 dev/build/lint/test 스크립트를 정의하고, vite.config.ts는 React 플러그인으로 개발 서버와 번들링을 구성합니다. tsconfig.json은 앱용(tsconfig.app.json)과 빌드도구용(tsconfig.node.json) 설정을 project reference로 묶어 프론트엔드와 도구 코드를 분리 컴파일합니다.",
+      "nodeIds": [
+        "config:package.json",
+        "file:vite.config.ts",
+        "config:tsconfig.json",
+        "config:tsconfig.app.json"
+      ],
+      "languageLesson": "TypeScript project reference는 하나의 저장소를 여러 컴파일 단위로 나눠, 앱 코드와 Node 환경 설정 코드에 서로 다른 컴파일러 옵션을 적용하고 증분 빌드를 가능하게 합니다."
+    }
+  ]
+}

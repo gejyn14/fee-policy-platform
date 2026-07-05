@@ -1,0 +1,38 @@
+# .understandignore — patterns to exclude from analysis (gitignore syntax)
+# Uncomment to activate. ! to force-include.
+#
+# --- From .gitignore ---
+
+# .superpowers/
+# logs
+# *.log
+# npm-debug.log*
+# yarn-debug.log*
+# yarn-error.log*
+# pnpm-debug.log*
+# lerna-debug.log*
+# dist-ssr
+# *.local
+# .vscode/*
+# !.vscode/extensions.json
+# .idea
+# .DS_Store
+# *.suo
+# *.ntvs*
+# *.njsproj
+# *.sln
+# *.sw?
+
+# --- Detected directories (uncomment to exclude) ---
+
+# docs/
+# .serena/
+
+# --- Test file patterns (uncomment to exclude) ---
+
+# *.test.*
+# *.spec.*
+
+# --- Activated by user (소스만 분석) ---
+*.test.*
+.serena/

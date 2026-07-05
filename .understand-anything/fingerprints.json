@@ -1,0 +1,2258 @@
+{
+  "version": "1.0.0",
+  "gitCommitHash": "91b8e13a12b57072987cc89cdb00fc5ec90d558e",
+  "generatedAt": "2026-07-05T10:45:11.480Z",
+  "files": {
+    "src/App.tsx": {
+      "filePath": "src/App.tsx",
+      "contentHash": "4e9dd6afef9148b36d7dc1420d5a99961b0e6f7ffcf2fe32a36ebc660e6ebc22",
+      "functions": [
+        {
+          "name": "App",
+          "params": [],
+          "exported": true,
+          "lineCount": 25
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": [
+            "useState"
+          ]
+        },
+        {
+          "source": "./screens/Dashboard",
+          "specifiers": [
+            "Dashboard"
+          ]
+        },
+        {
+          "source": "./screens/Wizard",
+          "specifiers": [
+            "Wizard"
+          ]
+        },
+        {
+          "source": "./screens/Approvals",
+          "specifiers": [
+            "Approvals"
+          ]
+        },
+        {
+          "source": "./screens/NegoRequest",
+          "specifiers": [
+            "NegoRequest"
+          ]
+        },
+        {
+          "source": "./screens/NegoApproval",
+          "specifiers": [
+            "NegoApproval"
+          ]
+        },
+        {
+          "source": "./screens/Negotiated",
+          "specifiers": [
+            "Negotiated"
+          ]
+        },
+        {
+          "source": "./screens/AccountView",
+          "specifiers": [
+            "AccountView"
+          ]
+        },
+        {
+          "source": "./screens/InstrumentMaster",
+          "specifiers": [
+            "InstrumentMaster"
+          ]
+        },
+        {
+          "source": "./screens/FeeTrace",
+          "specifiers": [
+            "FeeTrace"
+          ]
+        },
+        {
+          "source": "./screens/PolicyPriority",
+          "specifiers": [
+            "PolicyPriority"
+          ]
+        }
+      ],
+      "exports": [
+        "App"
+      ],
+      "totalLines": 41,
+      "hasStructuralAnalysis": true
+    },
+    "src/domain/binding.ts": {
+      "filePath": "src/domain/binding.ts",
+      "contentHash": "e4ad3695c6f70978c39cd7b4cb0b3c504d405f43d99945b829ede75042d94272",
+      "functions": [
+        {
+          "name": "scopeMatches",
+          "params": [
+            "s",
+            "p"
+          ],
+          "returnType": "boolean",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "isTarget",
+          "params": [
+            "rule",
+            "acct",
+            "enrollments"
+          ],
+          "returnType": "boolean",
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "isBenefitActive",
+          "params": [
+            "rule",
+            "acct",
+            "enrollments",
+            "today"
+          ],
+          "returnType": "boolean",
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "rankCandidates",
+          "params": [
+            "acct",
+            "product",
+            "rules",
+            "schedules",
+            "enrollments",
+            "today"
+          ],
+          "returnType": "{ rule: FeeRule; cost: number }[]",
+          "exported": false,
+          "lineCount": 22
+        },
+        {
+          "name": "rebindAccount",
+          "params": [
+            "acct",
+            "rules",
+            "schedules",
+            "enrollments",
+            "products",
+            "today"
+          ],
+          "returnType": "FeeBinding[]",
+          "exported": true,
+          "lineCount": 20
+        },
+        {
+          "name": "explainBinding",
+          "params": [
+            "acct",
+            "product",
+            "rules",
+            "schedules",
+            "enrollments",
+            "today"
+          ],
+          "returnType": "BindingTrace",
+          "exported": true,
+          "lineCount": 37
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./types",
+          "specifiers": [
+            "Account",
+            "Enrollment",
+            "Execution",
+            "FeeBinding",
+            "FeeRule",
+            "FeeSchedule",
+            "Product",
+            "ScopeSelector"
+          ]
+        },
+        {
+          "source": "./calc",
+          "specifiers": [
+            "calcFee"
+          ]
+        },
+        {
+          "source": "./dominance",
+          "specifiers": [
+            "probePrices"
+          ]
+        },
+        {
+          "source": "./eligibility",
+          "specifiers": [
+            "evalCondition"
+          ]
+        },
+        {
+          "source": "./dateutil",
+          "specifiers": [
+            "addMonths"
+          ]
+        }
+      ],
+      "exports": [
+        "scopeMatches",
+        "isTarget",
+        "isBenefitActive",
+        "rebindAccount",
+        "explainBinding"
+      ],
+      "totalLines": 129,
+      "hasStructuralAnalysis": true
+    },
+    "src/domain/cache.ts": {
+      "filePath": "src/domain/cache.ts",
+      "contentHash": "e0e046252370f4c24c9186818e6dd49942185c7ad3c2c345836303f89f47deff",
+      "functions": [],
+      "classes": [
+        {
+          "name": "ResolveCache",
+          "methods": [
+            "k",
+            "get",
+            "set",
+            "invalidateAccount",
+            "invalidateByScope",
+            "stat",
+            "clear"
+          ],
+          "properties": [
+            "map",
+            "hits",
+            "misses"
+          ],
+          "exported": true,
+          "lineCount": 28
+        }
+      ],
+      "imports": [
+        {
+          "source": "./types",
+          "specifiers": [
+            "FeeKey"
+          ]
+        },
+        {
+          "source": "./feeKey",
+          "specifiers": [
+            "feeKeyString"
+          ]
+        }
+      ],
+      "exports": [
+        "ResolveCache"
+      ],
+      "totalLines": 37,
+      "hasStructuralAnalysis": true
+    },
+    "src/domain/calc.ts": {
+      "filePath": "src/domain/calc.ts",
+      "contentHash": "a8a8753c9a7303d76f1e248e011e656cfe04b41755c17059a5c1f2e39591645d",
+      "functions": [
+        {
+          "name": "componentAmount",
+          "params": [
+            "c",
+            "exec"
+          ],
+          "returnType": "number",
+          "exported": true,
+          "lineCount": 18
+        },
+        {
+          "name": "calcFee",
+          "params": [
+            "schedule",
+            "exec"
+          ],
+          "returnType": "FeeResult",
+          "exported": true,
+          "lineCount": 12
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./types",
+          "specifiers": [
+            "FeeComponent",
+            "FeeSchedule",
+            "Execution",
+            "Payer"
+          ]
+        }
+      ],
+      "exports": [
+        "componentAmount",
+        "calcFee"
+      ],
+      "totalLines": 37,
+      "hasStructuralAnalysis": true
+    },
+    "src/domain/dateutil.ts": {
+      "filePath": "src/domain/dateutil.ts",
+      "contentHash": "af44cf9e25a86547ade43a31b367dd6fe38f85fc256cce0aa0d758eca29dad95",
+      "functions": [
+        {
+          "name": "addMonths",
+          "params": [
+            "dateStr",
+            "n"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 9
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [
+        "addMonths"
+      ],
+      "totalLines": 11,
+      "hasStructuralAnalysis": true
+    },
+    "src/domain/dominance.ts": {
+      "filePath": "src/domain/dominance.ts",
+      "contentHash": "a0a0929c0456b10b3c4d1afd1eccc72f989630650eb5998f7f9749f41bf44cc3",
+      "functions": [
+        {
+          "name": "probePrices",
+          "params": [
+            "a",
+            "b"
+          ],
+          "returnType": "number[]",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "dominates",
+          "params": [
+            "candidate",
+            "incumbent",
+            "sampleExec"
+          ],
+          "returnType": "boolean",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "explainDominanceFailure",
+          "params": [
+            "candidate",
+            "incumbent",
+            "sampleExec"
+          ],
+          "returnType": "DominanceFailure | null",
+          "exported": true,
+          "lineCount": 14
+        },
+        {
+          "name": "revalidateDominance",
+          "params": [
+            "rules",
+            "schedules",
+            "today"
+          ],
+          "returnType": "{ rule: FeeRule; ok: boolean }[]",
+          "exported": true,
+          "lineCount": 21
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./types",
+          "specifiers": [
+            "FeeSchedule",
+            "Execution",
+            "FeeRule",
+            "Product"
+          ]
+        },
+        {
+          "source": "./calc",
+          "specifiers": [
+            "calcFee"
+          ]
+        }
+      ],
+      "exports": [
+        "probePrices",
+        "dominates",
+        "explainDominanceFailure",
+        "revalidateDominance"
+      ],
+      "totalLines": 65,
+      "hasStructuralAnalysis": true
+    },
+    "src/domain/eligibility.ts": {
+      "filePath": "src/domain/eligibility.ts",
+      "contentHash": "863e1233850126c47ccab0f98d75bba05f3751f92c6c34ba30d18bfd5f82b3ff",
+      "functions": [
+        {
+          "name": "evalCondition",
+          "params": [
+            "rule",
+            "acct"
+          ],
+          "returnType": "boolean",
+          "exported": true,
+          "lineCount": 5
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./types",
+          "specifiers": [
+            "Account",
+            "FeeRule"
+          ]
+        }
+      ],
+      "exports": [
+        "evalCondition"
+      ],
+      "totalLines": 8,
+      "hasStructuralAnalysis": true
+    },
+    "src/domain/feeKey.ts": {
+      "filePath": "src/domain/feeKey.ts",
+      "contentHash": "257a9674ecf359209165e9963c874f83586d29232b242ca096b5b7259595e98c",
+      "functions": [
+        {
+          "name": "isDerivative",
+          "params": [
+            "a"
+          ],
+          "returnType": "boolean",
+          "exported": true,
+          "lineCount": 1
+        },
+        {
+          "name": "buildFeeKey",
+          "params": [
+            "assetClass",
+            "exchange",
+            "session",
+            "channel",
+            "productCode"
+          ],
+          "returnType": "FeeKey",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "deriveFeeKey",
+          "params": [
+            "product",
+            "session",
+            "channel"
+          ],
+          "returnType": "FeeKey",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "feeKeyString",
+          "params": [
+            "k"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 4
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./types",
+          "specifiers": [
+            "AssetClass",
+            "Channel",
+            "FeeKey",
+            "Product",
+            "Session"
+          ]
+        }
+      ],
+      "exports": [
+        "isDerivative",
+        "buildFeeKey",
+        "deriveFeeKey",
+        "feeKeyString"
+      ],
+      "totalLines": 24,
+      "hasStructuralAnalysis": true
+    },
+    "src/domain/lifecycle.ts": {
+      "filePath": "src/domain/lifecycle.ts",
+      "contentHash": "d197ca0720f15e5e5b97a37fe84ae81b776412ce3b497f0afbe13a27d509d6f1",
+      "functions": [
+        {
+          "name": "classifyLifecycle",
+          "params": [
+            "rule",
+            "today"
+          ],
+          "returnType": "'activate' | 'expire' | 'none'",
+          "exported": true,
+          "lineCount": 6
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./types",
+          "specifiers": [
+            "FeeRule"
+          ]
+        }
+      ],
+      "exports": [
+        "classifyLifecycle"
+      ],
+      "totalLines": 8,
+      "hasStructuralAnalysis": true
+    },
+    "src/domain/metrics.ts": {
+      "filePath": "src/domain/metrics.ts",
+      "contentHash": "8495c6f4868cb1c15665f35985b8544238dfefb9dc265bb4330adb5a2acfaa7c",
+      "functions": [
+        {
+          "name": "nudgeMetrics",
+          "params": [
+            "acct"
+          ],
+          "returnType": "{ metric6mAsset: number; metric6mVolume: number }",
+          "exported": true,
+          "lineCount": 6
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./types",
+          "specifiers": [
+            "Account"
+          ]
+        }
+      ],
+      "exports": [
+        "nudgeMetrics"
+      ],
+      "totalLines": 9,
+      "hasStructuralAnalysis": true
+    },
+    "src/domain/negoExtension.ts": {
+      "filePath": "src/domain/negoExtension.ts",
+      "contentHash": "0d54d5703f264799fe6ca9ead8004090f093bb0d2bb0981655d39a5c3e3f0af9",
+      "functions": [
+        {
+          "name": "classifyNegoExtension",
+          "params": [
+            "nego",
+            "accounts",
+            "policies"
+          ],
+          "returnType": "ExtGroup[]",
+          "exported": true,
+          "lineCount": 27
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./types",
+          "specifiers": [
+            "Account",
+            "QualifyPolicy"
+          ]
+        },
+        {
+          "source": "./resolve",
+          "specifiers": [
+            "NegoException"
+          ]
+        },
+        {
+          "source": "./feeKey",
+          "specifiers": [
+            "isDerivative"
+          ]
+        },
+        {
+          "source": "./qualify",
+          "specifiers": [
+            "qualifyOf"
+          ]
+        }
+      ],
+      "exports": [
+        "classifyNegoExtension"
+      ],
+      "totalLines": 46,
+      "hasStructuralAnalysis": true
+    },
+    "src/domain/policyRank.ts": {
+      "filePath": "src/domain/policyRank.ts",
+      "contentHash": "7b0f5c7d22c01f9e01cff52b0522d43d060a3e82807c27734184c09533821243",
+      "functions": [
+        {
+          "name": "rankValue",
+          "params": [
+            "schedule"
+          ],
+          "returnType": "number",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "isActive",
+          "params": [
+            "r",
+            "today"
+          ],
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "isAccountIndependent",
+          "params": [
+            "r"
+          ],
+          "returnType": "boolean",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "buildPolicyPriority",
+          "params": [
+            "rules",
+            "schedules",
+            "today"
+          ],
+          "returnType": "PolicyPriorityIndex",
+          "exported": true,
+          "lineCount": 18
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./types",
+          "specifiers": [
+            "Execution",
+            "FeeKey",
+            "FeeRule",
+            "FeeSchedule",
+            "Product",
+            "ScopeSelector"
+          ]
+        },
+        {
+          "source": "./calc",
+          "specifiers": [
+            "calcFee"
+          ]
+        },
+        {
+          "source": "./resolve",
+          "specifiers": [
+            "scopeMatchesKey"
+          ]
+        }
+      ],
+      "exports": [
+        "rankValue",
+        "isAccountIndependent",
+        "buildPolicyPriority"
+      ],
+      "totalLines": 53,
+      "hasStructuralAnalysis": true
+    },
+    "src/domain/qualify.ts": {
+      "filePath": "src/domain/qualify.ts",
+      "contentHash": "3a0db9c6ce237c4984dd3ba736683c128e5ee4bf22924e4edfe789f5a51b53a9",
+      "functions": [
+        {
+          "name": "qualifyOf",
+          "params": [
+            "policies",
+            "assetClass",
+            "acct"
+          ],
+          "returnType": "{ met: boolean; policy: QualifyPolicy | null }",
+          "exported": true,
+          "lineCount": 6
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./types",
+          "specifiers": [
+            "Account",
+            "AssetClass",
+            "QualifyPolicy"
+          ]
+        }
+      ],
+      "exports": [
+        "qualifyOf"
+      ],
+      "totalLines": 10,
+      "hasStructuralAnalysis": true
+    },
+    "src/domain/resolve.ts": {
+      "filePath": "src/domain/resolve.ts",
+      "contentHash": "ca6f9e59ae6f267efb002d30b340cadb3e5430cb56fe21f37838adf31ed941f6",
+      "functions": [
+        {
+          "name": "scopeMatchesKey",
+          "params": [
+            "s",
+            "k"
+          ],
+          "returnType": "boolean",
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "isActive",
+          "params": [
+            "r",
+            "today"
+          ],
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "findBaseSchedule",
+          "params": [
+            "k",
+            "rules",
+            "schedules",
+            "today"
+          ],
+          "returnType": "{ rule: FeeRule; schedule: FeeSchedule } | null",
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "buildScopeIndex",
+          "params": [
+            "rules",
+            "_today"
+          ],
+          "returnType": "ScopeIndex",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "negoFirst",
+          "params": [
+            "s"
+          ],
+          "returnType": "number",
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "scopeSpecificity",
+          "params": [
+            "r"
+          ],
+          "returnType": "number",
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "resolve",
+          "params": [
+            "acct",
+            "key",
+            "rules",
+            "schedules",
+            "nego",
+            "index",
+            "today",
+            "enrollments"
+          ],
+          "returnType": "ResolveResult | null",
+          "exported": true,
+          "lineCount": 48
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "./types",
+          "specifiers": [
+            "Account",
+            "Enrollment",
+            "Execution",
+            "FeeKey",
+            "FeeRule",
+            "FeeSchedule",
+            "Product",
+            "ScopeSelector"
+          ]
+        },
+        {
+          "source": "./calc",
+          "specifiers": [
+            "calcFee"
+          ]
+        },
+        {
+          "source": "./dominance",
+          "specifiers": [
+            "probePrices"
+          ]
+        },
+        {
+          "source": "./binding",
+          "specifiers": [
+            "isTarget",
+            "isBenefitActive"
+          ]
+        }
+      ],
+      "exports": [
+        "scopeMatchesKey",
+        "findBaseSchedule",
+        "buildScopeIndex",
+        "resolve"
+      ],
+      "totalLines": 126,
+      "hasStructuralAnalysis": true
+    },
+    "src/domain/types.ts": {
+      "filePath": "src/domain/types.ts",
+      "contentHash": "de44838340772105fef8e519e88046e909564c02457d946b1bcb3bf394f7d8e9",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [
+        "TODAY"
+      ],
+      "totalLines": 96,
+      "hasStructuralAnalysis": true
+    },
+    "src/main.tsx": {
+      "filePath": "src/main.tsx",
+      "contentHash": "878165d1ff31e74eee237981b16353d9ffd81aca9a319ac0d535cbd118fdc1c3",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": [
+            "StrictMode"
+          ]
+        },
+        {
+          "source": "react-dom/client",
+          "specifiers": [
+            "createRoot"
+          ]
+        },
+        {
+          "source": "./styles.css",
+          "specifiers": []
+        },
+        {
+          "source": "./App.tsx",
+          "specifiers": [
+            "App"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 11,
+      "hasStructuralAnalysis": true
+    },
+    "src/masterdata/derive.ts": {
+      "filePath": "src/masterdata/derive.ts",
+      "contentHash": "c0cef45ffa5f23918bf3cb88a025b91ffea8781bea5b612a4233a66e6d9c5da5",
+      "functions": [
+        {
+          "name": "deriveProducts",
+          "params": [
+            "instruments"
+          ],
+          "returnType": "Product[]",
+          "exported": true,
+          "lineCount": 11
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "Product"
+          ]
+        },
+        {
+          "source": "./instruments",
+          "specifiers": [
+            "Instrument"
+          ]
+        }
+      ],
+      "exports": [
+        "deriveProducts"
+      ],
+      "totalLines": 15,
+      "hasStructuralAnalysis": true
+    },
+    "src/masterdata/instruments.ts": {
+      "filePath": "src/masterdata/instruments.ts",
+      "contentHash": "86647345b5e06c2f8edcd527368d1999bfd7281115b97fe67701610a38e546ae",
+      "functions": [
+        {
+          "name": "lcg",
+          "params": [
+            "seed"
+          ],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "randDate",
+          "params": [
+            "rnd"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "randStatus",
+          "params": [
+            "rnd"
+          ],
+          "returnType": "Instrument['status']",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "generateInstruments",
+          "params": [],
+          "returnType": "Instrument[]",
+          "exported": true,
+          "lineCount": 78
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "AssetClass"
+          ]
+        }
+      ],
+      "exports": [
+        "generateInstruments",
+        "NEW_LISTING_POOL"
+      ],
+      "totalLines": 215,
+      "hasStructuralAnalysis": true
+    },
+    "src/screens/AccountView.tsx": {
+      "filePath": "src/screens/AccountView.tsx",
+      "contentHash": "33f8971b373fcdb44ecc8f3259c270c59c428e0a6e4a2742a9f64f13898c0daf",
+      "functions": [
+        {
+          "name": "valueText",
+          "params": [
+            "c"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "bandLabel",
+          "params": [
+            "c",
+            "price"
+          ],
+          "returnType": "string | null",
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "scopeSummary",
+          "params": [
+            "s"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "repProductFor",
+          "params": [
+            "assetClass",
+            "exchange",
+            "session"
+          ],
+          "returnType": "Product",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "AccountView",
+          "params": [],
+          "exported": true,
+          "lineCount": 278
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": [
+            "useState"
+          ]
+        },
+        {
+          "source": "../store/useStore",
+          "specifiers": [
+            "useStore"
+          ]
+        },
+        {
+          "source": "../domain/calc",
+          "specifiers": [
+            "calcFee"
+          ]
+        },
+        {
+          "source": "../domain/feeKey",
+          "specifiers": [
+            "buildFeeKey",
+            "deriveFeeKey",
+            "isDerivative"
+          ]
+        },
+        {
+          "source": "../domain/dateutil",
+          "specifiers": [
+            "addMonths"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "AssetClass",
+            "FeeComponent",
+            "Execution",
+            "Product",
+            "Session",
+            "Channel",
+            "ScopeSelector"
+          ]
+        },
+        {
+          "source": "../domain/resolve",
+          "specifiers": [
+            "ResolveResult"
+          ]
+        }
+      ],
+      "exports": [
+        "AccountView"
+      ],
+      "totalLines": 327,
+      "hasStructuralAnalysis": true
+    },
+    "src/screens/Approvals.tsx": {
+      "filePath": "src/screens/Approvals.tsx",
+      "contentHash": "86c4e40e85089a4c6de2714cf53763ba1e3cd1895fc44371b980383824bd8f78",
+      "functions": [
+        {
+          "name": "Approvals",
+          "params": [],
+          "exported": true,
+          "lineCount": 58
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": [
+            "useState"
+          ]
+        },
+        {
+          "source": "../store/useStore",
+          "specifiers": [
+            "useStore"
+          ]
+        },
+        {
+          "source": "./RuleDetail",
+          "specifiers": [
+            "RuleDetail"
+          ]
+        }
+      ],
+      "exports": [
+        "Approvals"
+      ],
+      "totalLines": 63,
+      "hasStructuralAnalysis": true
+    },
+    "src/screens/Dashboard.tsx": {
+      "filePath": "src/screens/Dashboard.tsx",
+      "contentHash": "ba22452caf0beca36803fb456d764b46f1b9a421c9b312d679a3506df886661c",
+      "functions": [
+        {
+          "name": "statusPillClass",
+          "params": [
+            "status"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "Dashboard",
+          "params": [],
+          "exported": true,
+          "lineCount": 116
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": [
+            "Fragment",
+            "useState"
+          ]
+        },
+        {
+          "source": "../store/useStore",
+          "specifiers": [
+            "useStore"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "AssetClass",
+            "FeeRule",
+            "RuleStatus",
+            "RuleType"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "TODAY"
+          ]
+        },
+        {
+          "source": "./labels",
+          "specifiers": [
+            "ruleTypeLabel"
+          ]
+        },
+        {
+          "source": "./RuleDetail",
+          "specifiers": [
+            "RuleDetail"
+          ]
+        }
+      ],
+      "exports": [
+        "Dashboard"
+      ],
+      "totalLines": 135,
+      "hasStructuralAnalysis": true
+    },
+    "src/screens/FeeTrace.tsx": {
+      "filePath": "src/screens/FeeTrace.tsx",
+      "contentHash": "0bbc672e5e47e6ba4f43f6314adff8db1980208284d459d10dae9c137ce5345f",
+      "functions": [
+        {
+          "name": "compText",
+          "params": [
+            "c",
+            "sym"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "bandLabel",
+          "params": [
+            "c",
+            "price"
+          ],
+          "returnType": "string | null",
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "repProductFor",
+          "params": [
+            "assetClass",
+            "exchange",
+            "session"
+          ],
+          "returnType": "Product",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "FeeTrace",
+          "params": [],
+          "exported": true,
+          "lineCount": 360
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": [
+            "useState"
+          ]
+        },
+        {
+          "source": "../store/useStore",
+          "specifiers": [
+            "useStore"
+          ]
+        },
+        {
+          "source": "../domain/feeKey",
+          "specifiers": [
+            "buildFeeKey",
+            "deriveFeeKey",
+            "isDerivative"
+          ]
+        },
+        {
+          "source": "../domain/dateutil",
+          "specifiers": [
+            "addMonths"
+          ]
+        },
+        {
+          "source": "../domain/calc",
+          "specifiers": [
+            "calcFee"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "TODAY"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "AssetClass",
+            "Execution",
+            "FeeComponent",
+            "Product",
+            "Session",
+            "Channel"
+          ]
+        },
+        {
+          "source": "../domain/resolve",
+          "specifiers": [
+            "scopeMatchesKey",
+            "ResolveResult"
+          ]
+        }
+      ],
+      "exports": [
+        "FeeTrace"
+      ],
+      "totalLines": 402,
+      "hasStructuralAnalysis": true
+    },
+    "src/screens/InstrumentMaster.tsx": {
+      "filePath": "src/screens/InstrumentMaster.tsx",
+      "contentHash": "bffbfedf7fe0bf37501bd7871d4369582bd691e65258b0881e4e1099674f074d",
+      "functions": [
+        {
+          "name": "parseMasterCsv",
+          "params": [
+            "text",
+            "existingCodes"
+          ],
+          "returnType": "{ accepted: Instrument[]; rejected: { line: string; reason: string }[] }",
+          "exported": true,
+          "lineCount": 43
+        },
+        {
+          "name": "statusPillClass",
+          "params": [
+            "status"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "InstrumentMaster",
+          "params": [],
+          "exported": true,
+          "lineCount": 186
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": [
+            "useMemo",
+            "useState"
+          ]
+        },
+        {
+          "source": "../store/useStore",
+          "specifiers": [
+            "useStore"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "AssetClass"
+          ]
+        },
+        {
+          "source": "../masterdata/instruments",
+          "specifiers": [
+            "Instrument"
+          ]
+        }
+      ],
+      "exports": [
+        "parseMasterCsv",
+        "InstrumentMaster"
+      ],
+      "totalLines": 262,
+      "hasStructuralAnalysis": true
+    },
+    "src/screens/InstrumentPicker.tsx": {
+      "filePath": "src/screens/InstrumentPicker.tsx",
+      "contentHash": "ab7612d02820778841c244bb9e27fbeeaaef8a65042bbb3d3a2aa90acc6292ec",
+      "functions": [
+        {
+          "name": "InstrumentPicker",
+          "params": [
+            "{ assetClass, value, onChange }"
+          ],
+          "exported": true,
+          "lineCount": 274
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": [
+            "useMemo",
+            "useState"
+          ]
+        },
+        {
+          "source": "../store/useStore",
+          "specifiers": [
+            "useStore"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "AssetClass"
+          ]
+        },
+        {
+          "source": "../masterdata/instruments",
+          "specifiers": [
+            "Instrument"
+          ]
+        },
+        {
+          "source": "./pickerLogic",
+          "specifiers": [
+            "toggleCode",
+            "selectCodes",
+            "selectAllMode",
+            "clearSelection",
+            "removeChip",
+            "summarize",
+            "parseCsvCodes"
+          ]
+        },
+        {
+          "source": "./pickerLogic",
+          "specifiers": [
+            "Selection"
+          ]
+        }
+      ],
+      "exports": [
+        "InstrumentPicker"
+      ],
+      "totalLines": 306,
+      "hasStructuralAnalysis": true
+    },
+    "src/screens/labels.ts": {
+      "filePath": "src/screens/labels.ts",
+      "contentHash": "b45da07664d7826856fe55a0d5f8e4f70099060a917675f86e772354b844321c",
+      "functions": [
+        {
+          "name": "ruleTypeLabel",
+          "params": [
+            "t"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 2
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "RuleType"
+          ]
+        }
+      ],
+      "exports": [
+        "ruleTypeLabel"
+      ],
+      "totalLines": 5,
+      "hasStructuralAnalysis": true
+    },
+    "src/screens/NegoApproval.tsx": {
+      "filePath": "src/screens/NegoApproval.tsx",
+      "contentHash": "48297338dcf0e02fd37489ad5e5024420b0b9246f83b13fae7ddb9bce0e1e5c7",
+      "functions": [
+        {
+          "name": "scopeText",
+          "params": [
+            "s"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "NegoApproval",
+          "params": [],
+          "exported": true,
+          "lineCount": 58
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": [
+            "useState"
+          ]
+        },
+        {
+          "source": "../store/useStore",
+          "specifiers": [
+            "useStore"
+          ]
+        },
+        {
+          "source": "../domain/resolve",
+          "specifiers": [
+            "NegoException"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "ScopeSelector"
+          ]
+        }
+      ],
+      "exports": [
+        "NegoApproval"
+      ],
+      "totalLines": 71,
+      "hasStructuralAnalysis": true
+    },
+    "src/screens/NegoRequest.tsx": {
+      "filePath": "src/screens/NegoRequest.tsx",
+      "contentHash": "f6e2896379f9f1eb0576a370ea0fc1b56bcdb20df81162d48d6720951c6b6458",
+      "functions": [
+        {
+          "name": "curSymbol",
+          "params": [
+            "assetClass"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "compText",
+          "params": [
+            "c",
+            "sym"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "NegoRequest",
+          "params": [],
+          "exported": true,
+          "lineCount": 132
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": [
+            "useState"
+          ]
+        },
+        {
+          "source": "../store/useStore",
+          "specifiers": [
+            "useStore"
+          ]
+        },
+        {
+          "source": "../domain/feeKey",
+          "specifiers": [
+            "isDerivative"
+          ]
+        },
+        {
+          "source": "./pickerLogic",
+          "specifiers": [
+            "parseCsvCodes"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "AssetClass",
+            "FeeComponent",
+            "ScopeSelector"
+          ]
+        }
+      ],
+      "exports": [
+        "NegoRequest"
+      ],
+      "totalLines": 150,
+      "hasStructuralAnalysis": true
+    },
+    "src/screens/Negotiated.tsx": {
+      "filePath": "src/screens/Negotiated.tsx",
+      "contentHash": "96cc15f861f2c3b2b9eac8a0004f8988f3358cad6fa0bd00ba97fa43d8f9d81e",
+      "functions": [
+        {
+          "name": "addMonths",
+          "params": [
+            "dateStr",
+            "n"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "dDay",
+          "params": [
+            "endDate"
+          ],
+          "returnType": "number",
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "scopeText",
+          "params": [
+            "s"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "Negotiated",
+          "params": [],
+          "exported": true,
+          "lineCount": 105
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": [
+            "Fragment",
+            "useState"
+          ]
+        },
+        {
+          "source": "../store/useStore",
+          "specifiers": [
+            "useStore"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "TODAY"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "ScopeSelector"
+          ]
+        }
+      ],
+      "exports": [
+        "addMonths",
+        "Negotiated"
+      ],
+      "totalLines": 134,
+      "hasStructuralAnalysis": true
+    },
+    "src/screens/pickerLogic.ts": {
+      "filePath": "src/screens/pickerLogic.ts",
+      "contentHash": "ad3358707a7faa11ad9eb47358cdd1924465604f6bc7194c67a49f89a0320bb4",
+      "functions": [
+        {
+          "name": "toggleCode",
+          "params": [
+            "s",
+            "code"
+          ],
+          "returnType": "Selection",
+          "exported": true,
+          "lineCount": 16
+        },
+        {
+          "name": "selectCodes",
+          "params": [
+            "s",
+            "codes"
+          ],
+          "returnType": "Selection",
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "selectAllMode",
+          "params": [
+            "s",
+            "exchanges"
+          ],
+          "returnType": "Selection",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "clearSelection",
+          "params": [
+            "_s"
+          ],
+          "returnType": "Selection",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "removeChip",
+          "params": [
+            "s",
+            "code"
+          ],
+          "returnType": "Selection",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "summarize",
+          "params": [
+            "s"
+          ],
+          "returnType": "string",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "parseCsvCodes",
+          "params": [
+            "text",
+            "valid"
+          ],
+          "returnType": "{ accepted: string[]; rejected: string[] }",
+          "exported": true,
+          "lineCount": 13
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [
+        "toggleCode",
+        "selectCodes",
+        "selectAllMode",
+        "clearSelection",
+        "removeChip",
+        "summarize",
+        "parseCsvCodes"
+      ],
+      "totalLines": 90,
+      "hasStructuralAnalysis": true
+    },
+    "src/screens/PolicyPriority.tsx": {
+      "filePath": "src/screens/PolicyPriority.tsx",
+      "contentHash": "fc4708e990f8adab7d4a607a2b9901695c641194aeb01c33a115aeb54de4f844",
+      "functions": [
+        {
+          "name": "scopeText",
+          "params": [
+            "s"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 7
+        },
+        {
+          "name": "PolicyPriority",
+          "params": [],
+          "exported": true,
+          "lineCount": 106
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": [
+            "useState"
+          ]
+        },
+        {
+          "source": "../store/useStore",
+          "specifiers": [
+            "useStore"
+          ]
+        },
+        {
+          "source": "../domain/feeKey",
+          "specifiers": [
+            "buildFeeKey",
+            "isDerivative"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "AssetClass",
+            "Channel",
+            "ScopeSelector",
+            "Session"
+          ]
+        }
+      ],
+      "exports": [
+        "PolicyPriority"
+      ],
+      "totalLines": 124,
+      "hasStructuralAnalysis": true
+    },
+    "src/screens/RuleDetail.tsx": {
+      "filePath": "src/screens/RuleDetail.tsx",
+      "contentHash": "34023018d4a79e74415ac96dcb45f58df1f14f80a47a3048969a29c3b9b33c00",
+      "functions": [
+        {
+          "name": "scopeSummary",
+          "params": [
+            "rule"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "valueText",
+          "params": [
+            "c"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "targetSummary",
+          "params": [
+            "rule",
+            "enrollments",
+            "accounts"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 10
+        },
+        {
+          "name": "RuleDetail",
+          "params": [
+            "{ rule }"
+          ],
+          "exported": true,
+          "lineCount": 60
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": [
+            "Fragment"
+          ]
+        },
+        {
+          "source": "../store/useStore",
+          "specifiers": [
+            "useStore"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "FeeComponent",
+            "FeeRule"
+          ]
+        },
+        {
+          "source": "./labels",
+          "specifiers": [
+            "ruleTypeLabel"
+          ]
+        }
+      ],
+      "exports": [
+        "RuleDetail"
+      ],
+      "totalLines": 90,
+      "hasStructuralAnalysis": true
+    },
+    "src/screens/Wizard.tsx": {
+      "filePath": "src/screens/Wizard.tsx",
+      "contentHash": "c686e45a956e28e25937a4efd01a86c5fa7bdbeab42abb939c0e6356dd2dc94c",
+      "functions": [
+        {
+          "name": "optionsForAssetClass",
+          "params": [
+            "products",
+            "ac"
+          ],
+          "exported": false,
+          "lineCount": 5
+        },
+        {
+          "name": "emptySelection",
+          "params": [],
+          "returnType": "Selection",
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "sampleFor",
+          "params": [
+            "p"
+          ],
+          "exported": false,
+          "lineCount": 2
+        },
+        {
+          "name": "makeInitialForm",
+          "params": [
+            "products"
+          ],
+          "returnType": "WizardForm",
+          "exported": false,
+          "lineCount": 16
+        },
+        {
+          "name": "Wizard",
+          "params": [],
+          "exported": true,
+          "lineCount": 656
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "react",
+          "specifiers": [
+            "Fragment",
+            "useEffect",
+            "useMemo",
+            "useRef",
+            "useState"
+          ]
+        },
+        {
+          "source": "../store/useStore",
+          "specifiers": [
+            "useStore"
+          ]
+        },
+        {
+          "source": "../domain/calc",
+          "specifiers": [
+            "calcFee"
+          ]
+        },
+        {
+          "source": "../domain/dominance",
+          "specifiers": [
+            "explainDominanceFailure",
+            "DominanceFailure"
+          ]
+        },
+        {
+          "source": "../domain/binding",
+          "specifiers": [
+            "scopeMatches",
+            "isTarget"
+          ]
+        },
+        {
+          "source": "../domain/feeKey",
+          "specifiers": [
+            "buildFeeKey",
+            "isDerivative"
+          ]
+        },
+        {
+          "source": "../domain/resolve",
+          "specifiers": [
+            "scopeMatchesKey"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "TODAY"
+          ]
+        },
+        {
+          "source": "./InstrumentPicker",
+          "specifiers": [
+            "InstrumentPicker"
+          ]
+        },
+        {
+          "source": "./pickerLogic",
+          "specifiers": [
+            "parseCsvCodes",
+            "summarize",
+            "Selection"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "ApplyMode",
+            "AssetClass",
+            "BenefitPeriod",
+            "Channel",
+            "Execution",
+            "FeeComponent",
+            "FeeKey",
+            "FeeRule",
+            "FeeSchedule",
+            "Payer",
+            "Product",
+            "RateBand",
+            "ScopeSelector",
+            "Session"
+          ]
+        }
+      ],
+      "exports": [
+        "Wizard"
+      ],
+      "totalLines": 758,
+      "hasStructuralAnalysis": true
+    },
+    "src/store/mock.ts": {
+      "filePath": "src/store/mock.ts",
+      "contentHash": "e95a8ef5b781c233e8922d2cacd8efa8d6ca20f53b4cdfac58fb8b9710d478c2",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "Account",
+            "FeeSchedule",
+            "FeeRule",
+            "Enrollment",
+            "QualifyPolicy"
+          ]
+        },
+        {
+          "source": "../domain/resolve",
+          "specifiers": [
+            "NegoException"
+          ]
+        }
+      ],
+      "exports": [
+        "mockQualifyPolicies",
+        "mockAccounts",
+        "mockSchedules",
+        "mockRules",
+        "mockEnrollments",
+        "mockNego"
+      ],
+      "totalLines": 268,
+      "hasStructuralAnalysis": true
+    },
+    "src/store/useStore.ts": {
+      "filePath": "src/store/useStore.ts",
+      "contentHash": "03b34b0057ec55c2e06193e13eb7ffbe243a6bef7457d7e6d13a91105b950c94",
+      "functions": [
+        {
+          "name": "extendOneYear",
+          "params": [
+            "dateStr"
+          ],
+          "returnType": "string",
+          "exported": false,
+          "lineCount": 4
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "zustand",
+          "specifiers": [
+            "create"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "Account",
+            "Enrollment",
+            "FeeRule",
+            "FeeSchedule",
+            "Product",
+            "Execution",
+            "BatchChange",
+            "BatchJobResult",
+            "FeeKey"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "TODAY"
+          ]
+        },
+        {
+          "source": "./mock",
+          "specifiers": [
+            "mockAccounts",
+            "mockSchedules",
+            "mockRules",
+            "mockEnrollments",
+            "mockNego",
+            "mockQualifyPolicies"
+          ]
+        },
+        {
+          "source": "../domain/binding",
+          "specifiers": [
+            "scopeMatches",
+            "isTarget"
+          ]
+        },
+        {
+          "source": "../domain/calc",
+          "specifiers": [
+            "calcFee"
+          ]
+        },
+        {
+          "source": "../domain/dominance",
+          "specifiers": [
+            "dominates",
+            "revalidateDominance"
+          ]
+        },
+        {
+          "source": "../masterdata/instruments",
+          "specifiers": [
+            "generateInstruments",
+            "NEW_LISTING_POOL"
+          ]
+        },
+        {
+          "source": "../masterdata/instruments",
+          "specifiers": [
+            "Instrument"
+          ]
+        },
+        {
+          "source": "../masterdata/derive",
+          "specifiers": [
+            "deriveProducts"
+          ]
+        },
+        {
+          "source": "../domain/metrics",
+          "specifiers": [
+            "nudgeMetrics"
+          ]
+        },
+        {
+          "source": "../domain/lifecycle",
+          "specifiers": [
+            "classifyLifecycle"
+          ]
+        },
+        {
+          "source": "../domain/feeKey",
+          "specifiers": [
+            "deriveFeeKey"
+          ]
+        },
+        {
+          "source": "../domain/resolve",
+          "specifiers": [
+            "resolve",
+            "buildScopeIndex",
+            "scopeMatchesKey",
+            "NegoException",
+            "ResolveResult"
+          ]
+        },
+        {
+          "source": "../domain/negoExtension",
+          "specifiers": [
+            "classifyNegoExtension",
+            "ExtGroup"
+          ]
+        },
+        {
+          "source": "../domain/policyRank",
+          "specifiers": [
+            "buildPolicyPriority",
+            "PolicyPriorityIndex"
+          ]
+        },
+        {
+          "source": "../domain/qualify",
+          "specifiers": [
+            "qualifyOf"
+          ]
+        },
+        {
+          "source": "../domain/types",
+          "specifiers": [
+            "QualifyPolicy",
+            "AssetClass",
+            "ScopeSelector"
+          ]
+        },
+        {
+          "source": "../domain/cache",
+          "specifiers": [
+            "ResolveCache",
+            "CacheStat"
+          ]
+        }
+      ],
+      "exports": [
+        "evalCondition",
+        "useStore"
+      ],
+      "totalLines": 358,
+      "hasStructuralAnalysis": true
+    },
+    "src/styles.css": {
+      "filePath": "src/styles.css",
+      "contentHash": "9a7b2d0d9687eda33b0621ab8de0738f8fe041940a3c72314a5491559e21fd6e",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 621,
+      "hasStructuralAnalysis": false
+    },
+    "vite.config.ts": {
+      "filePath": "vite.config.ts",
+      "contentHash": "4d36db3522a7b2dd10e0936e1004373c7ee65f10f7cd7920cd76410459c15a45",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "vite",
+          "specifiers": [
+            "defineConfig"
+          ]
+        },
+        {
+          "source": "@vitejs/plugin-react",
+          "specifiers": [
+            "react"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 8,
+      "hasStructuralAnalysis": true
+    }
+  }
+}
