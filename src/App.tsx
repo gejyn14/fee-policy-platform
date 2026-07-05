@@ -11,7 +11,7 @@ import FeeTrace from './screens/FeeTrace';
 import PolicyPriority from './screens/PolicyPriority';
 import BatchOps from './screens/BatchOps';
 
-const TABS = ['대시보드', '이벤트 등록', '승인함', '협의 신청', '협의 승인', '협수 관리', '계좌 조회', '수수료 결정 흐름', '정책 우선순위', '종목 마스터', '배치 플로우'] as const;
+const TABS = ['대시보드', '정책 우선순위', '이벤트 등록', '승인함', '협의 신청', '협의 승인', '협수 관리', '계좌 조회', '종목 마스터', '수수료 결정 흐름', '배치 플로우'] as const;
 type Tab = typeof TABS[number];
 
 export default function App() {
