@@ -27,6 +27,9 @@ export default function NegoRequest() {
 
   const deriv = isDerivative(assetClass);
   const sched = schedules.find((s) => s.id === scheduleId);
+  const jasa = sched?.components.find((c) => c.kind === '자사');
+  const editable = jasa != null && (jasa.rateType === '정률' || jasa.rateType === '정액');
+  const unit = jasa?.rateType === '정액' ? '원' : 'bp';
   const parsed = parseCsvCodes(csv, new Set(accounts.map((a) => a.id)));
 
   const scope: ScopeSelector = {
@@ -41,12 +44,12 @@ export default function NegoRequest() {
 
   function handleSubmit() {
     let sid = scheduleId;
-    if (rateOverride.trim() !== '' && sched) {
+    if (rateOverride.trim() !== '' && sched && editable) {
       sid = `${scheduleId}-CUSTOM-${rateOverride}`;
       const comps = sched.components.map((c) => c.kind === '자사'
-        ? { ...c, rateType: '정률' as const, rateBp: Number(rateOverride), flatAmount: undefined, bands: undefined }
+        ? (c.rateType === '정액' ? { ...c, flatAmount: Number(rateOverride) } : { ...c, rateBp: Number(rateOverride) })
         : c);
-      addSchedule({ id: sid, name: `${sched.name} (자사 ${rateOverride}bp 조정)`, components: comps });
+      addSchedule({ id: sid, name: `${sched.name} (자사 ${rateOverride}${unit} 조정)`, components: comps });
     }
     const bp: Record<string, string> = {};
     for (const id of parsed.accepted) {
@@ -89,8 +92,13 @@ export default function NegoRequest() {
             </select>
           </div>
           <div className="field">
-            <label>자사 요율 수정(bp, 비우면 원본)</label>
-            <input type="number" value={rateOverride} onChange={(e) => setRateOverride(e.target.value)} placeholder="예: 6" />
+            <label>자사 요율 수정({unit}, 비우면 원본)</label>
+            {editable ? (
+              <input type="number" value={rateOverride} onChange={(e) => setRateOverride(e.target.value)}
+                placeholder={jasa?.rateType === '정액' ? '예: 1000' : '예: 6'} />
+            ) : (
+              <input value="구간표 요율표는 선택만(화면 수정 미지원)" disabled />
+            )}
           </div>
         </div>
 

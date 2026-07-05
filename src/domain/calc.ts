@@ -14,7 +14,8 @@ export function componentAmount(c: FeeComponent, exec: Execution): number {
       (b) => exec.price >= b.from && (b.to === null || exec.price < b.to),
     );
     if (band) {
-      amt = band.flat != null ? band.flat * exec.qty : (exec.notional * (band.rateBp ?? 0)) / 10_000;
+      // 구간별 정률 + 정액 add-on 동시 지원(예: 옵션 "0.14% + 13원"). 한쪽만 있으면 다른쪽 0.
+      amt = (exec.notional * (band.rateBp ?? 0)) / 10_000 + (band.flat ?? 0) * exec.qty;
     }
   }
   if (c.minFee != null && amt < c.minFee) amt = c.minFee;

@@ -39,10 +39,11 @@ export const mockSchedules: FeeSchedule[] = [
       { name: 'SEC/거래소 수수료', kind: '유관기관', payer: '고객부과', rateType: '정률', rateBp: 5 },
     ],
   },
-  // BASE 국내파생 (KOSPI200옵션) — 구간표 필수 케이스
+  // BASE 국내파생 (KOSPI200옵션) — 실제 옵션 구조: 가격 3구간, 구간별 정률 + 정액 add-on.
+  // 상위 구간에서 요율이 0.147%로 낮아져도 +78원 add-on이 보정해 단조 증가(교차 없음)를 유지한다.
   {
     id: 'FS-BASE-DERIV-KR',
-    name: 'BASE 국내파생 표준요율',
+    name: 'BASE 국내파생(KOSPI200옵션) 표준요율',
     components: [
       {
         name: '자사 수수료',
@@ -50,9 +51,9 @@ export const mockSchedules: FeeSchedule[] = [
         payer: '고객부과',
         rateType: '구간표',
         bands: [
-          { from: 0, to: 3, rateBp: 30 },
-          { from: 3, to: 10, rateBp: 20 },
-          { from: 10, to: null, rateBp: 15 },
+          { from: 0, to: 0.42, rateBp: 14, flat: 13 },   // 0.42pt 미만: 0.14% + 13원
+          { from: 0.42, to: 2.47, rateBp: 15 },           // 0.42~2.47pt: 0.15%
+          { from: 2.47, to: null, rateBp: 14.7, flat: 78 }, // 2.47pt 이상: 0.147% + 78원
         ],
       },
       { name: '거래소 수수료', kind: '유관기관', payer: '고객부과', rateType: '정액', flatAmount: 300 },

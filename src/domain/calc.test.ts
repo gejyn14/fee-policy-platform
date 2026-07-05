@@ -43,3 +43,16 @@ it('부담주체: 회사부담은 companyBorne, 면제는 0', () => {
   expect(r.companyBorne).toBe(200);        // 거래소분 회사부담
   expect(r.lines.find(l => l.name === '자사 수수료')!.amount).toBe(0);
 });
+
+it('구간표: 정률 + 정액 add-on 동시 합산(옵션 "0.14% + 13원")', () => {
+  // 가격 0.3(<0.42): 0.14%(=14bp) + 13원/계약. 수량 10, 거래대금 = 0.3×10 = 3.
+  const s: FeeSchedule = { id: 'S-OPT', name: 'opt', components: [
+    { name: '자사 수수료', kind: '자사', payer: '고객부과', rateType: '구간표', bands: [
+      { from: 0, to: 0.42, rateBp: 14, flat: 13 },
+      { from: 0.42, to: 2.47, rateBp: 15 },
+      { from: 2.47, to: null, rateBp: 14.7, flat: 78 },
+    ] }] };
+  const r = calcFee(s, exec(0.3, 10)); // notional 3
+  // 3×14/10000 = 0.0042 + 13×10 = 130.0042 → 반올림 130
+  expect(r.customerTotal).toBe(130);
+});
