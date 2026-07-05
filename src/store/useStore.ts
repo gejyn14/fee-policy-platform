@@ -13,6 +13,7 @@ import { classifyLifecycle } from '../domain/lifecycle';
 import { deriveFeeKey } from '../domain/feeKey';
 import { resolve, buildScopeIndex, scopeMatchesKey, type NegoException, type ResolveResult } from '../domain/resolve';
 import { classifyNegoExtension, type ExtGroup } from '../domain/negoExtension';
+import { buildPolicyPriority, type PolicyPriorityIndex } from '../domain/policyRank';
 import { qualifyOf } from '../domain/qualify';
 import type { QualifyPolicy, AssetClass, ScopeSelector } from '../domain/types';
 import { ResolveCache, type CacheStat } from '../domain/cache';
@@ -37,6 +38,7 @@ interface State {
   approveRule(id: string): void;
   rejectRule(id: string, reason: string): void;
   extendNegotiated(id: string, newEndDate: string): void;
+  policyPriority(): PolicyPriorityIndex;
   reviewNegoExtension(): ExtGroup[];
   applyNegoExtension(): { summary: string; 유지: number; 탈락: number };
   qualifyStatus(assetClass: AssetClass, accountId: string): { met: boolean; policy: QualifyPolicy | null };
@@ -202,6 +204,11 @@ export const useStore = create<State>((set) => ({
     if (scope) resolveCache.invalidateByScope((k) => scopeMatchesKey(scope!, k));
   },
 
+  // 계좌 무관 정책 우선순위(사전 산정) — 룰 변경 때만 재산정하는 정적 최저가 랭킹.
+  policyPriority: (): PolicyPriorityIndex => {
+    const s = useStore.getState();
+    return buildPolicyPriority(s.rules, s.schedules, TODAY);
+  },
   // 협의수수료 연장 대상 확인(무변경) — 활성 grant를 상품군 자격 기준으로 재평가해 유지/탈락 그룹 산출.
   reviewNegoExtension: (): ExtGroup[] => {
     const s = useStore.getState();
