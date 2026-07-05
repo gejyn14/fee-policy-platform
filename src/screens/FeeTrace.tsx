@@ -3,8 +3,15 @@ import { useStore } from '../store/useStore';
 import { buildFeeKey, deriveFeeKey, isDerivative } from '../domain/feeKey';
 import { addMonths } from '../domain/dateutil';
 import { calcFee } from '../domain/calc';
+import { TODAY } from '../domain/types';
 import type { AssetClass, Execution, FeeComponent, Product, Session, Channel } from '../domain/types';
-import type { ResolveResult } from '../domain/resolve';
+import { scopeMatchesKey, type ResolveResult } from '../domain/resolve';
+
+function compText(c: FeeComponent, sym: string): string {
+  if (c.rateType === '정률') return `${c.rateBp ?? 0}bp`;
+  if (c.rateType === '정액') return sym === '$' ? `$${(c.flatAmount ?? 0).toLocaleString()}` : `${(c.flatAmount ?? 0).toLocaleString()}원`;
+  return `구간표(${(c.bands ?? []).length}구간)`;
+}
 
 // AccountView.tsx의 bandLabel (로컬 복사)
 function bandLabel(c: FeeComponent, price: number): string | null {
@@ -33,7 +40,7 @@ function repProductFor(assetClass: AssetClass, exchange: string, session: Sessio
 }
 
 export default function FeeTrace() {
-  const { accounts, products, schedules, resolveFee, cacheStat, enrollments } = useStore();
+  const { accounts, products, schedules, resolveFee, cacheStat, enrollments, nego, policyPriority } = useStore();
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
   const [assetClass, setAssetClass] = useState<AssetClass>('국내주식');
   const [exchange, setExchange] = useState<string>('KRX');
@@ -80,6 +87,14 @@ export default function FeeTrace() {
     : null;
   const calc = (winnerSchedule && exec) ? calcFee(winnerSchedule, exec) : null;
   const stat = cacheStat();
+
+  // 체결 시 시스템이 조회하는 테이블들(계좌 무관 정책 우선순위 · 협의 예외 · 가입/신청 이력)
+  const curSym = assetClass.startsWith('해외') ? '$' : '원';
+  const indieWinner = feeKey ? policyPriority().winnerFor(feeKey) : null;
+  const acctGrants = feeKey
+    ? nego.filter((n) => n.accountId === accountId && n.status === '활성' && n.validFrom <= TODAY && TODAY <= n.validTo && scopeMatchesKey(n.scope, feeKey))
+    : [];
+  const acctEnrolls = enrollments.filter((e) => e.accountId === accountId);
 
   function resetResult() {
     setResult(null);
@@ -227,102 +242,90 @@ export default function FeeTrace() {
 
           <div className="stack">
             <div className="card trace-step active">
-              <h2>① 컨텍스트</h2>
+              <h2>① 체결 → 조회키 구성 <span className="badge">조회 테이블 없음</span></h2>
+              <p className="trace-narration">현행(등급 방식): 계좌 → 계좌등급 → (등급·상품) 요율 조회. 정책형: 체결 값으로 조회키를 만들어 아래 테이블들을 본다.</p>
               <table>
-                <thead>
-                  <tr><th>계좌</th><th>assetClass</th><th>거래소</th><th>세션</th><th>채널</th><th>품목</th></tr>
-                </thead>
+                <thead><tr><th>계좌</th><th>상품군</th><th>거래소</th><th>세션</th><th>채널</th><th>품목</th></tr></thead>
                 <tbody>
                   <tr>
                     <td>{account.id} {account.name}</td>
-                    <td>{feeKey!.assetClass}</td>
-                    <td>{feeKey!.exchange}</td>
-                    <td>{feeKey!.session}</td>
-                    <td>{feeKey!.channel}</td>
-                    <td>{feeKey!.product ?? '(null)'}</td>
+                    <td>{feeKey!.assetClass}</td><td>{feeKey!.exchange}</td><td>{feeKey!.session}</td><td>{feeKey!.channel}</td><td>{feeKey!.product ?? '(주식=없음)'}</td>
                   </tr>
                 </tbody>
               </table>
-              <p className="trace-narration">주식은 품목이 붕괴(null)돼 거래소·세션·채널로만, 파생은 품목까지가 키다.</p>
             </div>
 
             {hasRun && result === null && (
-              <p className="empty">해석 결과 없음 — 이 feeKey에 적용 가능한 요율표 후보가 없습니다.</p>
+              <p className="empty">해석 결과 없음 — 이 조회키에 적용 가능한 정책이 없습니다.</p>
             )}
 
             {result && (
               <div className="card trace-step active">
-                <h2>② 후보 수집</h2>
-                {result.cacheHit ? (
-                  <p className="check-grid">
-                    <span className="pill pill-active">캐시 적중 — 후보 재계산 생략, 저장된 답 사용</span>
-                  </p>
-                ) : (
+                <h2>② 계좌 무관 정책 최저가 <span className="badge">[정책 우선순위 인덱스 · 사전 산정]</span></h2>
+                <p className="trace-narration">조회키(feeKey)로 미리 산정된 순위에서 계좌 무관 최저가 정책을 룩업한다(재계산 없음).</p>
+                {indieWinner ? (
                   <table>
-                    <thead>
-                      <tr><th>요율표</th><th>출처</th><th>평균 고객부과액</th></tr>
-                    </thead>
-                    <tbody>
-                      {result.candidates.map((c, i) => (
-                        <tr key={i}>
-                          <td>{c.schedule.name}</td>
-                          <td>{SOURCE_LABEL[c.source]}</td>
-                          <td>{c.avgCustomerFee.toLocaleString()}원</td>
-                        </tr>
-                      ))}
-                    </tbody>
+                    <thead><tr><th>구분</th><th>정책</th><th>요율표(SCHEDULE_ID)</th><th>rank(기준체결)</th></tr></thead>
+                    <tbody><tr>
+                      <td>{indieWinner.source === 'base' ? '기본' : '이벤트'}</td>
+                      <td>{indieWinner.name}</td><td>{indieWinner.scheduleId}</td>
+                      <td>{curSym === '$' ? `$${indieWinner.rank.toLocaleString()}` : `${indieWinner.rank.toLocaleString()}원`}</td>
+                    </tr></tbody>
                   </table>
-                )}
-                <p className="trace-narration">이 계좌·feeKey에 걸리는 nego/event/base 후보를 모은다(전량 저장 아님).</p>
-              </div>
-            )}
-
-            {result && !result.cacheHit && (
-              <div className="card trace-step active">
-                <h2>③ 최저가 경쟁</h2>
-                <table>
-                  <thead>
-                    <tr><th>요율표</th><th>평균 고객부과액</th></tr>
-                  </thead>
-                  <tbody>
-                    {result.candidates.map((c, i) => (
-                      <tr key={i} className={c.isWinner ? 'trace-winner' : undefined}>
-                        <td>
-                          {c.schedule.name}
-                          <span className="badge" style={{ marginLeft: 8 }}>{SOURCE_LABEL[c.source]}</span>
-                          {c.isWinner && <span className="pill pill-active" style={{ marginLeft: 8 }}>최저가</span>}
-                        </td>
-                        <td>{c.avgCustomerFee.toLocaleString()}원</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <p className="trace-narration">후보들의 표본 체결 평균 고객부과액을 비교해 최저가를 고른다.</p>
+                ) : <p className="empty">이 조회키에 해당하는 계좌 무관 정책 없음</p>}
               </div>
             )}
 
             {result && (
               <div className="card trace-step active">
-                <h2>④ 해석 결과</h2>
+                <h2>③ 협의 예외 조회 <span className="badge">[NEGO_GRANT · key: account_id]</span></h2>
+                <p className="trace-narration">이 계좌의 활성 협의(status=활성·기간 내) 중 조회키에 걸리는 것.</p>
+                {acctGrants.length > 0 ? (
+                  <table>
+                    <thead><tr><th>계좌</th><th>적용범위</th><th>요율표</th><th>유효기간</th><th>자격</th></tr></thead>
+                    <tbody>{acctGrants.map((n, i) => (
+                      <tr key={i}><td>{n.accountId}</td>
+                        <td>{n.scope.assetClass}{n.scope.products !== '*' ? ` · ${(n.scope.products as string[]).join(',')}` : ''}</td>
+                        <td>{n.scheduleId}</td><td>{n.validFrom} ~ {n.validTo}</td>
+                        <td><span className={`pill ${n.qualify === '충족' ? 'pill-active' : 'pill-rejected'}`}>{n.qualify}</span></td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                ) : <p className="empty">이 계좌·조회키에 활성 협의 없음</p>}
+              </div>
+            )}
+
+            {result && (
+              <div className="card trace-step active">
+                <h2>④ 가입/신청 이력 조회 <span className="badge">[ENROLLMENT · key: account_id]</span></h2>
+                <p className="trace-narration">신청형·가입형 이벤트 대상 여부와, 상대형 혜택의 가입일 기준.</p>
+                {acctEnrolls.length > 0 ? (
+                  <table>
+                    <thead><tr><th>규칙(rule_id)</th><th>가입일</th><th>채널</th></tr></thead>
+                    <tbody>{acctEnrolls.map((e, i) => (
+                      <tr key={i}><td>{e.ruleId}</td><td>{e.enrolledAt}</td><td>{e.channel}</td></tr>
+                    ))}</tbody>
+                  </table>
+                ) : <p className="empty">이 계좌의 가입/신청 이력 없음</p>}
+              </div>
+            )}
+
+            {result && (
+              <div className="card trace-step active">
+                <h2>⑤ 최저가 확정 <span className="badge">②·③·④ 비교</span></h2>
                 <table>
-                  <thead>
-                    <tr><th>SOURCE</th><th>SCHEDULE_ID</th><th>SOURCE_RULE_ID</th></tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>{SOURCE_LABEL[result.source]}</td>
-                      <td>{result.scheduleId}</td>
-                      <td>{result.sourceRuleId ?? '-'}</td>
-                    </tr>
-                  </tbody>
+                  <thead><tr><th>최종 출처</th><th>SCHEDULE_ID</th><th>RULE_ID</th></tr></thead>
+                  <tbody><tr className="trace-winner">
+                    <td>{SOURCE_LABEL[result.source]}</td><td>{result.scheduleId}</td><td>{result.sourceRuleId ?? '-'}</td>
+                  </tr></tbody>
                 </table>
                 <div className="check-grid">
                   {result.cacheHit ? (
-                    <span className="pill pill-active">캐시 적중 ✓(재계산 없음)</span>
+                    <span className="pill pill-active">캐시 적중 — ②③④ 건너뛰고 저장된 답 사용</span>
                   ) : (
                     <span className="pill pill-pending">캐시 미스 → 계산 후 저장</span>
                   )}
-                  <span className="badge">hits {stat.hits} · misses {stat.misses} · size {stat.size}</span>
+                  <span className="badge">RESOLVED_CACHE · hits {stat.hits} · misses {stat.misses} · size {stat.size}</span>
                 </div>
                 {(() => {
                   const win = result.candidates.find((c) => c.isWinner);
@@ -332,13 +335,27 @@ export default function FeeTrace() {
                   if (!e) return null;
                   return <p className="trace-narration">적용기간: 가입일 {e.enrolledAt} + {b.months}개월 → {addMonths(e.enrolledAt, b.months)}까지(신청 마감과 무관)</p>;
                 })()}
-                <p className="trace-narration">원장은 이 해석 결과(또는 캐시된 한 행)만 쓴다. 전량 바인딩 테이블 없음.</p>
+              </div>
+            )}
+
+            {result && winnerSchedule && (
+              <div className="card trace-step active">
+                <h2>⑥ 요율표 조회 <span className="badge">[FEE_SCHEDULE · FEE_COMPONENT · FEE_RATE_BAND]</span></h2>
+                <table>
+                  <thead><tr><th>구성요소</th><th>종류</th><th>부담주체</th><th>요율</th></tr></thead>
+                  <tbody>{winnerSchedule.components.map((c, i) => (
+                    <tr key={i} className={c.payer === '회사부담' ? 'warn' : undefined}>
+                      <td>{c.name}</td><td>{c.kind}</td><td>{c.payer}</td><td>{compText(c, curSym)}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+                <p className="trace-narration">승자 요율표({winnerSchedule.id})의 구성요소·구간을 읽어 금액 계산에 쓴다.</p>
               </div>
             )}
 
             {result && winnerSchedule && (
               <div className={`card trace-step active`}>
-                <h2>⑤ 체결 → 금액 계산</h2>
+                <h2>⑦ 금액 계산 → 원장 <span className="badge">미저장 · 즉석 계산</span></h2>
                 <div className="form-grid">
                   <div className="field">
                     <label>체결가</label>
@@ -362,18 +379,18 @@ export default function FeeTrace() {
                             <td>{l.kind}</td>
                             <td>{l.payer}</td>
                             <td>{bandLabel(winnerSchedule.components[i], price) ?? '-'}</td>
-                            <td>{l.amount.toLocaleString()}원</td>
+                            <td>{curSym === '$' ? `$${l.amount.toLocaleString()}` : `${l.amount.toLocaleString()}원`}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                     <div className="check-grid">
-                      <span className="pill pill-active">고객부과 합계 {calc.customerTotal.toLocaleString()}원</span>
-                      <span className="pill warn">회사부담 합계 {calc.companyBorne.toLocaleString()}원</span>
+                      <span className="pill pill-active">고객부과 합계 {curSym === '$' ? `$${calc.customerTotal.toLocaleString()}` : `${calc.customerTotal.toLocaleString()}원`}</span>
+                      <span className="pill warn">회사부담 합계 {curSym === '$' ? `$${calc.companyBorne.toLocaleString()}` : `${calc.companyBorne.toLocaleString()}원`}</span>
                     </div>
                   </>
                 )}
-                <p className="trace-narration">금액은 미리 저장하지 않고 요율표 × 체결로 즉석 계산해 잔고에 내린다.</p>
+                <p className="trace-narration">금액은 미리 저장하지 않고 요율표 × 체결로 즉석 계산해 원장 잔고에 내린다.</p>
               </div>
             )}
           </div>
