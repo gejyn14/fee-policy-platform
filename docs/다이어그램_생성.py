@@ -245,3 +245,72 @@ for i,(t,dsc,f,o,tc) in enumerate(steps):
     if i in anno:
         label(d, x+bw+24, y+bh/2-8, '← '+anno[i], sz=11.5, color=GREY)
 save(img, 'd8_resolve')
+
+# ============================================================ 스윔레인 헬퍼
+def swimlane(d, x, y, w, lanes, lh, labw):
+    centers = []
+    for i, name in enumerate(lanes):
+        y0 = y + i*lh
+        fill = (246,247,250) if i % 2 == 0 else (238,240,245)
+        d.rounded_rectangle([x*S, y0*S, (x+w)*S, (y0+lh)*S], radius=6*S, fill=fill, outline=(214,217,224), width=1*S)
+        d.line([((x+labw)*S, y0*S), ((x+labw)*S, (y0+lh)*S)], fill=(214,217,224), width=1*S)
+        f = F(13)
+        tw = d.textlength(name, font=f)
+        d.text(((x + (labw-tw)/2)*S, (y0 + lh/2 - 9)*S), name, font=f, fill=NAVY)
+        centers.append(y0 + lh/2)
+    return centers
+
+# ============================================================ D9 시스템 업무 흐름(스윔레인)
+img, d = canvas(1060, 560)
+label(d, 30, 16, '[그림 9] 시스템 업무 흐름 — 정책 등록부터 체결 부과까지 (스윔레인)', sz=15, color=NAVY)
+lanes = ['현업', '심사', '플랫폼(시스템)', '원장']
+lx, ly0, lw, lh, labw = 30, 54, 1000, 110, 96
+centers = swimlane(d, lx, ly0, lw, lanes, lh, labw)
+bx0 = lx + labw + 14
+bw, gap, bh = 118, 14, 66
+xs = [bx0 + i*(bw+gap) for i in range(7)]
+steps = [
+    (0, '① 정책 기안', ['적용범위·요율표', '기간']),
+    (2, '② 시뮬레이션', ['지배관계·역마진']),
+    (1, '③ 승인/반려', ['심사 결재']),
+    (2, '④ 활성화', ['우선순위 인덱스 갱신']),
+    (3, '⑤ 체결 발생', ['계좌·조회키·체결가']),
+    (2, '⑥ 해석', ['우선순위 룩업+협의', '금액 계산']),
+    (3, '⑦ 부과', ['수수료·잔고 반영']),
+]
+def lane_style(l):
+    return (GREEN_F, GREEN_O, GREEN_T) if l == 3 else ((AMBER_F, AMBER_O, AMBER_T) if l == 1 else (BLUE_F, BLUE_O, NAVY))
+for i, (lane, t, lines) in enumerate(steps):
+    f, o, tc = lane_style(lane)
+    box(d, xs[i], centers[lane]-bh/2, bw, bh, t, lines, fill=f, outline=o, tcolor=tc, tsz=13.5, bsz=10.5)
+for i in range(6):
+    arrow(d, (xs[i]+bw, centers[steps[i][0]]), (xs[i+1], centers[steps[i+1][0]]))
+# 등록 ↔ 체결 위상 구분선(④와 ⑤ 사이)
+dvx = (xs[3]+bw + xs[4]) / 2
+for yy in range(int(ly0), int(ly0+4*lh), 12):
+    d.line([(dvx*S, yy*S), (dvx*S, (yy+6)*S)], fill=(205,165,120), width=2*S)
+label(d, dvx-40, ly0-2, '활성 이후 · 체결 시', sz=10.5, color=(150,110,60))
+save(img, 'd9_swimlane')
+
+# ============================================================ D10 협의 신청·승인 흐름(스윔레인)
+img, d = canvas(1000, 480)
+label(d, 30, 16, '[그림 10] 협의수수료 신청·승인 흐름 (스윔레인)', sz=15, color=NAVY)
+lanes2 = ['현업(PB)', '플랫폼(시스템)', '승인자', '원장']
+c2 = swimlane(d, 30, 54, 940, lanes2, 100, 100)
+bx = 30 + 100 + 16
+bw2, gap2, bh2 = 150, 22, 62
+xs2 = [bx + i*(bw2+gap2) for i in range(5)]
+steps2 = [
+    (0, '① 협의 신청', ['계좌 리스트·범위·요율']),
+    (1, '② 자격 판정·요청 생성', ['정책 기준+bypass']),
+    (2, '③ 승인/반려', ['요청 목록 확인']),
+    (1, '④ 협의 활성', ['유효기간·캐시 무효화']),
+    (3, '⑤ 체결 시 반영', ['해석에 협의 얹음']),
+]
+for i, (lane, t, lines) in enumerate(steps2):
+    f, o, tc = lane_style(lane)
+    box(d, xs2[i], c2[lane]-bh2/2, bw2, bh2, t, lines, fill=f, outline=o, tcolor=tc, tsz=13.5, bsz=10.5)
+for i in range(4):
+    arrow(d, (xs2[i]+bw2, c2[steps2[i][0]]), (xs2[i+1], c2[steps2[i+1][0]]))
+save(img, 'd10_nego_flow')
+print('SWIMLANES DONE')
