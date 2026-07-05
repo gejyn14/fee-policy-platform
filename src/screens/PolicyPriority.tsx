@@ -34,14 +34,14 @@ export default function PolicyPriority() {
   }
 
   const feeKey = exchange ? buildFeeKey(assetClass, exchange, session, channel, deriv ? prod : null) : null;
-  const winner = feeKey ? idx.winnerFor(feeKey) : null;
+  const winner = feeKey ? idx.topFor(feeKey) : null;
 
   return (
     <section className="stack">
       <div className="card">
         <h2>정책 우선순위 (사전 산정)</h2>
         <p className="trace-narration">
-          같은 조회키(feeKey) 안에서는 승자가 가격에 따라 바뀌지 않으므로, 계좌 무관 정책(기본 + 전체 대상 이벤트)의
+          같은 조회키(feeKey) 안에서는 승자가 가격에 따라 바뀌지 않으므로, 정책(기본 + 전 이벤트)의
           최저가 순위를 <b>룰 변경 때만</b> 미리 계산해 둔다. 체결 때는 이 순위를 <b>즉시 룩업</b>하고(재계산 없음),
           계좌에 협의가 있으면 그것만 얹어 비교한다.
         </p>
@@ -82,7 +82,7 @@ export default function PolicyPriority() {
         <div className="check-grid">
           {winner ? (
             <>
-              <span className="pill pill-active">즉시 최저가(계좌 무관): {winner.scheduleName}</span>
+              <span className="pill pill-active">이론상 최저(자격 무시): {winner.scheduleName}</span>
               <span className="badge">{winner.source === 'base' ? '기본' : '이벤트'} · {winner.name} · rank {winner.rank.toLocaleString()}</span>
             </>
           ) : (
@@ -95,13 +95,11 @@ export default function PolicyPriority() {
       {ASSET_CLASSES.map((ac) => {
         const group = idx.policies.filter((p) => p.scope.assetClass === ac);
         if (group.length === 0) return null;
-        const sym = ac.startsWith('해외') ? '$' : '원';
-        const rankText = (n: number) => sym === '$' ? `$${n.toLocaleString()}` : `${n.toLocaleString()}원`;
         return (
           <div className="card" key={ac}>
-            <h2>{ac} 정책 순위 (rank 오름차순)</h2>
+            <h2>{ac} 정책 순위 (요율 오름차순)</h2>
             <table>
-              <thead><tr><th>순위</th><th>구분</th><th>정책</th><th>적용범위</th><th>요율표</th><th>rank(기준 체결)</th></tr></thead>
+              <thead><tr><th>순위</th><th>구분</th><th>정책</th><th>적용범위</th><th>요율표</th><th>순위값(요율)</th></tr></thead>
               <tbody>
                 {group.map((p, i) => (
                   <tr key={p.ruleId} className={winner && p.ruleId === winner.ruleId ? 'trace-winner' : undefined}>
@@ -110,7 +108,7 @@ export default function PolicyPriority() {
                     <td>{p.name}</td>
                     <td>{scopeText(p.scope)}</td>
                     <td>{p.scheduleName}</td>
-                    <td>{rankText(p.rank)}</td>
+                    <td>{p.rank.toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>

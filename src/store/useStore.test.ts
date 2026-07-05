@@ -235,11 +235,13 @@ describe('정책 우선순위 사전 산정', () => {
     // 국내주식(협의·가입 없음) → base
     const krStock = s.products.find(p => p.assetClass === '국내주식' && p.exchange === 'KRX')!;
     const kKr = deriveFeeKey(krStock, '정규', 'MTS');
-    expect(idx.winnerFor(kKr)!.scheduleId).toBe(s.resolveFee('110000001003', kKr)!.scheduleId);
+    const acctKr = s.accounts.find(a => a.id === '110000001003')!;
+    expect(idx.winnerFor(kKr, acctKr, s.enrollments)!.scheduleId).toBe(s.resolveFee('110000001003', kKr)!.scheduleId);
     // 해외파생 CME 6A: 002는 grant 없음 → 타겟추출형 CME 이벤트가 승자
     const cme6a = s.products.find(p => p.exchange === 'CME' && p.code === '6A')!;
     const kCme = deriveFeeKey(cme6a, '정규', 'HTS');
-    const w = idx.winnerFor(kCme)!;
+    const acctCme = s.accounts.find(a => a.id === '110000001002')!;
+    const w = idx.winnerFor(kCme, acctCme, s.enrollments)!;
     expect(w.ruleId).toBe('RULE-EVENT-CME-SUMMER');
     expect(w.scheduleId).toBe(s.resolveFee('110000001002', kCme)!.scheduleId);
   });

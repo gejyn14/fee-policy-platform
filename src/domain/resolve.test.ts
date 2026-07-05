@@ -1,5 +1,6 @@
 import { it, expect, describe } from 'vitest';
-import { scopeMatchesKey, findBaseSchedule, buildScopeIndex, resolve } from './resolve';
+import { scopeMatchesKey, findBaseSchedule, resolve } from './resolve';
+import { buildPolicyPriority } from './policyRank';
 import type { NegoException } from './resolve';
 import type { Account, Enrollment, FeeKey, FeeRule, FeeSchedule, ScopeSelector } from './types';
 
@@ -39,24 +40,15 @@ describe('scopeMatchesKey', () => {
   });
 });
 
-describe('findBaseSchedule / buildScopeIndex', () => {
+describe('findBaseSchedule', () => {
   const schedules = [sched('S-BASE', 100), sched('S-EVT', 50)];
   const base = rule({ id: 'R-BASE', scheduleId: 'S-BASE' });
   const evt = rule({ id: 'R-EVT', type: 'EVENT', scheduleId: 'S-EVT', scope: scope({ channels: ['MTS'] }) });
-  const closed = rule({ id: 'R-CLOSED', type: 'EVENT', status: '종료', scheduleId: 'S-EVT' });
 
   it('활성 BASE 조회', () => {
     const r = findBaseSchedule(key(), [base, evt], schedules, '2026-07-04');
     expect(r?.rule.id).toBe('R-BASE');
     expect(r?.schedule.id).toBe('S-BASE');
-  });
-  it('scope_index는 활성 상태·스코프 매칭 룰(기간 게이팅은 resolve로 이동)', () => {
-    const idx = buildScopeIndex([base, evt, closed], '2026-07-04');
-    const c = idx.candidatesFor(key({ channel: 'MTS' }));
-    expect(c.map(r => r.id)).toContain('R-EVT');
-    expect(c.map(r => r.id)).not.toContain('R-CLOSED');  // 종료 상태 제외
-    expect(c.map(r => r.id)).not.toContain('R-BASE');    // BASE는 scope_index 아님
-    expect(idx.candidatesFor(key({ channel: 'HTS' })).map(r => r.id)).not.toContain('R-EVT'); // 채널 불일치
   });
 });
 
@@ -65,7 +57,7 @@ describe('resolve', () => {
   const schedules = [sched('S-BASE', 100), sched('S-EVT', 50), sched('S-NEGO', 30)];
   const base = rule({ id: 'R-BASE', scheduleId: 'S-BASE' });
   const evt = rule({ id: 'R-EVT', type: 'EVENT', scheduleId: 'S-EVT', scope: scope({ channels: ['MTS'] }) });
-  const idx = (rs = [base, evt]) => buildScopeIndex(rs, '2026-07-04');
+  const idx = (rs = [base, evt]) => buildPolicyPriority(rs, schedules, '2026-07-04');
 
   it('BASE만이면 base 승자', () => {
     const r = resolve(acct, key(), [base], schedules, [], idx([base]), '2026-07-04', []);
@@ -112,22 +104,22 @@ describe('resolve — 적용기간(benefit)', () => {
   const enr = (enrolledAt: string): Enrollment[] => [{ accountId: acct.id, ruleId: 'R-REL', enrolledAt, channel: 'MTS' }];
 
   it('상대형: 가입일+N 안이면 event 승자(신청 마감 지나도)', () => {
-    const idx = buildScopeIndex([base, relEvt], '2026-07-04');
+    const idx = buildPolicyPriority([base, relEvt], schedules, '2026-07-04');
     const r = resolve(acct, key({ channel: 'MTS' }), [base, relEvt], schedules, [], idx, '2026-07-04', enr('2026-06-20'));
     expect(r!.source).toBe('event'); expect(r!.sourceRuleId).toBe('R-REL');
   });
   it('상대형: 가입일+N 지나면 base', () => {
-    const idx = buildScopeIndex([base, relEvt], '2026-07-04');
+    const idx = buildPolicyPriority([base, relEvt], schedules, '2026-07-04');
     const r = resolve(acct, key({ channel: 'MTS' }), [base, relEvt], schedules, [], idx, '2026-07-04', enr('2026-04-10'));
     expect(r!.source).toBe('base');
   });
   it('상대형: 가입 이력 없으면 base', () => {
-    const idx = buildScopeIndex([base, relEvt], '2026-07-04');
+    const idx = buildPolicyPriority([base, relEvt], schedules, '2026-07-04');
     const r = resolve(acct, key({ channel: 'MTS' }), [base, relEvt], schedules, [], idx, '2026-07-04', []);
     expect(r!.source).toBe('base');
   });
   it('캘린더형 만료 이벤트는 제외(base)', () => {
-    const idx = buildScopeIndex([base, calX], '2026-07-04');
+    const idx = buildPolicyPriority([base, calX], schedules, '2026-07-04');
     const r = resolve(acct, key({ channel: 'MTS' }), [base, calX], schedules, [], idx, '2026-07-04', []);
     expect(r!.source).toBe('base');
   });
@@ -142,7 +134,7 @@ describe('resolve — 동일 계층 동률 tie-break', () => {
   const narrow = rule({ id: 'R-NARROW', type: 'EVENT', scheduleId: 'S-EVT', scope: scope({ channels: ['MTS'], sessions: ['정규'] }) });
 
   it('동률 이벤트끼리는 더 구체적인 적용범위가 승자', () => {
-    const idx = buildScopeIndex([base, broad, narrow], '2026-07-04');
+    const idx = buildPolicyPriority([base, broad, narrow], schedules, '2026-07-04');
     const r = resolve(acct, key({ channel: 'MTS', session: '정규' }), [base, broad, narrow], schedules, [], idx, '2026-07-04', []);
     expect(r!.source).toBe('event');
     expect(r!.sourceRuleId).toBe('R-NARROW');   // 세션 한정이 더 구체적

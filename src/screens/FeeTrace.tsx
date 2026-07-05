@@ -90,7 +90,7 @@ export default function FeeTrace() {
 
   // 체결 시 시스템이 조회하는 테이블들(계좌 무관 정책 우선순위 · 협의 예외 · 가입/신청 이력)
   const curSym = assetClass.startsWith('해외') ? '$' : '원';
-  const indieWinner = feeKey ? policyPriority().winnerFor(feeKey) : null;
+  const indieWinner = (feeKey && account) ? policyPriority().winnerFor(feeKey, account, enrollments) : null;
   const acctGrants = feeKey
     ? nego.filter((n) => n.accountId === accountId && n.status === '활성' && n.validFrom <= TODAY && TODAY <= n.validTo && scopeMatchesKey(n.scope, feeKey))
     : [];
@@ -280,18 +280,18 @@ export default function FeeTrace() {
 
             {result && (
               <div className="card trace-step active">
-                <h2>③ 계좌 무관 정책 최저가 <span className="badge">[정책 우선순위 인덱스 · 사전 산정]</span></h2>
-                <p className="trace-narration">협의가 없을 때, 조회키(feeKey)로 미리 산정된 순위에서 계좌 무관 최저가(이벤트/기본)를 룩업한다(재계산 없음).</p>
+                <h2>③ 정책 우선순위 하강 + 자격 필터 <span className="badge">[정책 우선순위 인덱스 · 사전 산정]</span></h2>
+                <p className="trace-narration">협의가 없을 때, 미리 산정된 요율 순위를 내려가며 이 계좌의 자격(대상·기간)을 통과하는 첫 정책을 고른다(재계산 없음).</p>
                 {indieWinner ? (
                   <table>
-                    <thead><tr><th>구분</th><th>정책</th><th>요율표(SCHEDULE_ID)</th><th>rank(기준체결)</th></tr></thead>
+                    <thead><tr><th>구분</th><th>정책</th><th>요율표(SCHEDULE_ID)</th><th>순위값(요율)</th></tr></thead>
                     <tbody><tr>
                       <td>{indieWinner.source === 'base' ? '기본' : '이벤트'}</td>
                       <td>{indieWinner.name}</td><td>{indieWinner.scheduleId}</td>
-                      <td>{curSym === '$' ? `$${indieWinner.rank.toLocaleString()}` : `${indieWinner.rank.toLocaleString()}원`}</td>
+                      <td>{indieWinner.rank.toLocaleString()}</td>
                     </tr></tbody>
                   </table>
-                ) : <p className="empty">이 조회키에 해당하는 계좌 무관 정책 없음</p>}
+                ) : <p className="empty">이 계좌가 이 조회키에서 받는 정책 없음</p>}
               </div>
             )}
 

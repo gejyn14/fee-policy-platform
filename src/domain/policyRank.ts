@@ -1,52 +1,80 @@
-import type { Execution, FeeKey, FeeRule, FeeSchedule, Product, ScopeSelector } from './types';
-import { calcFee } from './calc';
+import type { Account, Enrollment, FeeKey, FeeRule, FeeSchedule, ScopeSelector } from './types';
 import { scopeMatchesKey } from './resolve';
+import { isTarget, isBenefitActive } from './binding';
 
-// 같은 feeKey 안에서는 승자가 가격 무관이므로(구조 일관 + 지배관계 + 교차 없음),
-// 기준 체결 한 점에서만 평가하면 그 순위가 전 구간에서 성립한다.
+// 정책 순위 항목 — 기본 + 모든 이벤트를 하나의 요율 순위로 담는다(계좌 특정 여부와 무관).
 export interface RankedPolicy {
   ruleId: string; source: 'base' | 'event'; name: string;
-  scope: ScopeSelector; scheduleId: string; scheduleName: string; rank: number;
+  scope: ScopeSelector; scheduleId: string; scheduleName: string;
+  rule: FeeRule; rank: number;
 }
 
-const REF_PRODUCT: Product = { assetClass: '국내주식', exchange: 'X', code: 'X', name: 'X', currency: 'KRW', sessions: [] };
-// 기준 체결: 가격 100 · 수량 10(거래대금 1000). calcFee는 품목을 안 쓴다.
-const refExec: Execution = { accountId: 'REF', product: REF_PRODUCT, session: '정규', channel: 'MTS', price: 100, qty: 10, notional: 1000 };
-
-export function rankValue(schedule: FeeSchedule): number {
-  return calcFee(schedule, refExec).customerTotal;
+// 구조 그룹 순위 키 — feeKey 안은 구조가 단일(정률/정액/최소+요율)이라 같은 단위끼리만 비교된다.
+// 기준체결(합성 가격) 없이 고객부과 요율 파라미터로 직접 비교: 정률=요율 합, 정액=정액 합,
+// 최소+요율(구간표)=대표 구간의 (요율+최소). 등록 시 단조·비교차가 보장돼 순서가 가격과 무관.
+export function rankKey(schedule: FeeSchedule): number {
+  let v = 0;
+  for (const c of schedule.components) {
+    if (c.payer !== '고객부과') continue;
+    if (c.rateType === '정률') v += c.rateBp ?? 0;
+    else if (c.rateType === '정액') v += c.flatAmount ?? 0;
+    else { const b = (c.bands ?? [])[0]; if (b) v += (b.rateBp ?? 0) + (b.flat ?? 0); }
+  }
+  return v;
 }
 
-const isActive = (r: FeeRule, today: string) => r.status === '활성' && r.startDate <= today && today <= r.endDate;
+// 순위 편입 조건 — status 활성 + 기간. 단 상대형 이벤트는 기간이 계좌별 가입일 기준이라
+// 룰 기간(신청 마감)이 지나도 편입하고, 실제 유효는 winnerFor의 isBenefitActive가 계좌별로 판정한다.
+const inRanking = (r: FeeRule, today: string): boolean => {
+  if (r.status !== '활성') return false;
+  if (r.type === 'EVENT' && (r.benefit?.kind === '상대')) return true;
+  return r.startDate <= today && today <= r.endDate;
+};
 
-// 계좌 무관 정책 = 기본(BASE) + 전체 대상 이벤트(타겟추출형, 지정 계좌 없음).
-// 신청/가입/휴면/지정계좌/상대형은 계좌 특정 → 제외(체결 시 오버레이로 얹음).
-export function isAccountIndependent(r: FeeRule): boolean {
-  if (r.type === 'BASE') return true;
-  if (r.type !== 'EVENT') return false;
-  return r.applyMode === '타겟추출형' && (!r.targetAccountIds || r.targetAccountIds.length === 0);
+// 동률 tie-break용 적용범위 구체성(제약 차원 수). 높을수록 더 구체적.
+function scopeSpecificity(r: FeeRule): number {
+  const s = r.scope; let n = 0;
+  if (s.exchanges !== '*') n++;
+  if (s.sessions !== '*') n++;
+  if ((s.channels ?? '*') !== '*') n++;
+  if (s.products !== '*') n++;
+  if (s.excludeProducts.length) n++;
+  return n;
 }
 
 export interface PolicyPriorityIndex {
-  policies: RankedPolicy[];               // rank 오름차순(전 정책)
-  winnerFor(key: FeeKey): RankedPolicy | null;   // 그 feeKey에 걸리는 계좌 무관 최저가
+  policies: RankedPolicy[];   // rank 오름차순(기본 + 전 이벤트)
+  // 계좌가 실제 받는 승자(협의 제외): 순위를 내려가며 자격(대상·기간) 통과 첫 정책.
+  winnerFor(key: FeeKey, acct: Account, enrollments: Enrollment[]): RankedPolicy | null;
+  // 자격 무시 최상위(화면 참고용) — 이 feeKey의 이론상 최저.
+  topFor(key: FeeKey): RankedPolicy | null;
 }
 
 export function buildPolicyPriority(rules: FeeRule[], schedules: FeeSchedule[], today: string): PolicyPriorityIndex {
   const policies: RankedPolicy[] = rules
-    .filter((r) => isActive(r, today) && isAccountIndependent(r))
+    .filter((r) => (r.type === 'BASE' || r.type === 'EVENT') && inRanking(r, today))
     .map((r): RankedPolicy | null => {
       const sched = schedules.find((s) => s.id === r.scheduleId);
       if (!sched) return null;
-      return { ruleId: r.id, source: r.type === 'BASE' ? 'base' : 'event', name: r.name,
-        scope: r.scope, scheduleId: r.scheduleId, scheduleName: sched.name, rank: rankValue(sched) };
+      return {
+        ruleId: r.id, source: r.type === 'BASE' ? 'base' : 'event', name: r.name,
+        scope: r.scope, scheduleId: r.scheduleId, scheduleName: sched.name, rule: r, rank: rankKey(sched),
+      };
     })
     .filter((p): p is RankedPolicy => p !== null)
-    .sort((a, b) => a.rank - b.rank);
+    .sort((a, b) =>
+      a.rank - b.rank                                         // ① 요율 최저(구조 그룹 순위)
+      || scopeSpecificity(b.rule) - scopeSpecificity(a.rule)  // ② 동률: 더 구체적 적용범위
+      || a.ruleId.localeCompare(b.ruleId));                   // ③ 식별자(결정성)
+
+  // 자격: 기본은 항상, 이벤트는 대상 게이트(isTarget)·기간 게이트(isBenefitActive) 통과분만.
+  const eligible = (p: RankedPolicy, acct: Account, enr: Enrollment[]) =>
+    p.source === 'base' || (isTarget(p.rule, acct, enr) && isBenefitActive(p.rule, acct, enr, today));
 
   return {
     policies,
-    // policies가 rank 오름차순이므로 매칭되는 첫 정책 = 최소 rank.
-    winnerFor: (key) => policies.find((p) => scopeMatchesKey(p.scope, key)) ?? null,
+    winnerFor: (key, acct, enr) =>
+      policies.find((p) => scopeMatchesKey(p.scope, key) && eligible(p, acct, enr)) ?? null,
+    topFor: (key) => policies.find((p) => scopeMatchesKey(p.scope, key)) ?? null,
   };
 }
