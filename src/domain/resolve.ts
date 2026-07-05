@@ -60,6 +60,8 @@ export interface ResolveResult {
 }
 
 const SRC_RANK: Record<'nego' | 'event' | 'base', number> = { nego: 0, event: 1, base: 2 };
+// 협의는 이벤트·기본보다 무조건 먼저 본다(협의 요율/수수료액이 항상 더 낮음).
+const negoFirst = (s: 'nego' | 'event' | 'base'): number => (s === 'nego' ? 0 : 1);
 
 // 동일 계층 동률 tie-break용 적용범위 구체성 점수(제약 차원 수). 높을수록 더 구체적.
 function scopeSpecificity(r: FeeRule | null): number {
@@ -108,11 +110,12 @@ export function resolve(
   const ranked = cands
     .map((c) => ({ ...c, avgCustomerFee: cost(c.schedule) }))
     .sort((a, b) =>
-      a.avgCustomerFee - b.avgCustomerFee                              // ① 고객 부담 최저
-      || SRC_RANK[a.source] - SRC_RANK[b.source]                       // ② 계층: 협의>이벤트>기본
-      || scopeSpecificity(b.rule) - scopeSpecificity(a.rule)          // ③ 동일 계층: 더 구체적 범위 우선
-      || (b.rule?.startDate ?? '').localeCompare(a.rule?.startDate ?? '') // ④ 더 최근 시작
-      || (a.rule?.id ?? '').localeCompare(b.rule?.id ?? ''));          // ⑤ 식별자(결정성)
+      negoFirst(a.source) - negoFirst(b.source)                        // ① 협의는 무조건 우선(항상 더 낮음)
+      || a.avgCustomerFee - b.avgCustomerFee                           // ② 이벤트·기본은 그 아래에서 최저가
+      || SRC_RANK[a.source] - SRC_RANK[b.source]                       // ③ 동률이면 계층: 이벤트>기본
+      || scopeSpecificity(b.rule) - scopeSpecificity(a.rule)          // ④ 동일 계층: 더 구체적 범위 우선
+      || (b.rule?.startDate ?? '').localeCompare(a.rule?.startDate ?? '') // ⑤ 더 최근 시작
+      || (a.rule?.id ?? '').localeCompare(b.rule?.id ?? ''));          // ⑥ 식별자(결정성)
 
   const candidates: ResolveCandidate[] = ranked.map((c, i) => ({
     rule: c.rule, schedule: c.schedule, avgCustomerFee: c.avgCustomerFee, source: c.source, isWinner: i === 0,

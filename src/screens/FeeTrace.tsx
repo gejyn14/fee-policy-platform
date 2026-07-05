@@ -261,25 +261,8 @@ export default function FeeTrace() {
 
             {result && (
               <div className="card trace-step active">
-                <h2>② 계좌 무관 정책 최저가 <span className="badge">[정책 우선순위 인덱스 · 사전 산정]</span></h2>
-                <p className="trace-narration">조회키(feeKey)로 미리 산정된 순위에서 계좌 무관 최저가 정책을 룩업한다(재계산 없음).</p>
-                {indieWinner ? (
-                  <table>
-                    <thead><tr><th>구분</th><th>정책</th><th>요율표(SCHEDULE_ID)</th><th>rank(기준체결)</th></tr></thead>
-                    <tbody><tr>
-                      <td>{indieWinner.source === 'base' ? '기본' : '이벤트'}</td>
-                      <td>{indieWinner.name}</td><td>{indieWinner.scheduleId}</td>
-                      <td>{curSym === '$' ? `$${indieWinner.rank.toLocaleString()}` : `${indieWinner.rank.toLocaleString()}원`}</td>
-                    </tr></tbody>
-                  </table>
-                ) : <p className="empty">이 조회키에 해당하는 계좌 무관 정책 없음</p>}
-              </div>
-            )}
-
-            {result && (
-              <div className="card trace-step active">
-                <h2>③ 협의 예외 조회 <span className="badge">[NEGO_GRANT · key: account_id]</span></h2>
-                <p className="trace-narration">이 계좌의 활성 협의(status=활성·기간 내) 중 조회키에 걸리는 것.</p>
+                <h2>② 협의 예외 조회 <span className="badge">[NEGO_GRANT · key: account_id]</span> <span className="pill pill-active">최우선</span></h2>
+                <p className="trace-narration">협의는 이벤트·기본보다 <b>무조건 먼저</b> 본다 — 협의 요율/수수료액이 항상 더 낮기 때문. 활성 협의(status=활성·기간 내)가 있으면 그게 승자.</p>
                 {acctGrants.length > 0 ? (
                   <table>
                     <thead><tr><th>계좌</th><th>적용범위</th><th>요율표</th><th>유효기간</th><th>자격</th></tr></thead>
@@ -291,7 +274,24 @@ export default function FeeTrace() {
                       </tr>
                     ))}</tbody>
                   </table>
-                ) : <p className="empty">이 계좌·조회키에 활성 협의 없음</p>}
+                ) : <p className="empty">이 계좌·조회키에 활성 협의 없음 → 이벤트/기본으로 내려감(③)</p>}
+              </div>
+            )}
+
+            {result && (
+              <div className="card trace-step active">
+                <h2>③ 계좌 무관 정책 최저가 <span className="badge">[정책 우선순위 인덱스 · 사전 산정]</span></h2>
+                <p className="trace-narration">협의가 없을 때, 조회키(feeKey)로 미리 산정된 순위에서 계좌 무관 최저가(이벤트/기본)를 룩업한다(재계산 없음).</p>
+                {indieWinner ? (
+                  <table>
+                    <thead><tr><th>구분</th><th>정책</th><th>요율표(SCHEDULE_ID)</th><th>rank(기준체결)</th></tr></thead>
+                    <tbody><tr>
+                      <td>{indieWinner.source === 'base' ? '기본' : '이벤트'}</td>
+                      <td>{indieWinner.name}</td><td>{indieWinner.scheduleId}</td>
+                      <td>{curSym === '$' ? `$${indieWinner.rank.toLocaleString()}` : `${indieWinner.rank.toLocaleString()}원`}</td>
+                    </tr></tbody>
+                  </table>
+                ) : <p className="empty">이 조회키에 해당하는 계좌 무관 정책 없음</p>}
               </div>
             )}
 
@@ -312,7 +312,7 @@ export default function FeeTrace() {
 
             {result && (
               <div className="card trace-step active">
-                <h2>⑤ 최저가 확정 <span className="badge">②·③·④ 비교</span></h2>
+                <h2>⑤ 최저가 확정 <span className="badge">협의 우선 → 없으면 이벤트/기본 최저가</span></h2>
                 <table>
                   <thead><tr><th>최종 출처</th><th>SCHEDULE_ID</th><th>RULE_ID</th></tr></thead>
                   <tbody><tr className="trace-winner">

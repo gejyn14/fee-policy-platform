@@ -94,6 +94,11 @@ describe('resolve', () => {
     const r = resolve(acct, key({ channel: 'MTS' }), [base, evt], schedules, [grant({ status: '요청' })], idx(), '2026-07-04', []);
     expect(r!.source).toBe('event');
   });
+  it('협의는 이벤트보다 무조건 우선(명목 요율이 이벤트보다 높아도 협의 승자)', () => {
+    const schedHi = [...schedules, sched('S-NEGO-HI', 70)];   // 협의 70 > 이벤트 50
+    const r = resolve(acct, key({ channel: 'MTS' }), [base, evt], schedHi, [grant({ scheduleId: 'S-NEGO-HI' })], idx(), '2026-07-04', []);
+    expect(r!.source).toBe('nego'); expect(r!.scheduleId).toBe('S-NEGO-HI');
+  });
 });
 
 describe('resolve — 적용기간(benefit)', () => {
