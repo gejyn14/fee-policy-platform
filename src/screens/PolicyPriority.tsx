@@ -92,28 +92,32 @@ export default function PolicyPriority() {
         <p className="trace-narration">rank = 기준 체결(가격 100·수량 10)의 고객부과 총액. 교차가 없어 이 한 점 순위가 전 가격에서 성립.</p>
       </div>
 
-      <div className="card">
-        <h2>계좌 무관 정책 순위표 (rank 오름차순)</h2>
-        {idx.policies.length === 0 ? (
-          <p className="empty">활성 정책이 없습니다.</p>
-        ) : (
-          <table>
-            <thead><tr><th>순위</th><th>구분</th><th>정책</th><th>적용범위</th><th>요율표</th><th>rank</th></tr></thead>
-            <tbody>
-              {idx.policies.map((p, i) => (
-                <tr key={p.ruleId} className={winner && p.ruleId === winner.ruleId ? 'trace-winner' : undefined}>
-                  <td>{i + 1}</td>
-                  <td><span className={`pill ${p.source === 'base' ? 'pill-draft' : 'pill-active'}`}>{p.source === 'base' ? '기본' : '이벤트'}</span></td>
-                  <td>{p.name}</td>
-                  <td>{p.scope.assetClass} · {scopeText(p.scope)}</td>
-                  <td>{p.scheduleName}</td>
-                  <td>{p.rank.toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {ASSET_CLASSES.map((ac) => {
+        const group = idx.policies.filter((p) => p.scope.assetClass === ac);
+        if (group.length === 0) return null;
+        const sym = ac.startsWith('해외') ? '$' : '원';
+        const rankText = (n: number) => sym === '$' ? `$${n.toLocaleString()}` : `${n.toLocaleString()}원`;
+        return (
+          <div className="card" key={ac}>
+            <h2>{ac} 정책 순위 (rank 오름차순)</h2>
+            <table>
+              <thead><tr><th>순위</th><th>구분</th><th>정책</th><th>적용범위</th><th>요율표</th><th>rank(기준 체결)</th></tr></thead>
+              <tbody>
+                {group.map((p, i) => (
+                  <tr key={p.ruleId} className={winner && p.ruleId === winner.ruleId ? 'trace-winner' : undefined}>
+                    <td>{i + 1}</td>
+                    <td><span className={`pill ${p.source === 'base' ? 'pill-draft' : 'pill-active'}`}>{p.source === 'base' ? '기본' : '이벤트'}</span></td>
+                    <td>{p.name}</td>
+                    <td>{scopeText(p.scope)}</td>
+                    <td>{p.scheduleName}</td>
+                    <td>{rankText(p.rank)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
     </section>
   );
 }
