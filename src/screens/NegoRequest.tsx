@@ -6,9 +6,12 @@ import type { AssetClass, FeeComponent, ScopeSelector } from '../domain/types';
 
 const ASSET_CLASSES: AssetClass[] = ['국내주식', '해외주식', '국내파생', '해외파생', '금현물'];
 
-function compText(c: FeeComponent): string {
+// 수수료 통화: 해외주식·해외파생 = USD($), 국내·금현물 = KRW(원)
+function curSymbol(assetClass: AssetClass): string { return assetClass.startsWith('해외') ? '$' : '원'; }
+
+function compText(c: FeeComponent, sym: string): string {
   if (c.rateType === '정률') return `${c.rateBp ?? 0}bp`;
-  if (c.rateType === '정액') return `${(c.flatAmount ?? 0).toLocaleString()}원`;
+  if (c.rateType === '정액') return sym === '$' ? `$${(c.flatAmount ?? 0).toLocaleString()}` : `${(c.flatAmount ?? 0).toLocaleString()}원`;
   return '구간표';
 }
 
@@ -29,7 +32,8 @@ export default function NegoRequest() {
   const sched = schedules.find((s) => s.id === scheduleId);
   const jasa = sched?.components.find((c) => c.kind === '자사');
   const editable = jasa != null && (jasa.rateType === '정률' || jasa.rateType === '정액');
-  const unit = jasa?.rateType === '정액' ? '원' : 'bp';
+  const curSym = curSymbol(assetClass);
+  const unit = jasa?.rateType === '정액' ? curSym : 'bp';
   const parsed = parseCsvCodes(csv, new Set(accounts.map((a) => a.id)));
 
   const scope: ScopeSelector = {
@@ -95,7 +99,7 @@ export default function NegoRequest() {
             <label>자사 요율 수정({unit}, 비우면 원본)</label>
             {editable ? (
               <input type="number" value={rateOverride} onChange={(e) => setRateOverride(e.target.value)}
-                placeholder={jasa?.rateType === '정액' ? '예: 1000' : '예: 6'} />
+                placeholder={jasa?.rateType === '정액' ? (curSym === '$' ? '예: 2.5' : '예: 1000') : '예: 6'} />
             ) : (
               <input value="구간표 요율표는 선택만(화면 수정 미지원)" disabled />
             )}
@@ -103,7 +107,7 @@ export default function NegoRequest() {
         </div>
 
         {sched && (
-          <p className="trace-narration">요율표 구성: {sched.components.map((c) => `${c.name} ${compText(c)}`).join(' · ')}</p>
+          <p className="trace-narration">요율표 구성: {sched.components.map((c) => `${c.name} ${compText(c, curSym)}`).join(' · ')}</p>
         )}
 
         <div className="field">
