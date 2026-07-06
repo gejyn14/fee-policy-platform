@@ -21,6 +21,7 @@ import { ResolveCache, type CacheStat } from '../domain/cache';
 const MASTER = generateInstruments();
 const SYNC_BATCH_SIZE = 5;
 const resolveCache = new ResolveCache();
+let priorityIdx: PolicyPriorityIndex | null = null;
 
 export { evalCondition } from '../domain/eligibility';
 
@@ -56,6 +57,11 @@ interface State {
   batchRevalidateDominance(): BatchJobResult;
 }
 
+// 계좌 무관 우선순위 인덱스 — (rules, schedules)의 파생. 없으면 빌드, 있으면 재사용(룰/요율표 변경 시 무효화).
+function getPriorityIndex(s: Pick<State, 'rules' | 'schedules'>): PolicyPriorityIndex {
+  return priorityIdx ??= buildPolicyPriority(s.rules, s.schedules, TODAY);
+}
+
 // '2026-12-31' → '2027-12-31' (Date 객체 금지, 문자열 연도만 +1)
 function extendOneYear(dateStr: string): string {
   const [y, ...rest] = dateStr.split('-');
@@ -83,7 +89,7 @@ export const useStore = create<State>((set) => ({
     if (!acct) return null;
     const hit = resolveCache.get(accountId, key);
     if (hit) return { key, scheduleId: hit.scheduleId, sourceRuleId: hit.sourceRuleId, source: hit.source, candidates: [], cacheHit: true };
-    const idx = buildPolicyPriority(s.rules, s.schedules, TODAY);
+    const idx = getPriorityIndex(s);
     const r = resolve(acct, key, s.rules, s.schedules, s.nego, idx, TODAY, s.enrollments);
     if (!r) return null;
     resolveCache.set(accountId, key, { scheduleId: r.scheduleId, sourceRuleId: r.sourceRuleId, source: r.source });
@@ -205,10 +211,7 @@ export const useStore = create<State>((set) => ({
   },
 
   // 계좌 무관 정책 우선순위(사전 산정) — 룰 변경 때만 재산정하는 정적 최저가 랭킹.
-  policyPriority: (): PolicyPriorityIndex => {
-    const s = useStore.getState();
-    return buildPolicyPriority(s.rules, s.schedules, TODAY);
-  },
+  policyPriority: (): PolicyPriorityIndex => getPriorityIndex(useStore.getState()),
   // 협의수수료 연장 대상 확인(무변경) — 활성 grant를 상품군 자격 기준으로 재평가해 유지/탈락 그룹 산출.
   reviewNegoExtension: (): ExtGroup[] => {
     const s = useStore.getState();
@@ -353,5 +356,10 @@ export const useStore = create<State>((set) => ({
     return { summary: `재검증 ${res.length} · 위반 ${violations.length}`, changes };
   },
 }));
+
+// 룰/요율표가 바뀌면 우선순위 인덱스 무효화(다음 읽기에서 lazy 재빌드). nego·instrument 변경은 참조 유지 → 미영향.
+useStore.subscribe((s, prev) => {
+  if (s.rules !== prev.rules || s.schedules !== prev.schedules) priorityIdx = null;
+});
 
 useStore.getState().reset(); // 초기 상태 세팅 + 캐시 클리어

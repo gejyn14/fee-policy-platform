@@ -250,4 +250,36 @@ describe('정책 우선순위 사전 산정', () => {
     const pol = useStore.getState().policyPriority().policies;
     for (let i = 1; i < pol.length; i++) expect(pol[i].rank).toBeGreaterThanOrEqual(pol[i - 1].rank);
   });
+
+  it('메모이즈: 연속 호출은 동일 인덱스 인스턴스 반환', () => {
+    const s = useStore.getState();
+    expect(s.policyPriority()).toBe(s.policyPriority());
+  });
+
+  it('무효화: 룰 승인 후 인덱스 재산정 + 승자 반영', () => {
+    const s = useStore.getState();
+    const a = s.policyPriority();
+    const cme6a = s.products.find(p => p.exchange === 'CME' && p.code === '6A')!;
+    const sched: FeeSchedule = { id: 'S-CHEAP', name: '초저가', components: [
+      { name: '자사', kind: '자사', payer: '고객부과', rateType: '정액', flatAmount: 1 }] };
+    const rule: FeeRule = { id: 'R-CHEAP', name: '초저가 이벤트', type: 'EVENT', status: '기안', applyMode: '타겟추출형',
+      startDate: '2026-07-01', endDate: '2026-09-30',
+      scope: { assetClass: '해외파생', exchanges: ['CME'], sessions: '*', currencies: '*', products: ['6A'], excludeProducts: [] },
+      scheduleId: 'S-CHEAP', warnings: { dominance: true, reverseMargin: false }, createdBy: 't', log: [] };
+    s.submitRule(rule, sched);
+    useStore.getState().approveRule('R-CHEAP');
+    const b = useStore.getState().policyPriority();
+    expect(b).not.toBe(a);
+    const w = b.topFor(deriveFeeKey(cme6a, '정규', 'HTS'));
+    expect(w!.ruleId).toBe('R-CHEAP');   // rank 1 최저 → 최상위
+  });
+
+  it('비무효화: nego 승인은 인덱스 인스턴스 유지', () => {
+    const usScope = { assetClass: '해외주식' as const, exchanges: '*' as const, sessions: '*' as const, channels: '*' as const, currencies: '*' as const, products: '*' as const, excludeProducts: [] };
+    const s = useStore.getState();
+    const a = s.policyPriority();
+    const { requestId } = s.submitNegoRequest({ accountIds: ['110000001004'], scope: usScope, scheduleId: 'FS-NEGO-STOCK-US', bypass: {}, requestedBy: 'PB' });
+    useStore.getState().approveNegoRequest(requestId);
+    expect(useStore.getState().policyPriority()).toBe(a);
+  });
 });
