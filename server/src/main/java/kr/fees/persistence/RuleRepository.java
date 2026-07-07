@@ -74,6 +74,12 @@ public class RuleRepository {
         jdbc.update("UPDATE fee_rule SET rule_status = ? WHERE rule_id = ?", status.name(), ruleId);
     }
 
+    /** 신규 룰 ID 자동 채번. */
+    public String nextRuleId() {
+        Long n = jdbc.queryForObject("SELECT nextval('rule_id_seq')", Long.class);
+        return "R-" + n;
+    }
+
     private RuleModel map(ResultSet rs, int rowNum) throws SQLException {
         RuleScope scope = new RuleScope(
             AssetClass.valueOf(rs.getString("scope_asset_class")),

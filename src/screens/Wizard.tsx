@@ -4,6 +4,7 @@ import { ASSET_OPTIONS, LOOKUP_OPTIONS, APPLY_MODE_OPTIONS, KIND_OPTIONS, PAYER_
 
 const TODAY = '2026-07-07';
 const DERIV = new Set(['DOMESTIC_DERIV', 'OVERSEAS_DERIV']);
+const STEPS = ['기본 정보', '적용 범위', '요율표', '검증·상신'];
 
 type CompForm = Component;
 
@@ -28,21 +29,16 @@ export default function Wizard() {
   const [err, setErr] = useState('');
   const [report, setReport] = useState<ValidationReport | null>(null);
 
-  // 1단계
-  const [ruleId, setRuleId] = useState('R-EVT-NEW');
   const [name, setName] = useState('신규 수수료 이벤트');
   const [type, setType] = useState('EVENT');
   const [applyMode, setApplyMode] = useState('AUTO_ENROLL');
   const [startDate, setStartDate] = useState('2026-07-01');
   const [endDate, setEndDate] = useState('2026-12-31');
-  // 2단계
   const [assetClass, setAssetClass] = useState('DOMESTIC_DERIV');
   const [lookupKeys, setLookupKeys] = useState<string[]>(['OPTIONS']);
   const [exchanges, setExchanges] = useState('KRX');
   const [productsSel, setProductsSel] = useState('K200');
   const [channels, setChannels] = useState('');
-  // 3단계
-  const [scheduleId, setScheduleId] = useState('SCH-EVT-NEW');
   const [components, setComponents] = useState<CompForm[]>([
     { name: '자사 수수료', kind: 'OWN', payer: 'CUSTOMER', rateType: 'BANDS',
       rateBp: null, flatAmount: null, minFee: null,
@@ -54,7 +50,6 @@ export default function Wizard() {
   const isDeriv = DERIV.has(assetClass);
   const toggle = (arr: string[], v: string, set: (x: string[]) => void) =>
     set(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]);
-
   const updateComponent = (i: number, patch: Partial<CompForm>) =>
     setComponents(cs => cs.map((c, idx) => idx === i ? { ...c, ...patch } : c));
   const updateBand = (ci: number, bi: number, patch: Partial<RateBand>) =>
@@ -70,8 +65,9 @@ export default function Wizard() {
 
   const buildPayload = () => {
     const arr = (s: string) => s.trim() ? s.split(',').map(x => x.trim()) : null;
+    // ID는 빈 값으로 보내 서버가 자동 채번한다.
     const schedule = {
-      id: scheduleId, name: `${name} 요율표`,
+      id: '', name: `${name} 요율표`,
       components: components.map(c => ({
         ...c,
         bands: c.rateType === 'BANDS' ? c.bands : null,
@@ -80,8 +76,8 @@ export default function Wizard() {
       })),
     };
     const rule = {
-      id: ruleId, name, type, status: 'DRAFT', applyMode, startDate, endDate,
-      benefitKind: 'CALENDAR', benefitMonths: null, scheduleId,
+      id: '', name, type, status: 'DRAFT', applyMode, startDate, endDate,
+      benefitKind: 'CALENDAR', benefitMonths: null, scheduleId: '',
       scope: {
         assetClass, exchanges: arr(exchanges), sessions: null,
         lookupKeys: lookupKeys.length ? lookupKeys : null,
@@ -94,57 +90,82 @@ export default function Wizard() {
   const submit = async () => {
     setErr(''); setMsg(''); setReport(null);
     try {
-      await api.post('/api/rules', buildPayload());
-      const rep = await api.post<ValidationReport>(`/api/rules/${ruleId}/validate`);
+      const created = await api.post<{ ruleId: string; scheduleId: string }>('/api/rules', buildPayload());
+      const rep = await api.post<ValidationReport>(`/api/rules/${created.ruleId}/validate`);
       setReport(rep);
-      if (!rep.dominanceOk) { setErr('지배관계 검증 실패 — 아래 리포트 확인. 상신하지 않았습니다.'); return; }
-      await api.post(`/api/rules/${ruleId}/submit`);
-      setMsg(`상신 완료 — 룰 ${ruleId} 이(가) 승인 대기 상태입니다. 승인함에서 승인하세요.`);
+      if (!rep.dominanceOk) {
+        setErr(`지배관계 검증 실패 — 아래 리포트를 확인하세요. 상신하지 않았습니다. (채번된 룰 ${created.ruleId})`);
+        return;
+      }
+      await api.post(`/api/rules/${created.ruleId}/submit`);
+      setMsg(`상신 완료 — 룰 ${created.ruleId} (요율표 ${created.scheduleId})가 승인 대기 상태입니다. 승인함에서 승인하세요.`);
       setStep(5);
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : String(e));
     }
   };
 
+  const field = (label: string, control: React.ReactNode) => (
+    <div className="field"><label>{label}</label>{control}</div>
+  );
+
   return (
     <div>
-      <h2>이벤트 등록 <small>({step > 4 ? '완료' : `${step}/4단계`})</small></h2>
-      {err && <p style={{ color: 'crimson' }}>⚠ {err}</p>}
-      {msg && <p style={{ color: 'green' }}>✓ {msg}</p>}
+      <h2>이벤트 등록</h2>
+
+      {step <= 4 && (
+        <ol className="wizard-steps">
+          {STEPS.map((s, i) => (
+            <li key={s} className={step === i + 1 ? 'active' : step > i + 1 ? 'done' : ''}>
+              <span>{i + 1}</span> {s}
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {err && <p className="banner err">⚠ {err}</p>}
+      {msg && <p className="banner ok">✓ {msg}</p>}
 
       {step === 1 && (
-        <div className="form">
-          <label>룰 ID <input value={ruleId} onChange={e => setRuleId(e.target.value)} /></label>
-          <label>이름 <input value={name} onChange={e => setName(e.target.value)} /></label>
-          <label>타입 <select value={type} onChange={e => setType(e.target.value)}>
-            <option value="EVENT">이벤트</option><option value="NEGOTIATED">협의</option></select></label>
-          <label>대상 편입 <select value={applyMode} onChange={e => setApplyMode(e.target.value)}>
-            {APPLY_MODE_OPTIONS.map(([c, k]) => <option key={c} value={c}>{k}</option>)}</select></label>
-          <label>시작일 <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} /></label>
-          <label>종료일 <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} /></label>
+        <div className="form-grid">
+          {field('이름', <input value={name} onChange={e => setName(e.target.value)} />)}
+          {field('타입', <select value={type} onChange={e => setType(e.target.value)}>
+            <option value="EVENT">이벤트</option><option value="NEGOTIATED">협의</option></select>)}
+          {field('대상 편입', <select value={applyMode} onChange={e => setApplyMode(e.target.value)}>
+            {APPLY_MODE_OPTIONS.map(([c, k]) => <option key={c} value={c}>{k}</option>)}</select>)}
+          {field('시작일', <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />)}
+          {field('종료일', <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />)}
         </div>
       )}
 
       {step === 2 && (
-        <div className="form">
-          <label>자산군 <select value={assetClass} onChange={e => setAssetClass(e.target.value)}>
-            {ASSET_OPTIONS.map(([c, k]) => <option key={c} value={c}>{k}</option>)}</select></label>
-          <div>조회구분(멀티): {LOOKUP_OPTIONS.map(([c, k]) => (
-            <label key={c} style={{ marginRight: 8 }}>
-              <input type="checkbox" checked={lookupKeys.includes(c)} onChange={() => toggle(lookupKeys, c, setLookupKeys)} />{k}</label>
-          ))}</div>
-          <label>거래소(쉼표, 빈=전체) <input value={exchanges} onChange={e => setExchanges(e.target.value)} /></label>
-          <label>채널(쉼표, 빈=전체) <input value={channels} onChange={e => setChannels(e.target.value)} placeholder="MTS,HTS" /></label>
+        <div>
+          <div className="form-grid">
+            {field('자산군', <select value={assetClass} onChange={e => setAssetClass(e.target.value)}>
+              {ASSET_OPTIONS.map(([c, k]) => <option key={c} value={c}>{k}</option>)}</select>)}
+            {field('거래소 (쉼표, 빈=전체)', <input value={exchanges} onChange={e => setExchanges(e.target.value)} placeholder="KRX,CME" />)}
+            {field('채널 (쉼표, 빈=전체)', <input value={channels} onChange={e => setChannels(e.target.value)} placeholder="MTS,HTS" />)}
+            {isDeriv && field('품목 (쉼표)', <input value={productsSel} onChange={e => setProductsSel(e.target.value)} />)}
+          </div>
+          <div className="field" style={{ marginTop: 14 }}>
+            <label>조회구분 (복수 선택)</label>
+            <div className="radio-row">
+              {LOOKUP_OPTIONS.map(([c, k]) => (
+                <label key={c}><input type="checkbox" checked={lookupKeys.includes(c)}
+                  onChange={() => toggle(lookupKeys, c, setLookupKeys)} /> {k}</label>
+              ))}
+            </div>
+          </div>
           {isDeriv
-            ? <label>품목(쉼표) <input value={productsSel} onChange={e => setProductsSel(e.target.value)} />
-                <span className="hint"> · 등록 품목: {products.filter(p => p.assetClass === assetClass).map(p => p.code).join(', ') || '없음'}</span></label>
+            ? <p className="hint">등록 품목: {products.filter(p => p.assetClass === assetClass).map(p => p.code).join(', ') || '없음'}</p>
             : <p className="hint">주식형은 종목 차원이 없습니다(불변식) — 품목 미입력.</p>}
         </div>
       )}
 
       {step === 3 && (
         <div>
-          <label>요율표 ID <input value={scheduleId} onChange={e => setScheduleId(e.target.value)} /></label>
+          <p className="hint">요율표 ID는 상신 시 서버가 자동 채번합니다.</p>
+          <h3>구성요소</h3>
           <table>
             <thead><tr><th>이름</th><th>구분</th><th>부담</th><th>방식</th><th>요율bp</th><th>정액</th><th>최소</th><th></th></tr></thead>
             <tbody>
@@ -158,38 +179,40 @@ export default function Wizard() {
                       {PAYER_OPTIONS.map(([v, k]) => <option key={v} value={v}>{k}</option>)}</select></td>
                     <td><select value={c.rateType} onChange={e => updateComponent(idx, { rateType: e.target.value })}>
                       {RATE_TYPE_OPTIONS.map(([v, k]) => <option key={v} value={v}>{k}</option>)}</select></td>
-                    <td>{c.rateType === 'RATE' && <input type="number" value={c.rateBp ?? ''} onChange={e => updateComponent(idx, { rateBp: e.target.value === '' ? null : Number(e.target.value) })} />}</td>
-                    <td>{c.rateType === 'FLAT' && <input type="number" value={c.flatAmount ?? ''} onChange={e => updateComponent(idx, { flatAmount: e.target.value === '' ? null : Number(e.target.value) })} />}</td>
-                    <td><input type="number" value={c.minFee ?? ''} placeholder="선택"
+                    <td>{c.rateType === 'RATE' && <input type="number" style={{ width: 70 }} value={c.rateBp ?? ''} onChange={e => updateComponent(idx, { rateBp: e.target.value === '' ? null : Number(e.target.value) })} />}</td>
+                    <td>{c.rateType === 'FLAT' && <input type="number" style={{ width: 80 }} value={c.flatAmount ?? ''} onChange={e => updateComponent(idx, { flatAmount: e.target.value === '' ? null : Number(e.target.value) })} />}</td>
+                    <td><input type="number" style={{ width: 70 }} value={c.minFee ?? ''} placeholder="선택"
                       onChange={e => updateComponent(idx, { minFee: e.target.value === '' ? null : Number(e.target.value) })} /></td>
-                    <td><button type="button" onClick={() => removeComponent(idx)}>삭제</button></td>
+                    <td><button className="btn danger" type="button" onClick={() => removeComponent(idx)}>삭제</button></td>
                   </tr>
                   {c.rateType === 'BANDS' && (
-                    <tr><td colSpan={8}>
+                    <tr><td colSpan={8} style={{ background: '#fafafa' }}>
+                      <b style={{ fontSize: 13 }}>구간표 (체결단가 구간별 정률+정액)</b>
                       <table>
                         <thead><tr><th>from</th><th>to (빈=무한)</th><th>rateBp</th><th>flat</th><th></th></tr></thead>
                         <tbody>
                           {(c.bands ?? []).map((b, bi) => (
                             <tr key={bi}>
-                              <td><input type="number" value={b.from} onChange={e => updateBand(idx, bi, { from: Number(e.target.value) })} /></td>
-                              <td><input type="number" value={b.to ?? ''} onChange={e => updateBand(idx, bi, { to: e.target.value === '' ? null : Number(e.target.value) })} /></td>
-                              <td><input type="number" value={b.rateBp ?? ''} onChange={e => updateBand(idx, bi, { rateBp: e.target.value === '' ? null : Number(e.target.value) })} /></td>
-                              <td><input type="number" value={b.flat ?? ''} onChange={e => updateBand(idx, bi, { flat: e.target.value === '' ? null : Number(e.target.value) })} /></td>
-                              <td><button type="button" onClick={() => removeBand(idx, bi)}>삭제</button></td>
+                              <td><input type="number" style={{ width: 80 }} value={b.from} onChange={e => updateBand(idx, bi, { from: Number(e.target.value) })} /></td>
+                              <td><input type="number" style={{ width: 90 }} value={b.to ?? ''} onChange={e => updateBand(idx, bi, { to: e.target.value === '' ? null : Number(e.target.value) })} /></td>
+                              <td><input type="number" style={{ width: 70 }} value={b.rateBp ?? ''} onChange={e => updateBand(idx, bi, { rateBp: e.target.value === '' ? null : Number(e.target.value) })} /></td>
+                              <td><input type="number" style={{ width: 70 }} value={b.flat ?? ''} onChange={e => updateBand(idx, bi, { flat: e.target.value === '' ? null : Number(e.target.value) })} /></td>
+                              <td><button className="btn danger" type="button" onClick={() => removeBand(idx, bi)}>삭제</button></td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
-                      <button type="button" onClick={() => addBand(idx)}>+ 구간 추가</button>
+                      <button className="btn" type="button" onClick={() => addBand(idx)}>+ 구간 추가</button>
                     </td></tr>
                   )}
                 </Fragment>
               ))}
             </tbody>
           </table>
-          <button type="button" onClick={addComponent}>+ 구성요소 추가</button>
-          <h4>미리보기 (고객부과 합, 10계약)</h4>
-          <table>
+          <button className="btn" type="button" onClick={addComponent}>+ 구성요소 추가</button>
+
+          <h3>미리보기 <small>(고객부과 합, 10계약)</small></h3>
+          <table style={{ maxWidth: 320 }}>
             <thead><tr><th>체결가</th><th>고객부과</th></tr></thead>
             <tbody>{[0.3, 1.0, 3.0].map(p => (
               <tr key={p}><td>{p}</td><td>{components.filter(c => c.payer === 'CUSTOMER')
@@ -202,29 +225,27 @@ export default function Wizard() {
       {step === 4 && (
         <div>
           <p>아래 내용으로 요율표·룰을 생성하고 지배관계를 검증한 뒤 상신합니다.</p>
-          <pre style={{ background: '#f5f5f5', padding: 12, borderRadius: 6, overflow: 'auto' }}>
-            {JSON.stringify(buildPayload(), null, 2)}
-          </pre>
-          <button onClick={submit}>검증 + 상신</button>
+          <pre className="payload">{JSON.stringify(buildPayload(), null, 2)}</pre>
+          <button className="btn primary" onClick={submit}>검증 + 상신</button>
         </div>
       )}
 
       {report && (
-        <div style={{ marginTop: 12, padding: 12, border: `1px solid ${report.dominanceOk ? '#0a0' : 'crimson'}`, borderRadius: 8 }}>
+        <div className={`report ${report.dominanceOk ? 'ok' : 'fail'}`}>
           <b>검증 리포트</b>
           <p>지배관계: {report.dominanceOk ? '✓ 통과 (전 구간 기준선 이하)' : '✗ 실패'}</p>
           {report.dominanceFailure && (
-            <p style={{ color: 'crimson' }}>실패 지점 — 체결가 {report.dominanceFailure.price}에서
+            <p className="err-text">실패 지점 — 체결가 {report.dominanceFailure.price}에서
               우대 {report.dominanceFailure.candidateFee} &gt; 기준 {report.dominanceFailure.incumbentFee}</p>
           )}
-          {report.reverseMarginWarning && <p style={{ color: '#c60' }}>⚠ 역마진 경고: 회사부담이 자사 수취분을 초과</p>}
+          {report.reverseMarginWarning && <p className="warn-text">⚠ 역마진 경고: 회사부담이 자사 수취분을 초과</p>}
         </div>
       )}
 
-      <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-        {step > 1 && step <= 4 && <button onClick={() => setStep(step - 1)}>이전</button>}
-        {step < 4 && <button onClick={() => setStep(step + 1)}>다음</button>}
-        {step === 5 && <button onClick={() => { setStep(1); setReport(null); setMsg(''); }}>새 이벤트</button>}
+      <div className="actions" style={{ justifyContent: 'flex-start' }}>
+        {step > 1 && step <= 4 && <button className="btn" onClick={() => setStep(step - 1)}>이전</button>}
+        {step < 4 && <button className="btn primary" onClick={() => setStep(step + 1)}>다음</button>}
+        {step === 5 && <button className="btn primary" onClick={() => { setStep(1); setReport(null); setMsg(''); }}>새 이벤트</button>}
       </div>
       <p className="hint" style={{ marginTop: 8 }}>기준일 {TODAY} · 지배관계는 같은 자산군 활성 기본요율표와 비교됩니다.</p>
     </div>

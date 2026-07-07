@@ -23,8 +23,8 @@ public class RuleController {
     public record CreateRuleRequest(RuleModel rule, FeeScheduleModel schedule) {}
 
     @PostMapping
-    public void create(@RequestBody CreateRuleRequest req) {
-        ruleService.createDraft(req.rule(), req.schedule());
+    public RuleService.CreatedRule create(@RequestBody CreateRuleRequest req) {
+        return ruleService.createDraft(req.rule(), req.schedule());
     }
 
     @PostMapping("/{ruleId}/validate")

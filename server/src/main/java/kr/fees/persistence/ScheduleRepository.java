@@ -39,6 +39,12 @@ public class ScheduleRepository {
         return Optional.ofNullable(findAllAsMap().get(id));
     }
 
+    /** 신규 요율표 ID 자동 채번. */
+    public String nextScheduleId() {
+        Long n = jdbc.queryForObject("SELECT nextval('schedule_id_seq')", Long.class);
+        return "SCH-" + n;
+    }
+
     public void insert(FeeScheduleModel s) {
         jdbc.update("INSERT INTO fee_schedule(schedule_id, schedule_name) VALUES (?,?)", s.id(), s.name());
         int seq = 0;

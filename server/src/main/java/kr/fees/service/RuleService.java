@@ -85,14 +85,28 @@ public class RuleService {
         return binder.onRuleExpired(ruleId, baseDate);
     }
 
-    public void createDraft(RuleModel rule, FeeScheduleModel schedule) {
-        if (schedule != null && schedules.findById(schedule.id()).isEmpty()) {
-            schedules.insert(schedule);
+    public record CreatedRule(String ruleId, String scheduleId) {}
+
+    /** 기안 생성. 룰 ID·요율표 ID가 비어 있으면 서버가 자동 채번한다. */
+    public CreatedRule createDraft(RuleModel rule, FeeScheduleModel schedule) {
+        String scheduleId = rule.scheduleId();
+        if (schedule != null) {
+            String sid = isBlank(schedule.id()) ? schedules.nextScheduleId() : schedule.id();
+            if (schedules.findById(sid).isEmpty()) {
+                schedules.insert(new FeeScheduleModel(sid, schedule.name(), schedule.components()));
+            }
+            scheduleId = sid;
         }
-        RuleModel draft = new RuleModel(rule.id(), rule.name(), rule.type(), RuleStatus.DRAFT, rule.applyMode(),
-            rule.startDate(), rule.endDate(), rule.benefitKind(), rule.benefitMonths(), rule.scheduleId(),
+        String ruleId = isBlank(rule.id()) ? rules.nextRuleId() : rule.id();
+        RuleModel draft = new RuleModel(ruleId, rule.name(), rule.type(), RuleStatus.DRAFT, rule.applyMode(),
+            rule.startDate(), rule.endDate(), rule.benefitKind(), rule.benefitMonths(), scheduleId,
             rule.scope(), rule.condition(), rule.targetAccountIds());
         rules.insert(draft);
+        return new CreatedRule(ruleId, scheduleId);
+    }
+
+    private static boolean isBlank(String s) {
+        return s == null || s.isBlank();
     }
 
     private Optional<FeeScheduleModel> activeBaseSchedule(AssetClass ac, LocalDate date,

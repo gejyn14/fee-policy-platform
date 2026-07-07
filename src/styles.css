@@ -625,3 +625,23 @@ tbody tr.active {
 .tag.EVENT { background: #2563eb; }
 .tag.NEGOTIATED { background: #059669; }
 .hint { color: var(--text-muted, #6b7280); font-size: 13px; }
+
+/* Wizard 스텝·배너·리포트 */
+.wizard-steps { display: flex; gap: 8px; list-style: none; padding: 0; margin: 12px 0 20px; flex-wrap: wrap; }
+.wizard-steps li { display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px;
+  background: #f1f2f4; color: var(--text-muted, #6b7280); font-size: 13px; font-weight: 600; }
+.wizard-steps li span { display: inline-flex; width: 20px; height: 20px; border-radius: 50%;
+  align-items: center; justify-content: center; background: #d1d5db; color: #fff; font-size: 12px; }
+.wizard-steps li.active { background: var(--accent-soft, #dbeafe); color: var(--accent, #2563eb); }
+.wizard-steps li.active span { background: var(--accent, #2563eb); }
+.wizard-steps li.done span { background: #059669; }
+.banner { padding: 10px 14px; border-radius: 6px; font-weight: 600; }
+.banner.err { background: #fef2f2; color: #b91c1c; }
+.banner.ok { background: #ecfdf5; color: #047857; }
+.report { margin-top: 14px; padding: 14px; border-radius: 8px; border: 1px solid; }
+.report.ok { border-color: #a7f3d0; background: #f0fdf4; }
+.report.fail { border-color: #fecaca; background: #fef2f2; }
+.report .err-text { color: #b91c1c; }
+.report .warn-text { color: #c2410c; }
+.payload { background: #f8f9fa; padding: 12px; border-radius: 6px; overflow: auto; max-height: 260px;
+  font-size: 12px; border: 1px solid var(--border, #e5e7eb); }

@@ -53,6 +53,22 @@ class WorkflowApiTest extends ApiWebTest {
     }
 
     @Test
+    void 룰_요율표_ID_자동_채번() throws Exception {
+        // id 를 비우고 생성 → 서버가 R-*/SCH-* 채번, scheduleId 자동 연결
+        String rule = """
+            {"rule":{"name":"자동채번 이벤트","type":"EVENT","status":"DRAFT","applyMode":"AUTO_ENROLL",
+              "startDate":"2026-07-01","endDate":"2026-12-31","benefitKind":"CALENDAR",
+              "scope":{"assetClass":"DOMESTIC_STOCK","excludeProducts":[]}},
+             "schedule":{"name":"자동채번 요율표","components":[
+               {"name":"자사","kind":"OWN","payer":"CUSTOMER","rateType":"RATE","rateBp":3,
+                "flatAmount":null,"bands":null,"minFee":null}]}}""";
+        mvc.perform(post("/api/rules").contentType("application/json").content(rule))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.ruleId").value(org.hamcrest.Matchers.startsWith("R-")))
+            .andExpect(jsonPath("$.scheduleId").value(org.hamcrest.Matchers.startsWith("SCH-")));
+    }
+
+    @Test
     void 협의_신청_승인이_배정판에_반영() throws Exception {
         // 7022-3345-11(자격 충족) 해외주식 협의 신청
         String body = """
