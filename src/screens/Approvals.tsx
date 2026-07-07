@@ -1,62 +1,65 @@
-import { useState } from 'react';
-import { useStore } from '../store/useStore';
-import RuleDetail from './RuleDetail';
+import { useEffect, useState } from 'react';
+import { api, ApiError, type Rule, type BatchResult } from '../api/client';
+import { assetLabel, ruleTypeLabel } from '../api/labels';
+
+const TODAY = '2026-07-07';
 
 export default function Approvals() {
-  const { rules, approveRule, rejectRule } = useStore();
-  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [rules, setRules] = useState<Rule[]>([]);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
 
-  const pending = rules.filter((r) => r.status === '승인대기');
+  const load = () => api.get<Rule[]>('/api/rules')
+    .then(rs => { setRules(rs.filter(r => r.status === 'PENDING')); setErr(''); })
+    .catch(e => setErr(e instanceof ApiError ? e.message : '백엔드 연결 실패'));
 
-  function setReason(id: string, v: string) {
-    setReasons((r) => ({ ...r, [id]: v }));
-  }
+  useEffect(() => { load(); }, []);
 
-  function handleReject(id: string) {
-    const reason = (reasons[id] ?? '').trim();
-    if (!reason) return;
-    rejectRule(id, reason);
-    setReasons((r) => {
-      const next = { ...r };
-      delete next[id];
-      return next;
-    });
-  }
+  const approve = async (id: string) => {
+    setErr(''); setMsg('');
+    try {
+      const r = await api.post<BatchResult>(`/api/rules/${id}/approve?baseDate=${TODAY}`);
+      setMsg(`${id} 승인 완료 — 배정판 증분: 신규 ${r.inserted} · 변경 ${r.updated} · 삭제 ${r.deleted}`);
+      await load();
+    } catch (e) {
+      if (e instanceof ApiError && e.detail) {
+        const d = e.detail as { dominanceFailure?: { price: number; candidateFee: number; incumbentFee: number } };
+        const f = d.dominanceFailure;
+        setErr(`${id} 승인 거부 — ${e.message}` + (f ? ` (체결가 ${f.price}: 우대 ${f.candidateFee} > 기준 ${f.incumbentFee})` : ''));
+      } else setErr(e instanceof ApiError ? e.message : String(e));
+    }
+  };
 
-  if (pending.length === 0) {
-    return (
-      <section>
-        <p className="empty">대기 중인 결재가 없습니다.</p>
-      </section>
-    );
-  }
+  const reject = async (id: string) => {
+    try { await api.post(`/api/rules/${id}/reject`); await load(); }
+    catch (e) { setErr(e instanceof ApiError ? e.message : String(e)); }
+  };
 
   return (
-    <section className="stack">
-      {pending.map((rule) => {
-        const reason = reasons[rule.id] ?? '';
+    <div>
+      <h2>승인함 <small>(승인 대기 {rules.length}건)</small></h2>
+      {err && <p style={{ color: 'crimson' }}>⚠ {err}</p>}
+      {msg && <p style={{ color: 'green' }}>✓ {msg}</p>}
 
-        return (
-          <div className="card" key={rule.id}>
-            <RuleDetail rule={rule} />
-
-            <div className="form-grid" style={{ marginTop: 16 }}>
-              <div className="field">
-                <label>반려 사유</label>
-                <input value={reason} onChange={(e) => setReason(rule.id, e.target.value)}
-                  placeholder="반려 시 사유를 입력하세요" />
-              </div>
-            </div>
-
-            <div className="actions">
-              <button className="btn danger" type="button" disabled={!reason.trim()}
-                onClick={() => handleReject(rule.id)}>반려</button>
-              <button className="btn primary" type="button"
-                onClick={() => approveRule(rule.id)}>승인</button>
-            </div>
-          </div>
-        );
-      })}
-    </section>
+      {rules.length === 0 ? <p className="hint">승인 대기 룰이 없습니다. 이벤트 등록 탭에서 상신하세요.</p> : (
+        <table>
+          <thead><tr><th>ID</th><th>이름</th><th>타입</th><th>자산군</th><th>기간</th><th>요율표</th><th></th></tr></thead>
+          <tbody>
+            {rules.map(r => (
+              <tr key={r.id}>
+                <td>{r.id}</td><td>{r.name}</td>
+                <td><span className={`tag ${r.type}`}>{ruleTypeLabel(r.type)}</span></td>
+                <td>{assetLabel(r.scope.assetClass)}</td>
+                <td>{r.startDate} ~ {r.endDate}</td><td>{r.scheduleId}</td>
+                <td>
+                  <button onClick={() => approve(r.id)}>승인</button>{' '}
+                  <button onClick={() => reject(r.id)}>반려</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 }

@@ -15,7 +15,7 @@ const TABS = ['백엔드 연동', '대시보드', '정책 우선순위', '이벤
 type Tab = typeof TABS[number];
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('백엔드 연동');
+  const [tab, setTab] = useState<Tab>('대시보드');
   return (
     <div className="app">
       <header>

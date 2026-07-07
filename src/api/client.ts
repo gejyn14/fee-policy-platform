@@ -65,3 +65,58 @@ export interface BatchResult { inserted: number; updated: number; deleted: numbe
 export interface LookupResponse {
   scheduleId: string; sourceRuleId: string; sourceType: SourceType; fallbackToBase: boolean;
 }
+
+export interface RateBand { from: number; to: number | null; rateBp: number | null; flat: number | null }
+export interface Component {
+  name: string; kind: string; payer: string; rateType: string;
+  rateBp: number | null; flatAmount: number | null; bands: RateBand[] | null; minFee: number | null;
+}
+export interface Schedule { id: string; name: string; components: Component[] }
+
+export interface RuleScope {
+  assetClass: string; exchanges: string[] | null; sessions: string[] | null;
+  lookupKeys: string[] | null; products: string[] | null; excludeProducts: string[]; channels: string[] | null;
+}
+export interface Rule {
+  id: string; name: string; type: SourceType; status: string; applyMode: string;
+  startDate: string; endDate: string; benefitKind: string; benefitMonths: number | null;
+  scheduleId: string; scope: RuleScope;
+}
+
+export interface ValidationReport {
+  dominanceOk: boolean;
+  dominanceFailure: { price: number; candidateFee: number; incumbentFee: number } | null;
+  reverseMarginWarning: boolean;
+}
+
+export interface Product {
+  assetClass: string; exchange: string; code: string; name: string; currency: string; sessions: string[];
+}
+
+export interface QualifyResult { accountId: string; met: boolean; qualifyType: string; note: string }
+export interface RequestResult { requestId: string; perAccount: QualifyResult[] }
+
+export interface RequestItem { enrollmentId: number; accountId: string; accountName: string; qualifyType: string; reason: string | null }
+export interface RequestGroup { requestId: string; ruleId: string; ruleName: string; requestedBy: string; requestedAt: string; items: RequestItem[] }
+
+export interface NegoEnrollment {
+  enrollmentId: number; accountId: string; accountName: string; ruleId: string; ruleName: string;
+  scheduleId: string; validFrom: string; validTo: string; qualifyType: string;
+}
+
+export interface ExtCandidate { enrollmentId: number; accountId: string; accountName: string; status: 'KEEP' | 'DROP'; detail: string }
+export interface ExtGroup { axis: string; groupKey: string; validTo: string; candidates: ExtCandidate[] }
+
+export interface TraceCandidate {
+  ruleId: string; ruleName: string; ruleType: SourceType; scheduleId: string; rank: number;
+  scopeMatch: boolean; gatePass: boolean; gateNote: string | null; winner: boolean;
+}
+export interface TraceResult {
+  candidates: TraceCandidate[]; bindingHit: boolean;
+  applied: { scheduleId: string; sourceRuleId: string; sourceType: SourceType; fallbackToBase: boolean } | null;
+}
+
+export interface CalcResponse {
+  scheduleId: string; scheduleName: string; customerTotal: number; companyBorne: number;
+  lines: { name: string; kind: string; payer: string; amount: number }[];
+}

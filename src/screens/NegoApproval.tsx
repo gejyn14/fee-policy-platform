@@ -1,70 +1,54 @@
-import { useState } from 'react';
-import { useStore } from '../store/useStore';
-import type { NegoException } from '../domain/resolve';
-import type { ScopeSelector } from '../domain/types';
+import { useEffect, useState } from 'react';
+import { api, ApiError, type RequestGroup, type BatchResult } from '../api/client';
+import { qualifyLabel } from '../api/labels';
 
-function scopeText(s: ScopeSelector): string {
-  const parts: string[] = [s.assetClass];
-  if (s.exchanges !== '*') parts.push(`거래소:${s.exchanges.join(',')}`);
-  if (s.products !== '*') parts.push(`품목:${s.products.join(',')}`);
-  return parts.join(' · ');
-}
+const TODAY = '2026-07-07';
 
 export default function NegoApproval() {
-  const { nego, schedules, accounts, approveNegoRequest, rejectNegoRequest } = useStore();
-  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [groups, setGroups] = useState<RequestGroup[]>([]);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
 
-  // status '요청' grant를 requestId로 묶는다
-  const requests = new Map<string, NegoException[]>();
-  for (const n of nego) if (n.status === '요청') {
-    const arr = requests.get(n.requestId) ?? [];
-    arr.push(n); requests.set(n.requestId, arr);
-  }
-  const groups = [...requests.entries()];
+  const load = () => api.get<RequestGroup[]>('/api/nego/requests?status=REQUESTED')
+    .then(g => { setGroups(g); setErr(''); })
+    .catch(e => setErr(e instanceof ApiError ? e.message : '백엔드 연결 실패'));
 
-  const nameOf = (id: string) => accounts.find((a) => a.id === id)?.name ?? '';
-  const schedName = (id: string) => schedules.find((s) => s.id === id)?.name ?? id;
+  useEffect(() => { load(); }, []);
 
-  if (groups.length === 0) {
-    return <section><p className="empty">대기 중인 협의 요청이 없습니다.</p></section>;
-  }
+  const approve = async (requestId: string) => {
+    setErr(''); setMsg('');
+    try {
+      const r = await api.post<BatchResult>(`/api/nego/requests/${encodeURIComponent(requestId)}/approve?baseDate=${TODAY}&approvedBy=PB팀장`);
+      setMsg(`${requestId} 승인 — 배정판 증분: 신규 ${r.inserted} · 변경 ${r.updated}`);
+      await load();
+    } catch (e) { setErr(e instanceof ApiError ? e.message : String(e)); }
+  };
+  const reject = async (requestId: string) => {
+    try { await api.post(`/api/nego/requests/${encodeURIComponent(requestId)}/reject`); await load(); }
+    catch (e) { setErr(e instanceof ApiError ? e.message : String(e)); }
+  };
 
   return (
-    <section className="stack">
-      {groups.map(([requestId, rows]) => {
-        const head = rows[0];
-        const reason = reasons[requestId] ?? '';
-        return (
-          <div className="card" key={requestId}>
-            <h2>협의 요청 · {schedName(head.scheduleId)}</h2>
-            <p className="trace-narration">
-              적용범위 {scopeText(head.scope)} · 신청자 {head.requestedBy} · 신청일 {head.requestedAt} · 계좌 {rows.length}건
-            </p>
+    <div>
+      <h2>협의 승인 <small>(대기 {groups.length}건)</small></h2>
+      {err && <p style={{ color: 'crimson' }}>⚠ {err}</p>}
+      {msg && <p style={{ color: 'green' }}>✓ {msg}</p>}
+
+      {groups.length === 0 ? <p className="hint">승인 대기 협의 요청이 없습니다.</p> :
+        groups.map(g => (
+          <div key={g.requestId} style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+            <b>{g.ruleName}</b> <span className="hint">· {g.requestId} · 신청자 {g.requestedBy}</span>
             <table>
-              <thead><tr><th>계좌</th><th>자격</th><th>사유</th></tr></thead>
-              <tbody>
-                {rows.map((n) => (
-                  <tr key={n.accountId}>
-                    <td>{n.accountId} {nameOf(n.accountId)}</td>
-                    <td><span className={`pill ${n.qualify === '충족' ? 'pill-active' : 'pill-rejected'}`}>{n.qualify === '충족' ? '충족' : '영업예외'}</span></td>
-                    <td>{n.reason ?? '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
+              <thead><tr><th>계좌</th><th>이름</th><th>구분</th><th>사유</th></tr></thead>
+              <tbody>{g.items.map(it => (
+                <tr key={it.enrollmentId}><td>{it.accountId}</td><td>{it.accountName}</td>
+                  <td>{qualifyLabel(it.qualifyType)}</td><td>{it.reason ?? '—'}</td></tr>
+              ))}</tbody>
             </table>
-            <div className="form-grid" style={{ marginTop: 12 }}>
-              <div className="field">
-                <label>반려 사유</label>
-                <input value={reason} onChange={(e) => setReasons((r) => ({ ...r, [requestId]: e.target.value }))} placeholder="반려 시 사유" />
-              </div>
-            </div>
-            <div className="actions">
-              <button className="btn danger" type="button" disabled={!reason.trim()} onClick={() => rejectNegoRequest(requestId, reason.trim())}>반려</button>
-              <button className="btn primary" type="button" onClick={() => approveNegoRequest(requestId)}>승인</button>
-            </div>
+            <button onClick={() => approve(g.requestId)}>일괄 승인</button>{' '}
+            <button onClick={() => reject(g.requestId)}>반려</button>
           </div>
-        );
-      })}
-    </section>
+        ))}
+    </div>
   );
 }

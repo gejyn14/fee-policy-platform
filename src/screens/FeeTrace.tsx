@@ -1,401 +1,135 @@
-import { useState } from 'react';
-import { useStore } from '../store/useStore';
-import { buildFeeKey, deriveFeeKey, isDerivative } from '../domain/feeKey';
-import { addMonths } from '../domain/dateutil';
-import { calcFee } from '../domain/calc';
-import { TODAY } from '../domain/types';
-import type { AssetClass, Execution, FeeComponent, Product, Session, Channel } from '../domain/types';
-import { scopeMatchesKey, type ResolveResult } from '../domain/resolve';
+import { useEffect, useState } from 'react';
+import { api, ApiError, type Account, type TraceResult, type Schedule, type CalcResponse } from '../api/client';
+import { sourceLabel, ruleTypeLabel } from '../api/labels';
 
-function compText(c: FeeComponent, sym: string): string {
-  if (c.rateType === '정률') return `${c.rateBp ?? 0}bp`;
-  if (c.rateType === '정액') return sym === '$' ? `$${(c.flatAmount ?? 0).toLocaleString()}` : `${(c.flatAmount ?? 0).toLocaleString()}원`;
-  return `구간표(${(c.bands ?? []).length}구간)`;
-}
-
-// AccountView.tsx의 bandLabel (로컬 복사)
-function bandLabel(c: FeeComponent, price: number): string | null {
-  if (c.rateType !== '구간표') return null;
-  const bands = c.bands ?? [];
-  const idx = bands.findIndex((b) => price >= b.from && (b.to === null || price < b.to));
-  if (idx === -1) return null;
-  const b = bands[idx];
-  return `구간 ${idx + 1} (${b.from}~${b.to ?? '∞'}) 적용`;
-}
-
-const SESSIONS: Session[] = ['프리', '정규', '애프터'];
-const CHANNELS: Channel[] = ['HTS', 'MTS', 'API', 'ARS', '센터', '반대매매'];
-const ASSET_CLASSES: AssetClass[] = ['국내주식', '해외주식', '국내파생', '해외파생', '금현물'];
-const SOURCE_LABEL: Record<'nego' | 'event' | 'base', string> = { nego: '협의', event: '이벤트', base: '기본' };
-
-type Resolved = ResolveResult & { cacheHit: boolean };
-
-// 주식형은 종목이 아니라 (거래소·세션·채널)만으로 해석되므로, ⑤ 체결 금액 계산에 쓸
-// 대표 execution을 종목 없이 합성한다. calcFee는 notional/qty/price만 참조한다.
-function repProductFor(assetClass: AssetClass, exchange: string, session: Session): Product {
-  return {
-    assetClass, exchange, code: '(전체)', name: `${assetClass} · ${exchange}`,
-    currency: assetClass.startsWith('해외') ? 'USD' : 'KRW', sessions: [session],
-  };
-}
+const TODAY = '2026-07-07';
+const DERIV = new Set(['DOMESTIC_DERIV', 'OVERSEAS_DERIV']);
 
 export default function FeeTrace() {
-  const { accounts, products, schedules, resolveFee, cacheStat, enrollments, nego, policyPriority } = useStore();
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '');
-  const [assetClass, setAssetClass] = useState<AssetClass>('국내주식');
-  const [exchange, setExchange] = useState<string>('KRX');
-  const [productKey, setProductKey] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [session, setSession] = useState<Session>('정규');
-  const [channel, setChannel] = useState<Channel>('MTS');
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountId, setAccountId] = useState('8041-2237-01');
+  const [assetClass, setAssetClass] = useState('OVERSEAS_DERIV');
+  const [lookupKey, setLookupKey] = useState('FUTURES');
+  const [exchange, setExchange] = useState('CME');
+  const [product, setProduct] = useState('ES');
+  const [channel, setChannel] = useState('MTS');
   const [price, setPrice] = useState(100);
   const [qty, setQty] = useState(10);
-  const [result, setResult] = useState<Resolved | null>(null);
-  const [hasRun, setHasRun] = useState(false);
 
-  const isDeriv = isDerivative(assetClass);
-  const account = accounts.find((a) => a.id === accountId);
+  const [trace, setTrace] = useState<TraceResult | null>(null);
+  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [calc, setCalc] = useState<CalcResponse | null>(null);
+  const [err, setErr] = useState('');
 
-  // 상품군별 거래소 목록(주식형 거래소 셀렉트용)
-  const exchangeOptions = [...new Set(products.filter((p) => p.assetClass === assetClass).map((p) => p.exchange))];
+  useEffect(() => { api.get<Account[]>('/api/accounts').then(setAccounts).catch(() => {}); }, []);
 
-  // 파생만 종목을 고른다. 주식형은 productKey를 쓰지 않는다(품목 붕괴).
-  const product = isDeriv && productKey
-    ? products.find((p) => `${p.exchange}:${p.code}` === productKey)
-    : undefined;
+  const isDeriv = DERIV.has(assetClass);
 
-  const query = search.trim().toLowerCase();
-  const searchResults = (isDeriv && query)
-    ? products.filter((p) => p.assetClass === assetClass
-        && (p.code.toLowerCase().includes(query) || p.name.toLowerCase().includes(query))).slice(0, 20)
-    : [];
+  const run = async () => {
+    setErr(''); setTrace(null); setSchedule(null); setCalc(null);
+    const qs = new URLSearchParams({ accountId, assetClass, lookupKey, exchange,
+      product: isDeriv ? product : '*', channel, session: 'REGULAR', tradeDate: TODAY });
+    try {
+      const t = await api.get<TraceResult>(`/api/trace?${qs}`);
+      setTrace(t);
+      if (t.applied) {
+        const schedules = await api.get<Schedule[]>('/api/schedules');
+        setSchedule(schedules.find(s => s.id === t.applied!.scheduleId) ?? null);
+      }
+    } catch (e) { setErr(e instanceof ApiError ? e.message : String(e)); }
+  };
 
-  // feeKey: 주식형 = 거래소·세션·채널(품목 null), 파생 = 종목 기반.
-  const feeKey = isDeriv
-    ? (product ? deriveFeeKey(product, session, channel) : null)
-    : (exchange ? buildFeeKey(assetClass, exchange, session, channel) : null);
-  const ready = !!account && !!feeKey;
-
-  const repProduct = isDeriv ? product : (exchange ? repProductFor(assetClass, exchange, session) : undefined);
-
-  const winnerSchedule = result
-    ? (result.candidates.find((c) => c.isWinner)?.schedule ?? schedules.find((s) => s.id === result.scheduleId))
-    : undefined;
-
-  const exec: Execution | null = (winnerSchedule && account && repProduct)
-    ? { accountId, product: repProduct, session, channel, price, qty, notional: price * qty }
-    : null;
-  const calc = (winnerSchedule && exec) ? calcFee(winnerSchedule, exec) : null;
-  const stat = cacheStat();
-
-  // 체결 시 시스템이 조회하는 테이블들(계좌 무관 정책 우선순위 · 협의 예외 · 가입/신청 이력)
-  const curSym = assetClass.startsWith('해외') ? '$' : '원';
-  const indieWinner = (feeKey && account) ? policyPriority().winnerFor(feeKey, account, enrollments) : null;
-  const acctGrants = feeKey
-    ? nego.filter((n) => n.accountId === accountId && n.status === '활성' && n.validFrom <= TODAY && TODAY <= n.validTo && scopeMatchesKey(n.scope, feeKey))
-    : [];
-  const acctEnrolls = enrollments.filter((e) => e.accountId === accountId);
-
-  function resetResult() {
-    setResult(null);
-    setHasRun(false);
-  }
-
-  function handleAccountChange(id: string) {
-    setAccountId(id);
-    resetResult();
-  }
-
-  function handleAssetClassChange(ac: AssetClass) {
-    setAssetClass(ac);
-    const opts = [...new Set(products.filter((p) => p.assetClass === ac).map((p) => p.exchange))];
-    setExchange(opts[0] ?? '');
-    setProductKey(null);
-    setSearch('');
-    resetResult();
-  }
-
-  function handleExchangeChange(v: string) {
-    setExchange(v);
-    resetResult();
-  }
-
-  function handleSelectProduct(key: string) {
-    setProductKey(key);
-    resetResult();
-  }
-
-  function handleClearProduct() {
-    setProductKey(null);
-    resetResult();
-  }
-
-  function handleSessionChange(v: Session) {
-    setSession(v);
-    resetResult();
-  }
-
-  function handleChannelChange(v: Channel) {
-    setChannel(v);
-    resetResult();
-  }
-
-  function handleResolve() {
-    if (!feeKey) return;
-    setResult(resolveFee(accountId, feeKey));
-    setHasRun(true);
-  }
+  const doCalc = async () => {
+    if (!trace?.applied) return;
+    try {
+      setCalc(await api.post<CalcResponse>('/api/calc',
+        { scheduleId: trace.applied.scheduleId, price, qty }));
+    } catch (e) { setErr(e instanceof ApiError ? e.message : String(e)); }
+  };
 
   return (
-    <section className="stack">
-      <div className="form-grid">
-        <div className="field">
-          <label>계좌</label>
-          <select value={accountId} onChange={(e) => handleAccountChange(e.target.value)}>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>{a.id} {a.name}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="field">
-          <label>자산군</label>
-          <select value={assetClass} onChange={(e) => handleAssetClassChange(e.target.value as AssetClass)}>
-            {ASSET_CLASSES.map((ac) => <option key={ac} value={ac}>{ac}</option>)}
-          </select>
-        </div>
-
-        {isDeriv ? (
-          <div className="field">
-            <label>품목</label>
-            {product ? (
-              <div className="check-grid">
-                <span className="check-item">{product.exchange}:{product.code} {product.name}</span>
-                <button className="btn" type="button" onClick={handleClearProduct}>변경</button>
-              </div>
-            ) : (
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="6A, 6B, K200OPT"
-              />
-            )}
-          </div>
-        ) : (
-          <div className="field">
-            <label>거래소</label>
-            <select value={exchange} onChange={(e) => handleExchangeChange(e.target.value)}>
-              {exchangeOptions.map((ex) => <option key={ex} value={ex}>{ex}</option>)}
-            </select>
-          </div>
-        )}
-
-        <div className="field">
-          <label>세션</label>
-          <select value={session} onChange={(e) => handleSessionChange(e.target.value as Session)}>
-            {SESSIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-
-        <div className="field">
-          <label>채널</label>
-          <select value={channel} onChange={(e) => handleChannelChange(e.target.value as Channel)}>
-            {CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
+    <div>
+      <h2>수수료 결정 흐름</h2>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select value={accountId} onChange={e => setAccountId(e.target.value)}>
+          {accounts.map(a => <option key={a.id} value={a.id}>{a.id} · {a.name}</option>)}
+        </select>
+        <select value={assetClass} onChange={e => setAssetClass(e.target.value)}>
+          <option value="OVERSEAS_DERIV">해외파생</option><option value="DOMESTIC_DERIV">국내파생</option>
+          <option value="OVERSEAS_STOCK">해외주식</option><option value="DOMESTIC_STOCK">국내주식</option>
+        </select>
+        <select value={lookupKey} onChange={e => setLookupKey(e.target.value)}>
+          <option value="FUTURES">선물</option><option value="OPTIONS">옵션</option>
+          <option value="STOCK">주식</option><option value="ETF">ETF</option>
+        </select>
+        <input value={exchange} onChange={e => setExchange(e.target.value)} style={{ width: 70 }} placeholder="거래소" />
+        {isDeriv && <input value={product} onChange={e => setProduct(e.target.value)} style={{ width: 70 }} placeholder="품목" />}
+        <input value={channel} onChange={e => setChannel(e.target.value)} style={{ width: 70 }} placeholder="채널" />
+        <button onClick={run}>결정 추적</button>
       </div>
+      {err && <p style={{ color: 'crimson' }}>⚠ {err}</p>}
 
-      {isDeriv && !product && query && (
-        searchResults.length > 0 ? (
+      {trace && (
+        <div style={{ marginTop: 16 }}>
+          <h3>① 조회키</h3>
+          <p className="hint">{assetClass} · {lookupKey} · {exchange} · {isDeriv ? product : '(주식 품목없음)'} · {channel}</p>
+
+          <h3>② 후보 · 자격 게이트</h3>
           <table>
-            <thead>
-              <tr><th>거래소:코드</th><th>이름</th></tr>
-            </thead>
-            <tbody>
-              {searchResults.map((p) => (
-                <tr
-                  key={`${p.exchange}:${p.code}`}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => handleSelectProduct(`${p.exchange}:${p.code}`)}
-                >
-                  <td>{p.exchange}:{p.code}</td>
-                  <td>{p.name}</td>
-                </tr>
-              ))}
-            </tbody>
+            <thead><tr><th>순위</th><th>룰</th><th>타입</th><th>rank</th><th>범위</th><th>게이트</th><th>사유</th></tr></thead>
+            <tbody>{trace.candidates.map((c, i) => (
+              <tr key={c.ruleId} style={{ background: c.winner ? '#effaf0' : undefined }}>
+                <td>{i + 1}</td><td>{c.ruleName} {c.winner && <b>★승자</b>}</td>
+                <td>{ruleTypeLabel(c.ruleType)}</td><td>{c.rank}</td>
+                <td>{c.scopeMatch ? '✓' : '✗'}</td><td>{c.gatePass ? '✓' : '✗'}</td>
+                <td>{c.gateNote ?? '통과'}</td>
+              </tr>
+            ))}</tbody>
           </table>
-        ) : (
-          <p className="empty">검색 결과가 없습니다.</p>
-        )
-      )}
 
-      {!ready ? (
-        <p className="empty">계좌와 {isDeriv ? '품목' : '거래소'}를 선택하면 결정 흐름이 단계별로 표시됩니다.</p>
-      ) : (
-        <>
-          <div className="actions">
-            <button className="btn" type="button" onClick={resetResult}>처음부터</button>
-            <button className="btn primary" type="button" onClick={handleResolve}>해석</button>
-            <button className="btn" type="button" disabled={!hasRun} onClick={handleResolve}>다시 해석</button>
-          </div>
+          <h3>③ 승자 · ④ 배정판</h3>
+          {trace.applied ? (
+            <p>
+              <span className={`tag ${trace.applied.sourceType}`}>{sourceLabel(trace.applied.sourceType)}</span>{' '}
+              요율표 <b>{trace.applied.scheduleId}</b> · 정책 {trace.applied.sourceRuleId}{' '}
+              {trace.bindingHit
+                ? <em style={{ color: 'green' }}>— 배정판 히트(우대)</em>
+                : <em style={{ color: '#c60' }}>— 배정판 미스 → 기본수수료 직접 적용(정상 경로)</em>}
+            </p>
+          ) : <p className="hint">적용 요율표 없음</p>}
 
-          <div className="stack">
-            <div className="card trace-step active">
-              <h2>① 체결 → 조회키 구성 <span className="badge">조회 테이블 없음</span></h2>
-              <p className="trace-narration">현행(등급 방식): 계좌 → 계좌등급 → (등급·상품) 요율 조회. 정책형: 체결 값으로 조회키를 만들어 아래 테이블들을 본다.</p>
-              <table>
-                <thead><tr><th>계좌</th><th>상품군</th><th>거래소</th><th>세션</th><th>채널</th><th>품목</th></tr></thead>
-                <tbody>
-                  <tr>
-                    <td>{account.id} {account.name}</td>
-                    <td>{feeKey!.assetClass}</td><td>{feeKey!.exchange}</td><td>{feeKey!.session}</td><td>{feeKey!.channel}</td><td>{feeKey!.product ?? '(주식=없음)'}</td>
-                  </tr>
-                </tbody>
-              </table>
+          <h3>⑤ 체결 → 금액</h3>
+          <label>체결가 <input type="number" value={price} onChange={e => setPrice(Number(e.target.value))} style={{ width: 90 }} /></label>{' '}
+          <label>수량 <input type="number" value={qty} onChange={e => setQty(Number(e.target.value))} style={{ width: 70 }} /></label>{' '}
+          <button onClick={doCalc}>계산</button>
+
+          {schedule?.components.some(c => c.rateType === 'BANDS') && (
+            <div style={{ marginTop: 8 }}>
+              <b>구간표</b> (체결가 {price} 매칭 구간 강조)
+              {schedule.components.filter(c => c.rateType === 'BANDS').map((c, ci) => (
+                <table key={ci}>
+                  <thead><tr><th>{c.name}: from</th><th>to</th><th>rateBp</th><th>flat</th></tr></thead>
+                  <tbody>{(c.bands ?? []).map((b, bi) => {
+                    const hit = price >= b.from && (b.to == null || price < b.to);
+                    return <tr key={bi} style={{ background: hit ? '#fff6d6' : undefined, fontWeight: hit ? 700 : 400 }}>
+                      <td>{b.from}</td><td>{b.to ?? '∞'}</td><td>{b.rateBp ?? '—'}</td><td>{b.flat ?? '—'}</td></tr>;
+                  })}</tbody>
+                </table>
+              ))}
             </div>
+          )}
 
-            {hasRun && result === null && (
-              <p className="empty">해석 결과 없음 — 이 조회키에 적용 가능한 정책이 없습니다.</p>
-            )}
-
-            {result && (
-              <div className="card trace-step active">
-                <h2>② 협의 예외 조회 <span className="badge">[NEGO_GRANT · key: account_id]</span> <span className="pill pill-active">최우선</span></h2>
-                <p className="trace-narration">협의는 이벤트·기본보다 <b>무조건 먼저</b> 본다 — 협의 요율/수수료액이 항상 더 낮기 때문. 활성 협의(status=활성·기간 내)가 있으면 그게 승자.</p>
-                {acctGrants.length > 0 ? (
-                  <table>
-                    <thead><tr><th>계좌</th><th>적용범위</th><th>요율표</th><th>유효기간</th><th>자격</th></tr></thead>
-                    <tbody>{acctGrants.map((n, i) => (
-                      <tr key={i}><td>{n.accountId}</td>
-                        <td>{n.scope.assetClass}{n.scope.products !== '*' ? ` · ${(n.scope.products as string[]).join(',')}` : ''}</td>
-                        <td>{n.scheduleId}</td><td>{n.validFrom} ~ {n.validTo}</td>
-                        <td><span className={`pill ${n.qualify === '충족' ? 'pill-active' : 'pill-rejected'}`}>{n.qualify}</span></td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                ) : <p className="empty">이 계좌·조회키에 활성 협의 없음 → 이벤트/기본으로 내려감(③)</p>}
-              </div>
-            )}
-
-            {result && (
-              <div className="card trace-step active">
-                <h2>③ 정책 우선순위 하강 + 자격 필터 <span className="badge">[정책 우선순위 인덱스 · 사전 산정]</span></h2>
-                <p className="trace-narration">협의가 없을 때, 미리 산정된 요율 순위를 내려가며 이 계좌의 자격(대상·기간)을 통과하는 첫 정책을 고른다(재계산 없음).</p>
-                {indieWinner ? (
-                  <table>
-                    <thead><tr><th>구분</th><th>정책</th><th>요율표(SCHEDULE_ID)</th><th>순위값(요율)</th></tr></thead>
-                    <tbody><tr>
-                      <td>{indieWinner.source === 'base' ? '기본' : '이벤트'}</td>
-                      <td>{indieWinner.name}</td><td>{indieWinner.scheduleId}</td>
-                      <td>{indieWinner.rank.toLocaleString()}</td>
-                    </tr></tbody>
-                  </table>
-                ) : <p className="empty">이 계좌가 이 조회키에서 받는 정책 없음</p>}
-              </div>
-            )}
-
-            {result && (
-              <div className="card trace-step active">
-                <h2>④ 가입/신청 이력 조회 <span className="badge">[ENROLLMENT · key: account_id]</span></h2>
-                <p className="trace-narration">신청형·가입형 이벤트 대상 여부와, 상대형 혜택의 가입일 기준.</p>
-                {acctEnrolls.length > 0 ? (
-                  <table>
-                    <thead><tr><th>규칙(rule_id)</th><th>가입일</th><th>채널</th></tr></thead>
-                    <tbody>{acctEnrolls.map((e, i) => (
-                      <tr key={i}><td>{e.ruleId}</td><td>{e.enrolledAt}</td><td>{e.channel}</td></tr>
-                    ))}</tbody>
-                  </table>
-                ) : <p className="empty">이 계좌의 가입/신청 이력 없음</p>}
-              </div>
-            )}
-
-            {result && (
-              <div className="card trace-step active">
-                <h2>⑤ 최저가 확정 <span className="badge">협의 우선 → 없으면 이벤트/기본 최저가</span></h2>
-                <table>
-                  <thead><tr><th>최종 출처</th><th>SCHEDULE_ID</th><th>RULE_ID</th></tr></thead>
-                  <tbody><tr className="trace-winner">
-                    <td>{SOURCE_LABEL[result.source]}</td><td>{result.scheduleId}</td><td>{result.sourceRuleId ?? '-'}</td>
-                  </tr></tbody>
-                </table>
-                <div className="check-grid">
-                  {result.cacheHit ? (
-                    <span className="pill pill-active">캐시 적중 — ②③④ 건너뛰고 저장된 답 사용</span>
-                  ) : (
-                    <span className="pill pill-pending">캐시 미스 → 계산 후 저장</span>
-                  )}
-                  <span className="badge">RESOLVED_CACHE · hits {stat.hits} · misses {stat.misses} · size {stat.size}</span>
-                </div>
-                {(() => {
-                  const win = result.candidates.find((c) => c.isWinner);
-                  const b = win?.rule?.benefit;
-                  if (!b || b.kind !== '상대') return null;
-                  const e = enrollments.find((x) => x.accountId === accountId && x.ruleId === win!.rule!.id);
-                  if (!e) return null;
-                  return <p className="trace-narration">적용기간: 가입일 {e.enrolledAt} + {b.months}개월 → {addMonths(e.enrolledAt, b.months)}까지(신청 마감과 무관)</p>;
-                })()}
-              </div>
-            )}
-
-            {result && winnerSchedule && (
-              <div className="card trace-step active">
-                <h2>⑥ 요율표 조회 <span className="badge">[FEE_SCHEDULE · FEE_COMPONENT · FEE_RATE_BAND]</span></h2>
-                <table>
-                  <thead><tr><th>구성요소</th><th>종류</th><th>부담주체</th><th>요율</th></tr></thead>
-                  <tbody>{winnerSchedule.components.map((c, i) => (
-                    <tr key={i} className={c.payer === '회사부담' ? 'warn' : undefined}>
-                      <td>{c.name}</td><td>{c.kind}</td><td>{c.payer}</td><td>{compText(c, curSym)}</td>
-                    </tr>
-                  ))}</tbody>
-                </table>
-                <p className="trace-narration">승자 요율표({winnerSchedule.id})의 구성요소·구간을 읽어 금액 계산에 쓴다.</p>
-              </div>
-            )}
-
-            {result && winnerSchedule && (
-              <div className={`card trace-step active`}>
-                <h2>⑦ 금액 계산 → 원장 <span className="badge">미저장 · 즉석 계산</span></h2>
-                <div className="form-grid">
-                  <div className="field">
-                    <label>체결가</label>
-                    <input type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
-                  </div>
-                  <div className="field">
-                    <label>수량</label>
-                    <input type="number" value={qty} onChange={(e) => setQty(Number(e.target.value))} />
-                  </div>
-                </div>
-                {calc && (
-                  <>
-                    <table>
-                      <thead>
-                        <tr><th>구성요소</th><th>종류</th><th>부담주체</th><th>구간</th><th>금액</th></tr>
-                      </thead>
-                      <tbody>
-                        {calc.lines.map((l, i) => (
-                          <tr key={i} className={l.payer === '회사부담' ? 'warn' : undefined}>
-                            <td>{l.name}</td>
-                            <td>{l.kind}</td>
-                            <td>{l.payer}</td>
-                            <td>{bandLabel(winnerSchedule.components[i], price) ?? '-'}</td>
-                            <td>{curSym === '$' ? `$${l.amount.toLocaleString()}` : `${l.amount.toLocaleString()}원`}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <div className="check-grid">
-                      <span className="pill pill-active">고객부과 합계 {curSym === '$' ? `$${calc.customerTotal.toLocaleString()}` : `${calc.customerTotal.toLocaleString()}원`}</span>
-                      <span className="pill warn">회사부담 합계 {curSym === '$' ? `$${calc.companyBorne.toLocaleString()}` : `${calc.companyBorne.toLocaleString()}원`}</span>
-                    </div>
-                  </>
-                )}
-                <p className="trace-narration">금액은 미리 저장하지 않고 요율표 × 체결로 즉석 계산해 원장 잔고에 내린다.</p>
-              </div>
-            )}
-          </div>
-        </>
+          {calc && (
+            <table>
+              <thead><tr><th>구성요소</th><th>부담</th><th>금액</th></tr></thead>
+              <tbody>
+                {calc.lines.map((l, i) => <tr key={i}><td>{l.name}</td><td>{l.payer}</td><td>{l.amount}</td></tr>)}
+                <tr><td colSpan={2}><b>고객부과 합</b></td><td><b>{calc.customerTotal}</b></td></tr>
+              </tbody>
+            </table>
+          )}
+        </div>
       )}
-    </section>
+    </div>
   );
 }
