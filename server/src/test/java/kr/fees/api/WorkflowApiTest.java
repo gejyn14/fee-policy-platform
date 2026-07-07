@@ -33,6 +33,26 @@ class WorkflowApiTest extends ApiWebTest {
     }
 
     @Test
+    void 기안_상신_승인_전이() throws Exception {
+        // DRAFT 룰 생성 → 상신(PENDING) → 승인(ACTIVE)
+        String rule = """
+            {"rule":{"id":"R-DRAFT-1","name":"국내주식 가을 이벤트","type":"EVENT","status":"DRAFT",
+              "applyMode":"AUTO_ENROLL","startDate":"2026-07-01","endDate":"2026-10-31","benefitKind":"CALENDAR",
+              "scheduleId":"SCH-DS-EVT","scope":{"assetClass":"DOMESTIC_STOCK","excludeProducts":[]}}}""";
+        mvc.perform(post("/api/rules").contentType("application/json").content(rule))
+            .andExpect(status().isOk());
+        // DRAFT 직접 승인은 400
+        mvc.perform(post("/api/rules/R-DRAFT-1/approve").param("baseDate", D))
+            .andExpect(status().isBadRequest());
+        // 상신 → PENDING
+        mvc.perform(post("/api/rules/R-DRAFT-1/submit")).andExpect(status().isOk());
+        mvc.perform(get("/api/rules/R-DRAFT-1")).andExpect(jsonPath("$.status").value("PENDING"));
+        // 승인 → ACTIVE
+        mvc.perform(post("/api/rules/R-DRAFT-1/approve").param("baseDate", D)).andExpect(status().isOk());
+        mvc.perform(get("/api/rules/R-DRAFT-1")).andExpect(jsonPath("$.status").value("ACTIVE"));
+    }
+
+    @Test
     void 협의_신청_승인이_배정판에_반영() throws Exception {
         // 7022-3345-11(자격 충족) 해외주식 협의 신청
         String body = """

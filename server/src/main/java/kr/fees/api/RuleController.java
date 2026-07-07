@@ -32,6 +32,11 @@ public class RuleController {
         return ruleService.validate(ruleId);
     }
 
+    @PostMapping("/{ruleId}/submit")
+    public void submit(@PathVariable String ruleId) {
+        ruleService.submit(ruleId);
+    }
+
     @PostMapping("/{ruleId}/approve")
     public BatchResult approve(@PathVariable String ruleId,
                                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate baseDate) {

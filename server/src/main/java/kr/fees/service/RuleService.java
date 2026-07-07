@@ -52,8 +52,20 @@ public class RuleService {
         return new ValidationReport(ok, failure, reverse);
     }
 
+    /** 상신 — 기안(DRAFT) → 승인대기(PENDING). */
+    @Transactional
+    public void submit(String ruleId) {
+        RuleModel r = rules.findById(ruleId).orElseThrow(() -> new IllegalArgumentException("룰 없음: " + ruleId));
+        if (r.status() != RuleStatus.DRAFT) throw new IllegalArgumentException("DRAFT만 상신 가능(현재: " + r.status() + ")");
+        rules.updateStatus(ruleId, RuleStatus.PENDING);
+    }
+
     @Transactional
     public BatchResult approve(String ruleId, LocalDate baseDate) {
+        RuleModel rule = rules.findById(ruleId).orElseThrow(() -> new IllegalArgumentException("룰 없음: " + ruleId));
+        if (rule.status() != RuleStatus.PENDING) {
+            throw new IllegalArgumentException("PENDING만 승인 가능(현재: " + rule.status() + ")");
+        }
         ValidationReport report = validate(ruleId);
         if (!report.dominanceOk()) {
             throw new DominanceViolation(report);
