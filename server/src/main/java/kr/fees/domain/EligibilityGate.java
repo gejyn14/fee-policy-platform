@@ -31,7 +31,7 @@ public final class EligibilityGate {
     }
 
     /** 대상 편입 판정 — 조건 하드 게이트 후 apply mode 별. */
-    static boolean isTarget(RuleModel rule, AccountModel acct, List<Enrollment> enr) {
+    public static boolean isTarget(RuleModel rule, AccountModel acct, List<Enrollment> enr) {
         if (rule.condition() != null && !evalCondition(rule.condition(), acct)) return false;
         return switch (rule.applyMode()) {
             case TARGETED -> rule.targetAccountIds() == null || rule.targetAccountIds().contains(acct.id());

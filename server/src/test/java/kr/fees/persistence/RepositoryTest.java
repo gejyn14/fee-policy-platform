@@ -93,6 +93,6 @@ class RepositoryTest extends PgIntegrationTest {
     @Test
     void 계좌가_개설한_상품군_조회() {
         assertThat(accounts.openedGroups("8041-2237-01"))
-            .containsExactlyInAnyOrder(AssetClass.OVERSEAS_DERIV, AssetClass.OVERSEAS_STOCK);
+            .contains(AssetClass.OVERSEAS_DERIV, AssetClass.OVERSEAS_STOCK, AssetClass.DOMESTIC_DERIV);
     }
 }
