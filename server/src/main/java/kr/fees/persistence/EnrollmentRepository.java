@@ -92,6 +92,46 @@ public class EnrollmentRepository {
         jdbc.update("UPDATE fee_enrollment SET valid_to = ? WHERE enrollment_id = ?", newValidTo, enrollmentId);
     }
 
+    /** 협의 승인함용 — 상태별 요청 행(계좌·룰 이름 조인). */
+    public List<RequestRow> findRequestRows(EnrollmentStatus status) {
+        return jdbc.query("""
+            SELECT e.enrollment_id, e.request_id, e.account_id, a.account_name, e.rule_id, r.rule_name,
+                   e.qualify_type, e.reason, e.requested_by, e.requested_at
+            FROM fee_enrollment e
+            JOIN account a ON a.account_id = e.account_id
+            JOIN fee_rule r ON r.rule_id = e.rule_id
+            WHERE e.status = ? ORDER BY e.request_id, e.enrollment_id""",
+            (rs, n) -> new RequestRow(rs.getLong("enrollment_id"), rs.getString("request_id"),
+                rs.getString("account_id"), rs.getString("account_name"), rs.getString("rule_id"),
+                rs.getString("rule_name"), rs.getString("qualify_type"), rs.getString("reason"),
+                rs.getString("requested_by"), String.valueOf(rs.getObject("requested_at"))),
+            status.name());
+    }
+
+    /** 협수 관리용 — 활성 협의(NEGOTIATED) 부여 목록. */
+    public List<ActiveNegoRow> findActiveNego() {
+        return jdbc.query("""
+            SELECT e.enrollment_id, e.account_id, a.account_name, e.rule_id, r.rule_name, r.schedule_id,
+                   e.valid_from, e.valid_to, e.qualify_type
+            FROM fee_enrollment e
+            JOIN account a ON a.account_id = e.account_id
+            JOIN fee_rule r ON r.rule_id = e.rule_id
+            WHERE r.rule_type = 'NEGOTIATED' AND e.status = 'ACTIVE'
+            ORDER BY e.account_id, e.rule_id""",
+            (rs, n) -> new ActiveNegoRow(rs.getLong("enrollment_id"), rs.getString("account_id"),
+                rs.getString("account_name"), rs.getString("rule_id"), rs.getString("rule_name"),
+                rs.getString("schedule_id"), rs.getObject("valid_from", LocalDate.class),
+                rs.getObject("valid_to", LocalDate.class), rs.getString("qualify_type")));
+    }
+
+    public record RequestRow(long enrollmentId, String requestId, String accountId, String accountName,
+                             String ruleId, String ruleName, String qualifyType, String reason,
+                             String requestedBy, String requestedAt) {}
+
+    public record ActiveNegoRow(long enrollmentId, String accountId, String accountName, String ruleId,
+                                String ruleName, String scheduleId, LocalDate validFrom, LocalDate validTo,
+                                String qualifyType) {}
+
     private Enrollment map(ResultSet rs, int rowNum) throws SQLException {
         String qt = rs.getString("qualify_type");
         return new Enrollment(

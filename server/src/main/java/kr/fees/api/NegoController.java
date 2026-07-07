@@ -23,6 +23,17 @@ public class NegoController {
     public record CreateRequest(List<String> accountIds, String ruleId,
                                 Map<String, String> exceptionReasons, String requestedBy) {}
 
+    @GetMapping("/requests")
+    public List<NegoService.RequestGroup> listRequests(
+        @RequestParam(defaultValue = "REQUESTED") kr.fees.domain.EnrollmentStatus status) {
+        return nego.listRequests(status);
+    }
+
+    @GetMapping("/enrollments")
+    public List<kr.fees.persistence.EnrollmentRepository.ActiveNegoRow> enrollments() {
+        return nego.listActiveEnrollments();
+    }
+
     @PostMapping("/requests")
     public NegoService.RequestResult createRequests(@RequestBody CreateRequest req) {
         try {

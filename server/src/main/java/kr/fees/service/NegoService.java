@@ -70,6 +70,32 @@ public class NegoService {
         return new RequestResult(requestId, results);
     }
 
+    public record RequestItem(long enrollmentId, String accountId, String accountName,
+                              String qualifyType, String reason) {}
+    public record RequestGroup(String requestId, String ruleId, String ruleName,
+                               String requestedBy, String requestedAt, List<RequestItem> items) {}
+
+    /** 협의 요청 목록(요청번호 단위 묶음). */
+    public List<RequestGroup> listRequests(EnrollmentStatus status) {
+        Map<String, RequestGroup> groups = new LinkedHashMap<>();
+        Map<String, List<RequestItem>> items = new LinkedHashMap<>();
+        for (var row : enrollments.findRequestRows(status)) {
+            items.computeIfAbsent(row.requestId(), k -> new ArrayList<>())
+                .add(new RequestItem(row.enrollmentId(), row.accountId(), row.accountName(),
+                    row.qualifyType(), row.reason()));
+            groups.putIfAbsent(row.requestId(), new RequestGroup(row.requestId(), row.ruleId(), row.ruleName(),
+                row.requestedBy(), row.requestedAt(), null));
+        }
+        return groups.values().stream()
+            .map(g -> new RequestGroup(g.requestId(), g.ruleId(), g.ruleName(), g.requestedBy(), g.requestedAt(),
+                items.get(g.requestId())))
+            .toList();
+    }
+
+    public List<EnrollmentRepository.ActiveNegoRow> listActiveEnrollments() {
+        return enrollments.findActiveNego();
+    }
+
     @Transactional
     public BatchResult approve(String requestId, LocalDate baseDate, String approvedBy) {
         enrollments.approveByRequestId(requestId, baseDate, baseDate.plusYears(1), approvedBy);
