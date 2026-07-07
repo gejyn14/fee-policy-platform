@@ -31,6 +31,12 @@ public class BindingRepository {
         return n == null ? 0 : n;
     }
 
+    /** delta 대상: 지정일에 만료(valid_to)하는 우대 행을 가진 계좌들. */
+    public List<String> accountsWithValidTo(LocalDate validTo) {
+        return jdbc.queryForList("SELECT DISTINCT account_id FROM fee_binding WHERE valid_to = ?",
+            String.class, validTo);
+    }
+
     /** 원장 체결 조회 계약(§4). 구체 행(품목·채널·세션·거래소 한정) 우선, 없으면 empty → 호출측이 기본수수료 적용. */
     public Optional<LookupResult> lookup(LookupParams p) {
         List<LookupResult> rows = jdbc.query("""

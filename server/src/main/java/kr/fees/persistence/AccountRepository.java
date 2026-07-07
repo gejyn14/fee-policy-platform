@@ -36,6 +36,12 @@ public class AccountRepository {
             .stream().map(AssetClass::valueOf).collect(Collectors.toCollection(java.util.LinkedHashSet::new));
     }
 
+    /** 특정 상품군을 개설한 계좌들 — 신규 룰 delta 영향 범위. */
+    public List<String> accountIdsByOpenedGroup(AssetClass ac) {
+        return jdbc.queryForList("SELECT account_id FROM account_product_group WHERE asset_class = ?",
+            String.class, ac.name());
+    }
+
     private AccountModel map(ResultSet rs, int rowNum) throws SQLException {
         return new AccountModel(
             rs.getString("account_id"), rs.getString("account_name"), rs.getString("grade"),
