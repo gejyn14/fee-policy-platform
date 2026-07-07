@@ -1,4 +1,42 @@
-# 수수료 이벤트 플랫폼 v0.5 프로토타입
+# 수수료 정책 플랫폼
+
+> **v1 (Spring Boot + PostgreSQL)** — 기술설계서 v1.6 모델을 실 백엔드로 구현. 아래 v0.5 문단은 프론트 프로토타입(mock) 설명이며 화면은 그대로 유지된다.
+
+## v1 아키텍처 (기술설계서 v1.6)
+
+- **백엔드** `server/` — Spring Boot 3(Java 17) · JdbcTemplate · Flyway · PostgreSQL 16
+  - `domain` 순수 자바(요율계산·통합 랭킹·자격 게이트·승자확정) — 협의(NEGOTIATED)를 표준 룰로 일원화, 조회구분(lookup_key)·세션 축 포함
+  - `batch` 배정판 3층 산출(전체 재산출·일 delta·수시 증분)이 승자확정 로직 한 벌을 공유
+  - **배정판은 우대(이벤트·협의) 승자만 저장(§1.4)** — 기본은 미저장, 원장 조회 미스 시 기본수수료 직접 적용
+- **프론트** `src/` — 기존 React 화면 유지 + "백엔드 연동" 탭(`src/screens/Live.tsx`)이 실 API에 연결
+- 테스트: 서버 JUnit+Testcontainers 73, 프론트 vitest 146
+
+### 기동
+
+```bash
+# 1) PostgreSQL (Podman 또는 Docker) — 호스트 5433
+podman run -d --name fees-pg -e POSTGRES_DB=fees -e POSTGRES_USER=fees -e POSTGRES_PASSWORD=fees -p 5433:5432 postgres:16
+#   또는:  docker compose up -d   (docker-compose.yml)
+
+# 2) 백엔드 (:8080) — Flyway가 스키마 V1 + 시드 V2 자동 적용
+cd server && ./gradlew bootRun
+
+# 3) 프론트 (:5173) — /api 는 :8080 으로 프록시
+npm install && npm run dev
+```
+
+첫 접속 후 "백엔드 연동" 탭에서 **전체 재산출 실행** → 계좌 8041-2237-01 배정판(선물=협의 T2, ETF=이벤트)·이력·원장 조회 시뮬을 확인할 수 있다.
+
+### 테스트
+
+```bash
+cd server && ./gradlew test      # 서버 (Testcontainers, Podman/Docker 필요)
+npm test                          # 프론트
+```
+
+---
+
+# (프론트 프로토타입) 수수료 이벤트 플랫폼 v0.5
 
 증권사에서 상품군(국내주식/해외주식/국내파생/해외파생/금현물)별로 BASE 수수료 위에 EVENT(일괄 이벤트)와
 NEGOTIATED(개별 협의수수료) 룰을 등록·검증·승인하고, 계좌별로 어떤 룰이 실제 적용되는지와 그 근거를
