@@ -12,6 +12,10 @@ export default defineConfig({
     // IPv4 로프백에만 바인딩 — LAN엔 노출하지 않고, Funnel(로컬 127.0.0.1:5173 프록시)만 접근한다.
     host: '127.0.0.1',
     port: 5173,
+    // 백엔드(Spring Boot :8080) 프록시 — 프론트는 /api/* 로만 호출한다.
+    proxy: {
+      '/api': { target: 'http://localhost:8080', changeOrigin: true },
+    },
     // Funnel의 MagicDNS 호스트(*.ts.net)에서 오는 요청의 Host 헤더를 허용(미허용 시 Vite가 403).
     allowedHosts: ['.ts.net'],
     // Funnel 경유(https://<host>:8443) 접속 시 HMR 웹소켓을 공용 포트로 연결. 로컬 dev엔 미적용.
