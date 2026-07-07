@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: fees-server
+  datasource:
+    url: jdbc:postgresql://localhost:5433/fees
+    username: fees
+    password: fees
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: 8080
+
+logging:
+  level:
+    org.springframework.jdbc.core: info

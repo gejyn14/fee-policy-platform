@@ -1,0 +1,22 @@
+# 로컬 개발용 PostgreSQL. Docker Desktop 또는 Podman(권장, 이 저장소 개발 환경)에서 동작.
+#   docker compose up -d      또는      podman-compose up -d
+# 호스트 5433 → 컨테이너 5432. (5432는 다른 프로젝트가 점유할 수 있어 5433 사용)
+services:
+  postgres:
+    image: postgres:16
+    container_name: fees-pg
+    environment:
+      POSTGRES_DB: fees
+      POSTGRES_USER: fees
+      POSTGRES_PASSWORD: fees
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fees"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  pgdata:
