@@ -107,6 +107,12 @@ export interface NegoEnrollment {
 export interface ExtCandidate { enrollmentId: number; accountId: string; accountName: string; status: 'KEEP' | 'DROP'; detail: string }
 export interface ExtGroup { axis: string; groupKey: string; validTo: string; candidates: ExtCandidate[] }
 
+export interface PriorityEntry {
+  ruleId: string; ruleName: string; ruleType: SourceType; scheduleId: string;
+  scheduleName: string; rank: number; scope: RuleScope;
+}
+export interface PriorityTop { top: PriorityEntry | null }
+
 export interface TraceCandidate {
   ruleId: string; ruleName: string; ruleType: SourceType; scheduleId: string; rank: number;
   scopeMatch: boolean; gatePass: boolean; gateNote: string | null; winner: boolean;
