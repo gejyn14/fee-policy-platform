@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>수수료 정책, 누가 이기고 어디에 적히나</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Gowun+Batang:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --font-body: 'Gowun Dodum', 'Apple SD Gothic Neo', sans-serif;
+    --font-head: 'Gowun Batang', 'Apple SD Gothic Neo', serif;
+    --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+
+    --bg: #faf7f5;
+    --surface: #ffffff;
+    --surface2: #f5efe9;
+    --border: rgba(72, 47, 30, 0.12);
+    --border-bright: rgba(72, 47, 30, 0.22);
+    --text: #3d3229;
+    --text-dim: #8a7a6b;
+
+    --terracotta: #c2410c;          /* 흐름·강조 */
+    --terracotta-dim: rgba(194, 65, 12, 0.09);
+
+    --nego: #be123c;                /* 협의 NEGOTIATED */
+    --nego-dim: rgba(190, 18, 60, 0.10);
+    --event: #b45309;               /* 이벤트 EVENT */
+    --event-dim: rgba(180, 83, 9, 0.11);
+    --base: #4d7c0f;                /* 기본 BASE */
+    --base-dim: rgba(77, 124, 15, 0.11);
+
+    --win: #166534;
+    --win-dim: rgba(22, 101, 52, 0.10);
+    --fail: #b91c1c;
+    --fail-dim: rgba(185, 28, 28, 0.09);
+    --wild: #6d5b48;
+    --wild-dim: rgba(109, 91, 72, 0.10);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #201a15;
+      --surface: #2a231d;
+      --surface2: #332b23;
+      --border: rgba(240, 225, 210, 0.10);
+      --border-bright: rgba(240, 225, 210, 0.20);
+      --text: #ede4da;
+      --text-dim: #a99a8a;
+
+      --terracotta: #f97a3d;
+      --terracotta-dim: rgba(249, 122, 61, 0.13);
+
+      --nego: #fb7185;
+      --nego-dim: rgba(251, 113, 133, 0.13);
+      --event: #fbbf24;
+      --event-dim: rgba(251, 191, 36, 0.12);
+      --base: #a3e635;
+      --base-dim: rgba(163, 230, 53, 0.11);
+
+      --win: #4ade80;
+      --win-dim: rgba(74, 222, 128, 0.12);
+      --fail: #f87171;
+      --fail-dim: rgba(248, 113, 113, 0.11);
+      --wild: #c4b09a;
+      --wild-dim: rgba(196, 176, 154, 0.12);
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(ellipse at 20% 0%, var(--terracotta-dim) 0%, transparent 55%),
+      repeating-linear-gradient(-45deg, transparent, transparent 60px, var(--border) 60px, var(--border) 61px);
+    color: var(--text);
+    font-family: var(--font-body);
+    padding: 48px 24px 80px;
+    min-height: 100vh;
+    overflow-wrap: break-word;
+    line-height: 1.65;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate { animation: fadeUp 0.45s ease-out both; animation-delay: calc(var(--i, 0) * 0.06s); }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; }
+  }
+
+  .container { max-width: 1040px; margin: 0 auto; }
+
+  /* ---------- typography ---------- */
+  h1 {
+    font-family: var(--font-head);
+    font-size: clamp(30px, 5vw, 44px);
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.5px;
+    text-wrap: balance;
+    margin-bottom: 10px;
+  }
+  h1 em { font-style: normal; color: var(--terracotta); }
+  .subtitle { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); margin-bottom: 26px; }
+
+  .lead {
+    font-size: 17px;
+    line-height: 1.8;
+    max-width: 720px;
+    margin-bottom: 40px;
+  }
+  .lead strong { color: var(--terracotta); }
+
+  section { margin-bottom: 64px; }
+
+  .sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 8px; }
+  .sec-num {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--terracotta);
+    background: var(--terracotta-dim);
+    border: 1px solid var(--terracotta);
+    border-radius: 999px;
+    padding: 2px 12px;
+    white-space: nowrap;
+  }
+  h2 { font-family: var(--font-head); font-size: clamp(22px, 3vw, 28px); font-weight: 700; line-height: 1.3; }
+  .sec-sub { color: var(--text-dim); font-size: 14.5px; max-width: 720px; margin-bottom: 22px; }
+
+  h3 { font-family: var(--font-head); font-size: 18px; margin: 26px 0 10px; }
+
+  /* ---------- cards ---------- */
+  .ve-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    min-width: 0;
+  }
+  .ve-card--hero {
+    background: color-mix(in srgb, var(--surface) 93%, var(--terracotta) 7%);
+    border-color: color-mix(in srgb, var(--border) 40%, var(--terracotta) 60%);
+    box-shadow: 0 4px 18px rgba(72, 47, 30, 0.08);
+  }
+  .ve-card__label {
+    font-family: var(--font-mono);
+    font-size: 10.5px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 1.4px;
+    color: var(--terracotta);
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .ve-card__label::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 > *, .grid-2 > * { min-width: 0; }
+
+  /* ---------- 배지/칩 ---------- */
+  .tag {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 11px; font-weight: 500;
+    padding: 2px 9px; border-radius: 5px;
+    white-space: nowrap;
+  }
+  .tag--nego  { background: var(--nego-dim);  color: var(--nego);  border: 1px solid color-mix(in srgb, var(--nego) 45%, transparent); }
+  .tag--event { background: var(--event-dim); color: var(--event); border: 1px solid color-mix(in srgb, var(--event) 45%, transparent); }
+  .tag--base  { background: var(--base-dim);  color: var(--base);  border: 1px solid color-mix(in srgb, var(--base) 45%, transparent); }
+  .tag--wild  { background: var(--wild-dim);  color: var(--wild);  border: 1px solid color-mix(in srgb, var(--wild) 45%, transparent); }
+  .tag--win   { background: var(--win-dim);   color: var(--win);   border: 1px solid color-mix(in srgb, var(--win) 55%, transparent); font-weight: 600; }
+  .tag--new   { background: var(--win-dim);   color: var(--win);   border: 1px solid var(--win); font-weight: 700; }
+
+  .snapcap {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin: 14px 0 0;
+  }
+  .snapcap b { color: var(--terracotta); }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    background: var(--terracotta-dim);
+    color: var(--terracotta);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  /* ---------- 주소(조회키) 6칸 ---------- */
+  .addr-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin: 18px 0 8px; }
+  .addr-cell {
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    border-top: 3px solid var(--terracotta);
+    border-radius: 10px;
+    padding: 12px 10px;
+    text-align: center;
+    min-width: 0;
+  }
+  .addr-cell__dim { font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 5px; }
+  .addr-cell__name { font-size: 14.5px; font-weight: 600; margin-bottom: 7px; }
+  .addr-cell__vals { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-dim); line-height: 1.7; }
+  .addr-cell__vals b { color: var(--wild); font-weight: 600; }
+
+  /* ---------- 콜아웃 ---------- */
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--terracotta);
+    border-radius: 0 10px 10px 0;
+    padding: 15px 20px;
+    font-size: 14px;
+    line-height: 1.7;
+    margin: 20px 0;
+    color: var(--text-dim);
+  }
+  .callout strong { color: var(--text); }
+  .callout--warn { border-left-color: var(--event); }
+  .callout--win { border-left-color: var(--win); }
+
+  /* ---------- 2×2 셀 전개 그리드 ---------- */
+  .cellgrid-wrap { overflow-x: auto; }
+  .cellgrid {
+    display: grid;
+    grid-template-columns: 110px 1fr 1fr;
+    gap: 8px;
+    min-width: 620px;
+    margin-top: 16px;
+  }
+  .cellgrid__corner, .cellgrid__axis {
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 11.5px; font-weight: 600;
+    color: var(--text-dim);
+    padding: 8px;
+  }
+  .cellgrid__axis { background: var(--surface2); border-radius: 8px; color: var(--text); }
+  .cellgrid__cell {
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    border-radius: 10px;
+    padding: 12px 14px;
+    min-width: 0;
+    font-size: 12.5px;
+  }
+  .cellgrid__cell--hot { border-color: var(--win); border-width: 2px; background: var(--win-dim); }
+  .cellgrid__coord { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-dim); margin-bottom: 8px; }
+  .cellgrid__cands { display: flex; flex-direction: column; gap: 5px; }
+  .cand { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .cand__price { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); }
+  .cand--out { opacity: 0.42; text-decoration: line-through; }
+  .cellgrid__verdict { margin-top: 9px; padding-top: 8px; border-top: 1px dashed var(--border-bright); font-size: 12px; }
+  .cellgrid__verdict b { color: var(--win); }
+
+  /* ---------- 랭킹 사다리 ---------- */
+  .ladder { display: flex; flex-direction: column; gap: 0; margin-top: 16px; }
+  .ladder__step {
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 14px;
+    align-items: start;
+    position: relative;
+    padding-bottom: 22px;
+  }
+  .ladder__step:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 21px; top: 44px; bottom: 0;
+    width: 2px;
+    background: var(--border-bright);
+  }
+  .ladder__num {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: var(--terracotta-dim);
+    border: 2px solid var(--terracotta);
+    color: var(--terracotta);
+    font-family: var(--font-mono); font-size: 16px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; z-index: 1;
+  }
+  .ladder__body { padding-top: 4px; min-width: 0; }
+  .ladder__title { font-weight: 600; font-size: 15.5px; margin-bottom: 3px; }
+  .ladder__desc { font-size: 13.5px; color: var(--text-dim); }
+
+  /* ---------- 토너먼트 표 ---------- */
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-top: 14px; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.55; }
+  .data-table th {
+    background: var(--surface2);
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text-dim); text-align: left;
+    padding: 11px 14px;
+    border-bottom: 2px solid var(--border-bright);
+    white-space: nowrap;
+  }
+  .data-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table td.num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .data-table small { display: block; color: var(--text-dim); font-size: 11.5px; margin-top: 2px; }
+  tr.row--win { background: var(--win-dim); }
+  tr.row--out td { opacity: 0.55; }
+  tr.row--skip td { opacity: 0.38; }
+
+  .status {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+    padding: 3px 10px; border-radius: 6px; white-space: nowrap;
+  }
+  .status--win  { background: var(--win-dim); color: var(--win); font-weight: 600; }
+  .status--fail { background: var(--fail-dim); color: var(--fail); }
+  .status--skip { background: var(--wild-dim); color: var(--wild); }
+
+  /* ---------- 배정판 스키마 ---------- */
+  .pk-strip { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+  .pk-chip {
+    font-family: var(--font-mono); font-size: 11.5px;
+    padding: 6px 11px; border-radius: 8px;
+    background: var(--terracotta-dim);
+    border: 1px solid color-mix(in srgb, var(--terracotta) 50%, transparent);
+    color: var(--terracotta);
+  }
+  .pk-chip--val {
+    background: var(--surface);
+    border: 1px dashed var(--border-bright);
+    color: var(--text-dim);
+  }
+
+  .code-block {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    overflow-x: auto;
+    white-space: pre;
+    margin-top: 12px;
+  }
+  .code-block .c { color: var(--text-dim); }
+  .code-block .k { color: var(--terracotta); font-weight: 600; }
+
+  /* ---------- Mermaid shell ---------- */
+  .diagram-shell { position: relative; }
+  .diagram-shell__hint { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); margin-bottom: 8px; opacity: 0.75; }
+  .mermaid-wrap {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 20px;
+    overflow: auto;
+    margin-bottom: 10px;
+    display: flex; justify-content: center; align-items: center;
+    min-height: 380px;
+    cursor: grab;
+  }
+  .mermaid-wrap.is-panning { cursor: grabbing; user-select: none; }
+  .zoom-controls {
+    position: absolute; top: 8px; right: 8px;
+    display: flex; gap: 2px; z-index: 10;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 2px;
+  }
+  .zoom-controls button {
+    width: 28px; height: 28px; border: none; background: transparent;
+    color: var(--text-dim); font-family: var(--font-mono); font-size: 14px;
+    cursor: pointer; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .zoom-controls button:hover { background: var(--border); color: var(--text); }
+  .zoom-label { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); padding: 0 6px; white-space: nowrap; align-self: center; }
+  .mermaid-viewport { position: relative; overflow: hidden; width: 100%; height: 100%; min-height: 300px; }
+  .mermaid-canvas { position: absolute; top: 0; left: 0; }
+  .mermaid .nodeLabel { font-family: var(--font-body) !important; font-size: 16px !important; }
+  .mermaid .edgeLabel { font-family: var(--font-body) !important; font-size: 13px !important; }
+  .mermaid .node rect, .mermaid .node circle, .mermaid .node polygon { stroke-width: 1.5px !important; }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 4px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 3px; }
+
+  /* ---------- 배치 3층 ---------- */
+  .batch-tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 16px; }
+  .batch-tiers > * { min-width: 0; }
+  .tier { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+  .tier__freq { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--terracotta); margin-bottom: 6px; }
+  .tier__name { font-weight: 600; font-size: 15px; margin-bottom: 6px; }
+  .tier__desc { font-size: 12.5px; color: var(--text-dim); line-height: 1.6; }
+
+  /* ---------- 요약 박스 ---------- */
+  .summary-list { list-style: none; margin-top: 12px; }
+  .summary-list li { padding-left: 20px; position: relative; margin-bottom: 9px; font-size: 14.5px; }
+  .summary-list li::before { content: '✓'; position: absolute; left: 0; color: var(--win); font-weight: 700; }
+
+  @media (max-width: 860px) {
+    .addr-row { grid-template-columns: repeat(3, 1fr); }
+    .grid-3, .batch-tiers { grid-template-columns: 1fr; }
+    .grid-2 { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    body { padding: 24px 14px 60px; }
+    .addr-row { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1 class="animate" style="--i:0">수수료 정책이 하나 들어오면,<br><em>누가 이기고</em> 그 결과는 <em>어디에 적히나</em></h1>
+  <p class="subtitle animate" style="--i:1">fee platform v1 &middot; 조회키 &times; 정책 경쟁 &times; 배정판 &middot; 고등학생도 이해할 수 있는 판</p>
+
+  <p class="lead animate" style="--i:2">
+    수수료 정책은 <strong>할인 쿠폰</strong>, 조회키는 <strong>거래의 주소</strong>, 배정판은 <strong>미리 채점해 둔 답안지</strong>입니다.
+    시합은 <strong>두 번</strong> 치러집니다. 새 쿠폰이 승인되는 순간, 먼저 <strong>계좌와 전혀 무관하게</strong>
+    그 쿠폰이 닿는 주소 조합마다 겹치는 기존 쿠폰들과 1차전을 치러 순위를 확정하고,
+    그 결과를 <strong>전용 판(조회키 조합별 후보 색인)</strong>에 적어 둡니다.
+    계좌는 그 다음입니다. 2차전에서 계좌 사정(편입·자격)을 대조해 계좌별 최종 승자만 배정판에 싣습니다.
+    실제 매매가 터지는 순간에는 계산 없이 답안지에서 <strong>딱 한 줄</strong>만 읽습니다.
+  </p>
+
+  <!-- ═══════════════ 0. 전체 여정 ═══════════════ -->
+  <section class="animate" style="--i:3">
+    <div class="sec-head"><span class="sec-num">한눈에</span><h2>새 정책 하나의 여정</h2></div>
+    <p class="sec-sub">정책 등록부터 체결 순간까지. 아래 각 장에서 이 그림의 단계를 하나씩 확대해서 봅니다.</p>
+
+    <div class="diagram-shell">
+      <p class="diagram-shell__hint">Ctrl/Cmd + 휠로 확대 · 드래그로 이동 · 더블클릭으로 화면 맞춤 · ⛶ 새 탭에서 크게 보기</p>
+      <div class="mermaid-wrap">
+        <div class="zoom-controls">
+          <button type="button" data-action="zoom-in" title="확대">+</button>
+          <button type="button" data-action="zoom-out" title="축소">&minus;</button>
+          <button type="button" data-action="zoom-fit" title="맞춤">&#8634;</button>
+          <button type="button" data-action="zoom-one" title="원본 크기">1:1</button>
+          <button type="button" data-action="zoom-expand" title="새 탭에서 열기">&#x26F6;</button>
+          <span class="zoom-label">Loading...</span>
+        </div>
+        <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+      </div>
+      <script type="text/plain" class="diagram-source">
+graph TD
+  A["① 새 정책 등록<br/>적용 범위 + 요율표를 정한다"] --> B{"② 승인"}
+  subgraph R1["1차전 · 계좌 무관: 승인 시점, 딱 한 번"]
+    C["③ 순위값 계산·확정<br/>요율 최저 → 계층 → 구체성 → ID"]
+    C --> D["④ 이 정책의 범위가 닿는<br/>조회키 조합만 식별"]
+    D --> E["⑤ 그 조합들에서 겹치는 기존 정책들과 경쟁<br/>조합별 후보 순위 갱신"]
+    E --> F[("⑥ 정책 우선순위 판<br/>조회키 조합별 후보 색인: 계좌 없음")]
+  end
+  B -->|ACTIVE| C
+  subgraph R2["2차전 · 계좌 연결: 배치·수시 증분"]
+    G["⑦ 이 정책의 범위에 걸리는<br/>계좌만 골라 셀(주소 칸) 전개"]
+    G --> H["⑧ 셀마다 저장된 순위 위에서부터<br/>자격 게이트(편입·기간·대상)만 검사"]
+    H --> I{"⑨ 최종 승자가<br/>우대(협의·이벤트)인가?"}
+    I -->|"예"| J[("⑩ 배정판 fee_binding<br/>계좌×조회키 한 줄 + 이력")]
+    I -->|"기본(BASE)이면"| K["기록하지 않음<br/>행 없음 = 기본 적용"]
+  end
+  F --> G
+  J --> L["⑪ 체결 순간<br/>계산 없이 배정판 한 줄 조회"]
+  K --> L
+  classDef store fill:#f5e6d3,stroke:#c2410c,stroke-width:2px;
+  class F,J store
+      </script>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--nego)"></div> 협의 NEGOTIATED</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--event)"></div> 이벤트 EVENT</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--base)"></div> 기본 BASE</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:var(--wild)"></div> <code style="background:none;padding:0">*</code> = 전체(와일드카드)</div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 1. 조회키 ═══════════════ -->
+  <section class="animate" style="--i:4">
+    <div class="sec-head"><span class="sec-num">1장</span><h2>조회키: 거래의 주소는 6칸이다</h2></div>
+    <p class="sec-sub">
+      "어떤 거래냐"를 6칸짜리 주소로 표현합니다. 코드로는 <code>FeeKey</code> 하나입니다.
+      칸 하나의 값이 <code>*</code>이면 "그 칸은 뭐든 상관없음(전체)"이라는 뜻입니다.
+    </p>
+
+    <div class="addr-row">
+      <div class="addr-cell"><div class="addr-cell__dim">assetClass</div><div class="addr-cell__name">자산군</div><div class="addr-cell__vals">국내주식 · 해외주식<br>국내파생 · 해외파생 · 금현물<br><b>항상 구체값</b></div></div>
+      <div class="addr-cell"><div class="addr-cell__dim">exchange</div><div class="addr-cell__name">거래소</div><div class="addr-cell__vals">KRX · NXT · NASDAQ<br>NYSE · HKEX …<br><b>* 가능</b></div></div>
+      <div class="addr-cell"><div class="addr-cell__dim">lookupKey</div><div class="addr-cell__name">조회구분</div><div class="addr-cell__vals">선물 · 옵션 · 주식<br>ETF · 금<br><b>항상 구체값</b></div></div>
+      <div class="addr-cell"><div class="addr-cell__dim">session</div><div class="addr-cell__name">세션</div><div class="addr-cell__vals">주간 REGULAR<br>야간 NIGHT<br><b>* 가능</b></div></div>
+      <div class="addr-cell"><div class="addr-cell__dim">channel</div><div class="addr-cell__name">채널(매체)</div><div class="addr-cell__vals">HTS · MTS · API<br>ARS · 센터 · 반대매매<br><b>* 가능</b></div></div>
+      <div class="addr-cell"><div class="addr-cell__dim">product</div><div class="addr-cell__name">품목</div><div class="addr-cell__vals">K200 · MK200 · KTB10<br>USDF · GOLDF …<br><b>파생만 존재</b></div></div>
+    </div>
+
+    <div class="callout callout--warn">
+      <strong>이 설계의 규모 억제 장치:</strong> 품목 칸은 <strong>파생상품에만</strong> 있습니다.
+      주식은 종목이 수천 개라서, 종목마다 주소를 만들면 주소 개수가 폭발합니다.
+      그래서 주식·ETF·금은 <code>FeeKey.of()</code>가 품목을 강제로 비워 버리고, 조회구분(주식/ETF/금) 단위로 뭉칩니다.
+      <em>주식 화면에 종목 입력칸이 보인다면 그건 버그입니다.</em>
+    </div>
+
+    <div class="grid-2">
+      <div class="ve-card">
+        <div class="ve-card__label">주소 예시: 파생 (촘촘함)</div>
+        <div style="font-family:var(--font-mono);font-size:12.5px;line-height:2">
+          해외파생 · CME · <span class="tag tag--wild">선물</span> · 야간 · MTS · <b>ES</b>
+        </div>
+        <div style="font-size:12.5px;color:var(--text-dim)">파생은 품목(ES)까지 구체적으로 주소가 찍힙니다.</div>
+      </div>
+      <div class="ve-card">
+        <div class="ve-card__label">주소 예시: 주식 (뭉뚱그림)</div>
+        <div style="font-family:var(--font-mono);font-size:12.5px;line-height:2">
+          국내주식 · <span class="tag tag--wild">*</span> · <span class="tag tag--wild">주식</span> · <span class="tag tag--wild">*</span> · HTS · <span class="tag tag--wild">품목 없음</span>
+        </div>
+        <div style="font-size:12.5px;color:var(--text-dim)">삼성전자든 어디든, "국내주식을 HTS로" 하나의 주소로 취급합니다.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 2. 조합 결정 ═══════════════ -->
+  <section class="animate" style="--i:5">
+    <div class="sec-head"><span class="sec-num">2장</span><h2>조합은 언제, 어떻게 만들어지나</h2></div>
+    <p class="sec-sub">
+      핵심: <strong>정책 등록 시점에는 조합을 전개하지 않습니다.</strong> 정책은 "적용 범위"만 들고 저장됩니다.
+      승인 시점의 1차전(3장)은 <strong>범위가 겹치는 조합 단위</strong>로 순위만 확정하고,
+      계좌×셀로 실제 펼치는 것은 2차전(계좌 연결) 배치의 일입니다. 그것도 필요한 칸만입니다.
+    </p>
+
+    <div class="grid-2" style="margin-bottom:20px">
+      <div class="ve-card">
+        <div class="ve-card__label" style="color:var(--nego)">정책 쪽: 범위(scope)로만 저장</div>
+        <p style="font-size:13.5px;line-height:1.7">
+          <code>fee_rule</code> 테이블에는 <code>scope_sessions</code>, <code>scope_channels</code>,
+          <code>scope_products</code> 같은 칸이 있고, 값이 <strong>NULL이면 "그 축은 제약 없음(전체)"</strong>입니다.
+          "야간 세션에만" 같은 정책은 <code>scope_sessions = ['NIGHT']</code>처럼 집합으로 적습니다.
+          조합 전개는 하지 않습니다.
+        </p>
+      </div>
+      <div class="ve-card">
+        <div class="ve-card__label" style="color:var(--base)">배치 쪽: 계좌별 셀 전개 (CellUniverse)</div>
+        <p style="font-size:13.5px;line-height:1.7">
+          계좌가 <strong>개설한 상품군만</strong> 전개합니다(안 하는 상품군은 셀 자체가 없음).
+          파생은 <code>상품군 × 거래소 × 품목 × {선물, 옵션}</code>, 주식형은 조회구분 하나로 시작.
+          세션·채널 축은 기본적으로 <code>*</code> <strong>한 칸으로 눌러 둡니다.</strong>
+        </p>
+      </div>
+    </div>
+
+    <div class="ve-card ve-card--hero" style="margin-bottom:20px">
+      <div class="ve-card__label">그럼 배치가 조합을 "계산"하는 건가? 아니다, 찍어내고 골라낼 뿐</div>
+      <div class="grid-2" style="margin-top:6px">
+        <div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--win);margin-bottom:6px">미리 끝나 있는 것 (승인 시점 · 계좌 무관)</div>
+          <ul style="list-style:none;font-size:13px;line-height:1.8">
+            <li>› 각 정책의 <strong>순위값</strong></li>
+            <li>› 조합별 <strong>후보 순위 목록</strong>: 경쟁은 이미 끝남</li>
+            <li>› 조합의 <strong>모양</strong>: 어떤 축이 어떤 값으로 갈라지는지도 활성 정책만 보고 정해짐 (계좌 안 봄)</li>
+          </ul>
+        </div>
+        <div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--terracotta);margin-bottom:6px">배치가 그 자리에서 하는 것 (계좌마다)</div>
+          <ul style="list-style:none;font-size:13px;line-height:1.8">
+            <li>› 정해진 틀을 계좌 수만큼 <strong>찍어냄</strong> (개설 상품군만)</li>
+            <li>› 저장된 순위를 위에서부터 <strong>자격 게이트만 검사</strong>(요율 비교·정렬은 없음)</li>
+            <li>› 승자 바뀐 셀만 diff 반영</li>
+          </ul>
+        </div>
+      </div>
+      <p style="font-size:12.5px;color:var(--text-dim);margin-top:10px">
+        승자까지 계좌 무관으로 미리 박아둘 수 없는 이유는 하나다. <strong>최종 승자는 계좌의 편입 기록에 따라 달라지기 때문</strong>
+        (같은 조합에서도 1등급 편입 계좌·신규 계좌·일반 계좌의 승자가 다름). 그래서 "순위는 승인 때 확정, 게이트 판정만 산출 때"가 이 설계의 절충점입니다.
+      </p>
+    </div>
+
+    <h3>칸이 갈라지는 규칙: "전체(*)"가 섞인 모든 경우</h3>
+    <p class="sec-sub" style="margin-bottom:6px">
+      어떤 축(세션·채널)을 <strong>한정한 활성 정책이 하나라도 그 셀 계열에 닿으면</strong>, 그 축이 <code>*</code>와
+      한정값들의 곱으로 갈라집니다. 아래는 정책 3개가 있을 때 세션×채널 평면이 갈라지는 모습입니다.
+    </p>
+
+    <div class="ve-card" style="margin-bottom:14px">
+      <div class="ve-card__label">등장하는 쿠폰(정책) 3장: 예시 요율</div>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:13.5px">
+        <div><span class="tag tag--base">기본 BASE</span> &nbsp;기본요율: 축 한정 없음(어느 세션·채널이든) · <span style="font-family:var(--font-mono)">1.5</span></div>
+        <div><span class="tag tag--base">기본 BASE</span> &nbsp;야간요율: <code>scope_sessions=['NIGHT']</code> · <span style="font-family:var(--font-mono)">1.2</span></div>
+        <div><span class="tag tag--event">이벤트 EVENT</span> &nbsp;MTS 이벤트: <code>scope_channels=['MTS']</code> · <span style="font-family:var(--font-mono)">0.9</span></div>
+      </div>
+      <p style="font-size:12.5px;color:var(--text-dim);margin-top:8px">
+        세션 축을 한정한 정책(야간요율)과 채널 축을 한정한 정책(MTS 이벤트)이 있으니,
+        이 계좌의 셀은 세션 {<code>*</code>, NIGHT} × 채널 {<code>*</code>, MTS} = <strong>4칸</strong>이 됩니다.
+      </p>
+    </div>
+
+    <div class="cellgrid-wrap">
+    <div class="cellgrid">
+      <div class="cellgrid__corner">세션 ↓ · 채널 →</div>
+      <div class="cellgrid__axis">채널 = * (그 외 전부)</div>
+      <div class="cellgrid__axis">채널 = MTS</div>
+
+      <div class="cellgrid__axis">세션 = *<br>(그 외 전부)</div>
+      <div class="cellgrid__cell">
+        <div class="cellgrid__coord">셀 (*, *): 평범한 주간 HTS 주문 등</div>
+        <div class="cellgrid__cands">
+          <div class="cand"><span class="tag tag--base">기본요율</span><span class="cand__price">1.5</span></div>
+          <div class="cand cand--out"><span class="tag tag--base">야간요율</span><span class="cand__price">NIGHT 한정이라 불참</span></div>
+          <div class="cand cand--out"><span class="tag tag--event">MTS 이벤트</span><span class="cand__price">MTS 한정이라 불참</span></div>
+        </div>
+        <div class="cellgrid__verdict">승자 <b>기본요율 1.5</b> → BASE라서 <strong>배정판에 안 적음</strong></div>
+      </div>
+      <div class="cellgrid__cell">
+        <div class="cellgrid__coord">셀 (*, MTS)</div>
+        <div class="cellgrid__cands">
+          <div class="cand"><span class="tag tag--event">MTS 이벤트</span><span class="cand__price">0.9</span></div>
+          <div class="cand"><span class="tag tag--base">기본요율</span><span class="cand__price">1.5</span></div>
+        </div>
+        <div class="cellgrid__verdict">승자 <b>MTS 이벤트 0.9</b> → 우대라서 배정판에 기록</div>
+      </div>
+
+      <div class="cellgrid__axis">세션 = NIGHT</div>
+      <div class="cellgrid__cell">
+        <div class="cellgrid__coord">셀 (NIGHT, *)</div>
+        <div class="cellgrid__cands">
+          <div class="cand"><span class="tag tag--base">야간요율</span><span class="cand__price">1.2</span></div>
+          <div class="cand"><span class="tag tag--base">기본요율</span><span class="cand__price">1.5</span></div>
+        </div>
+        <div class="cellgrid__verdict">승자 <b>야간요율 1.2</b> (둘 다 BASE → 기록 없음, 조회 때 해석)</div>
+      </div>
+      <div class="cellgrid__cell cellgrid__cell--hot">
+        <div class="cellgrid__coord">셀 (NIGHT, MTS): "대각선" 교차 셀</div>
+        <div class="cellgrid__cands">
+          <div class="cand"><span class="tag tag--event">MTS 이벤트</span><span class="cand__price">0.9</span></div>
+          <div class="cand"><span class="tag tag--base">야간요율</span><span class="cand__price">1.2</span></div>
+          <div class="cand"><span class="tag tag--base">기본요율</span><span class="cand__price">1.5</span></div>
+        </div>
+        <div class="cellgrid__verdict">셋이 전부 경쟁 → 승자 <b>MTS 이벤트 0.9</b></div>
+      </div>
+    </div>
+    </div>
+
+    <div class="callout">
+      <strong>왜 굳이 곱집합(데카르트)으로 갈라놓을까?</strong>
+      축을 따로따로만 갈라 놓으면(세션 줄 하나, 채널 줄 하나) "야간에 + MTS로" 주문한 대각선 케이스에서
+      어느 줄을 읽어야 할지 애매해지고, 자칫 고객에게 불리한 요율이 잡힐 수 있습니다.
+      교차 셀 (NIGHT, MTS)를 <strong>미리 만들어 미리 시합을 끝내 두는 것</strong>이
+      "고객 유리 원칙"을 지키는 방법입니다. (<code>CellUniverse</code> 주석에 그대로 적혀 있는 이유입니다.)
+    </div>
+
+    <div class="callout callout--warn">
+      <strong>매칭의 한 가지 미묘한 규칙:</strong> <code>*</code> 칸을 가진 셀은 그 축을 <strong>한정한</strong> 정책과는 매칭되지 않습니다
+      (<code>ScopeMatcher</code>: "구체 정책은 구체 주소에만"). 그래서 위 그림에서 야간요율은 (*, *) 셀에 불참합니다.
+      NIGHT 전용 할인이 "아무 세션" 주문에 새어 나가면 안 되기 때문입니다.
+    </div>
+  </section>
+
+  <!-- ═══════════════ 3. 경쟁과 승자 ═══════════════ -->
+  <section class="animate" style="--i:6">
+    <div class="sec-head"><span class="sec-num">3장</span><h2>1차전: 계좌와 잇기 전에, 정책끼리 먼저 겨룬다</h2></div>
+    <p class="sec-sub">
+      새 정책이 <strong>승인되는 순간</strong>, 계좌는 아직 등장하지 않습니다.
+      먼저 새 정책의 범위가 닿는 조회키 조합마다, 그 조합에 이미 걸려 있던(범위가 겹치는) 정책들과
+      <strong>기본(BASE) · 이벤트(EVENT) · 협의(NEGOTIATED)가 전부 한 판에서</strong> 붙습니다.
+      "협의니까 무조건 우선" 같은 특별 대우는 없습니다. 규칙은 단 하나다. <strong>고객에게 유리한(싼) 쪽이 위.</strong>
+    </p>
+
+    <h3>줄 세우기: 통합 랭킹의 4단계 정렬 (PolicyRanking)</h3>
+    <div class="ladder">
+      <div class="ladder__step">
+        <div class="ladder__num">1</div>
+        <div class="ladder__body">
+          <div class="ladder__title">요율이 싼 순서 <span class="tag tag--win">가장 중요</span></div>
+          <div class="ladder__desc">고객이 실제로 내는 몫(고객부과 성분)만 합쳐서 비교합니다. 정률은 bp 합, 정액은 금액, 구간표는 대표 구간 기준.</div>
+        </div>
+      </div>
+      <div class="ladder__step">
+        <div class="ladder__num">2</div>
+        <div class="ladder__body">
+          <div class="ladder__title">(값이 똑같으면) 타입: 협의 &gt; 이벤트 &gt; 기본</div>
+          <div class="ladder__desc"><span class="tag tag--nego">협의 0</span> <span class="tag tag--event">이벤트 1</span> <span class="tag tag--base">기본 2</span>. 어디까지나 <strong>동점일 때만</strong> 쓰는 순서입니다.</div>
+        </div>
+      </div>
+      <div class="ladder__step">
+        <div class="ladder__num">3</div>
+        <div class="ladder__body">
+          <div class="ladder__title">(그래도 같으면) 범위가 좁은(구체적인) 쪽</div>
+          <div class="ladder__desc">한정한 축의 개수를 셉니다. "KRX + HTS만"(2점)이 "전체"(0점)를 이깁니다. 정확히 겨냥한 정책이 뭉뚱그린 정책을 이깁니다.</div>
+        </div>
+      </div>
+      <div class="ladder__step">
+        <div class="ladder__num">4</div>
+        <div class="ladder__body">
+          <div class="ladder__title">(끝까지 같으면) 정책 ID 순</div>
+          <div class="ladder__desc">누가 언제 조회해도 결과가 똑같도록 하는 결정성 장치입니다. 운에 맡기는 일이 없습니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout--win">
+      <strong>"기본요율도 경쟁을 하나?"</strong> 기본은 판을 따내는 참가자라기보다 <strong>경쟁의 기준선</strong>입니다.
+      다만 기준선 역할을 시키는 방법이 "같은 랭킹에 넣기"입니다.
+      우대가 기본보다 비싸면 기본이 랭킹 위에 서고, 기본 승자는 기록되지 않으므로 그 셀은 자동으로 기본 적용이다.
+      즉 <strong>우대는 기본을 이겨야만 판에 실립니다</strong>("기본 <em>대비</em> 우대 승자만 저장").
+      그리고 기본끼리(온라인/ARS/센터, 주간/야간)의 중재도 같은 랭킹이 합니다.
+      기본의 특별대우는 판정이 아니라 저장 단계에 있습니다: 이겨도 행을 남기지 않는다.
+    </div>
+
+    <h3>1차전 결과는 전용 판에 담긴다: 계좌 없이</h3>
+    <div class="ve-card ve-card--hero">
+      <div class="ve-card__label">정책 우선순위 판 (조회키 조합별 후보 색인): 설계서 §10.4</div>
+      <p style="font-size:13.5px;line-height:1.75">
+        조합(자산군·조회구분·거래소·품목)마다 <strong>순위값 오름차순 후보 목록</strong>을 소형 테이블로 둡니다.
+        새 정책이 승인·종료되면 <strong>그 정책이 걸리는 조합만</strong> 부분 갱신합니다. 전체 재계산이 아닙니다.
+        순위값(정렬키)도 승인 때 한 번 계산해 정책에 저장하며, 요율표는 승인 후 바뀌지 않으므로 다시 계산하지 않습니다.
+        활성 정책은 수백 건 수준이라 색인 전체가 메가바이트 규모다. <strong>"우선순위 판단은 승인 시점 한 곳에만 있다"</strong>가 이 설계의 불변식입니다.
+      </p>
+      <p style="font-size:12.5px;color:var(--text-dim);margin-top:8px">
+        여기 1등이 곧 "이론상 최저"(자격 무시)다. PolicyPriority 화면이 보여주는 순위가 바로 이 판입니다.
+        단, 이 판이 담는 것은 <strong>조합별 후보 순위</strong>까지입니다. 최종 승자 한 명은 계좌마다 다를 수 있어서(편입 여부),
+        2차전에서 확정됩니다.
+      </p>
+    </div>
+    <div class="callout" style="margin-top:14px">
+      <strong>구현 현황 한 줄:</strong> 이 1차전은 승인 시점에 <code>fee_rule.rank_value</code> 확정 저장 +
+      <code>fee_rule_candidate_index</code> 물리 테이블 적재로 구현돼 있고, 이후 <strong>세션·채널까지 편입한 6축 완전 키</strong>로
+      확장됐습니다. 계좌 산출(2차전)은 키 조회 + 자격 게이트만 남습니다. 순위가 승인 시점에 확정되고 계좌 산출은 저장된 순위에서
+      "고르기만" 한다는 구조는 그대로입니다.
+    </div>
+
+    <h3>2차전, 계좌를 연결하면: 두 개의 문을 통과하는 첫 번째 정책 (WinnerResolver)</h3>
+    <div class="diagram-shell">
+      <p class="diagram-shell__hint">Ctrl/Cmd + 휠로 확대 · 드래그로 이동 · 더블클릭으로 화면 맞춤</p>
+      <div class="mermaid-wrap">
+        <div class="zoom-controls">
+          <button type="button" data-action="zoom-in" title="확대">+</button>
+          <button type="button" data-action="zoom-out" title="축소">&minus;</button>
+          <button type="button" data-action="zoom-fit" title="맞춤">&#8634;</button>
+          <button type="button" data-action="zoom-one" title="원본 크기">1:1</button>
+          <button type="button" data-action="zoom-expand" title="새 탭에서 열기">&#x26F6;</button>
+          <span class="zoom-label">Loading...</span>
+        </div>
+        <div class="mermaid-viewport"><div class="mermaid mermaid-canvas"></div></div>
+      </div>
+      <script type="text/plain" class="diagram-source">
+graph TD
+  S["1차전에서 확정된 순위를<br/>그대로 가져옴 (재계산 없음)"] --> T["줄 맨 앞 정책부터 검사"]
+  T --> U{"문 1 · 범위 매칭<br/>이 정책의 범위가<br/>이 셀 주소에 맞는가?"}
+  U -->|"아니오"| V["다음 정책으로"]
+  U -->|"예"| W{"문 2 · 자격 게이트<br/>이 계좌가 자격이 있는가?"}
+  W -->|"아니오"| V
+  W -->|"예"| X["승자 확정!<br/>이 셀의 수수료는 이 정책"]
+  V --> T
+  classDef winner fill:#e3f0d8,stroke:#4d7c0f,stroke-width:2px;
+  class X winner
+      </script>
+    </div>
+
+    <div class="grid-3" style="margin-top:14px">
+      <div class="ve-card">
+        <div class="ve-card__label" style="color:var(--base)">기본 BASE의 자격</div>
+        <p style="font-size:13px;color:var(--text-dim)">항상 통과. 아무 조건 없이 모든 계좌의 최후 보루입니다.</p>
+      </div>
+      <div class="ve-card">
+        <div class="ve-card__label" style="color:var(--event)">이벤트 EVENT의 자격</div>
+        <p style="font-size:13px;color:var(--text-dim)">대상인가(신청형/전계좌 자동/휴면복귀/지정계좌) <strong>그리고</strong> 혜택 기간 안인가(가입일 기준 상대 기간 포함).</p>
+      </div>
+      <div class="ve-card">
+        <div class="ve-card__label" style="color:var(--nego)">협의 NEGOTIATED의 자격</div>
+        <p style="font-size:13px;color:var(--text-dim)">이 계좌에 그 협의 정책의 <strong>ACTIVE 편입</strong>이 있고, 오늘이 유효기간 안이어야 함. 아무리 싸도 편입이 없으면 탈락.</p>
+      </div>
+    </div>
+
+    <h3>실전 예시 ①: 해외파생 ES 선물 셀, 2등급 협의를 가진 계좌</h3>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>순위</th><th>정책</th><th class="num">요율(계약당)</th><th>문 1 · 범위</th><th>문 2 · 자격</th><th>결과</th></tr></thead>
+        <tbody>
+          <tr class="row--out">
+            <td class="num">1</td>
+            <td><span class="tag tag--nego">협의</span> 3등급<small>제일 싸지만…</small></td>
+            <td class="num">$0.50</td>
+            <td><span class="status status--win">통과</span></td>
+            <td><span class="status status--fail">탈락: 편입 없음</span></td>
+            <td>다음 후보로</td>
+          </tr>
+          <tr class="row--win">
+            <td class="num">2</td>
+            <td><span class="tag tag--nego">협의</span> 2등급<small>이 계좌에 ACTIVE 편입 있음</small></td>
+            <td class="num">$0.80</td>
+            <td><span class="status status--win">통과</span></td>
+            <td><span class="status status--win">통과</span></td>
+            <td><span class="status status--win">승자 확정</span></td>
+          </tr>
+          <tr class="row--skip">
+            <td class="num">3</td>
+            <td><span class="tag tag--event">이벤트</span> 해외선물 프로모션</td>
+            <td class="num">$1.00</td>
+            <td><span class="status status--fail">탈락: 범위 밖</span></td>
+            <td>—</td>
+            <td>검사 안 함</td>
+          </tr>
+          <tr class="row--skip">
+            <td class="num">4</td>
+            <td><span class="tag tag--base">기본</span> 해외파생 기본</td>
+            <td class="num">$2.50</td>
+            <td colspan="2" style="color:var(--text-dim)">여기까지 내려오지 않음</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div></div>
+    <div class="callout">
+      <strong>교훈:</strong> 3등급($0.50)이 더 싸도 <strong>편입이 없으면 그냥 탈락</strong>합니다.
+      협의 적용 여부는 요율표가 아니라 <strong>편입 내역</strong>이 결정합니다.
+    </div>
+
+    <h3>실전 예시 ②: 국내주식 · HTS 셀 (신규 고객, 가입 1개월 이내)</h3>
+    <div class="table-wrap"><div class="table-scroll">
+      <table class="data-table">
+        <thead><tr><th>순위</th><th>정책</th><th class="num">자사 요율</th><th>문 1 · 범위</th><th>문 2 · 자격</th><th>결과</th></tr></thead>
+        <tbody>
+          <tr class="row--win">
+            <td class="num">1</td>
+            <td><span class="tag tag--event">이벤트</span> 신규고객 수수료 면제<small>전 계좌 자동 편입 · 가입 후 1개월</small></td>
+            <td class="num">0bp</td>
+            <td><span class="status status--win">통과</span></td>
+            <td><span class="status status--win">통과: 기간 내</span></td>
+            <td><span class="status status--win">승자 확정</span></td>
+          </tr>
+          <tr class="row--skip">
+            <td class="num">2</td>
+            <td><span class="tag tag--nego">협의</span> 1등급</td>
+            <td class="num">1.1bp</td>
+            <td colspan="2" style="color:var(--text-dim)">검사할 필요도 없음</td>
+            <td>—</td>
+          </tr>
+          <tr class="row--skip">
+            <td class="num">3</td>
+            <td><span class="tag tag--base">기본</span> 온라인 기본 (KRX)</td>
+            <td class="num">1.5bp</td>
+            <td colspan="2" style="color:var(--text-dim)">—</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div></div>
+    <div class="callout callout--win">
+      <strong>고객 유리 원칙의 실증:</strong> 협의 계약이 있어도, 더 싼 이벤트(0bp)가 있으면 <strong>이벤트가 이깁니다.</strong>
+      1단계 정렬(요율)이 2단계(타입)보다 위에 있기 때문입니다. 신규 1개월이 지나면 이벤트가 자격을 잃고,
+      그 아래 순위였던 정책이 자연스럽게 승자가 됩니다.
+    </div>
+  </section>
+
+  <!-- ═══════════════ 4. 기록 ═══════════════ -->
+  <section class="animate" style="--i:7">
+    <div class="sec-head"><span class="sec-num">4장</span><h2>승자는 어디에 적히나: 배정판 fee_binding</h2></div>
+    <p class="sec-sub">
+      셀마다 시합이 끝나면 결과를 <code>fee_binding</code> 테이블(배정판)에 적습니다.
+      한 행 = "이 계좌의 이 주소는, 이 기간 동안, 이 요율표를 쓴다."
+    </p>
+
+    <div class="ve-card ve-card--hero">
+      <div class="ve-card__label">한 행의 생김새</div>
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);margin-bottom:4px">키 (PRIMARY KEY): 계좌 + 주소 6칸 + 시작일</div>
+      <div class="pk-strip">
+        <span class="pk-chip">account_id</span>
+        <span class="pk-chip">asset_class</span>
+        <span class="pk-chip">exchange_code</span>
+        <span class="pk-chip">lookup_key</span>
+        <span class="pk-chip">session_code</span>
+        <span class="pk-chip">product_code</span>
+        <span class="pk-chip">channel_code</span>
+        <span class="pk-chip">valid_from</span>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);margin-bottom:4px">값: 승자가 남긴 것</div>
+      <div class="pk-strip">
+        <span class="pk-chip pk-chip--val">schedule_id (요율표)</span>
+        <span class="pk-chip pk-chip--val">source_rule_id (이긴 정책)</span>
+        <span class="pk-chip pk-chip--val">source_type (EVENT/NEGOTIATED)</span>
+        <span class="pk-chip pk-chip--val">valid_to</span>
+        <span class="pk-chip pk-chip--val">reason (적용 사유)</span>
+      </div>
+    </div>
+
+    <div class="callout callout--warn" style="margin-top:18px">
+      <strong>배정판에는 "우대"만 적습니다.</strong> 승자가 기본(BASE)이면 행을 아예 쓰지 않습니다
+      (<code>BindingWriter</code>: BASE는 skip). 그래서 <strong>행이 없다는 것 자체가 "기본요율 적용"이라는 정보</strong>입니다.
+      대부분의 계좌·셀은 우대가 없으므로, 이 규칙 하나로 억 단위가 될 판의 행 수를 크게 누릅니다.
+      변경 이력은 <code>fee_binding_history</code>에 원인(승인/만료/편입/휴면복귀…)과 함께 남습니다.
+    </div>
+
+    <h3>배정판을 채우는 세 개의 배치: 같은 시합 코드를 공유</h3>
+    <div class="batch-tiers">
+      <div class="tier">
+        <div class="tier__freq">주기 · 전체</div>
+        <div class="tier__name">전체 재산출 FULL_REBUILD</div>
+        <div class="tier__desc">모든 계좌를 처음부터 다시 계산. 정합성의 기준. 어긋난 게 있어도 여기서 반드시 바로잡힘.</div>
+      </div>
+      <div class="tier">
+        <div class="tier__freq">매일 · 델타</div>
+        <div class="tier__name">일 델타 DELTA</div>
+        <div class="tier__desc">어제 만료된 행이 있는 계좌 + 오늘 시작하는 정책의 범위에 걸리는 계좌만 다시 계산.</div>
+      </div>
+      <div class="tier">
+        <div class="tier__freq">수시 · 즉시</div>
+        <div class="tier__name">수시 증분 Incremental</div>
+        <div class="tier__desc">정책 승인·만료, 협의 승인·연장, 편입, 휴면 복귀가 일어나는 순간 영향 계좌만 즉시 재산출. <strong>새 정책이 들어올 때 도는 게 바로 이것.</strong></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 5. 실전 따라가기 ═══════════════ -->
+  <section class="animate" style="--i:8">
+    <div class="sec-head"><span class="sec-num">5장</span><h2>실전 따라가기: 새 정책 하나, 표가 변하는 모습을 단계별로</h2></div>
+    <p class="sec-sub">
+      가장 어려운 부분을 처음부터 끝까지 한 번에 따라갑니다. 새 이벤트 하나가 승인되는 순간
+      <strong>① 우선순위 판(계좌 무관)</strong>이 어떻게 갱신되고, <strong>② 배정판(계좌별)</strong>이
+      언제 어떻게 한 행씩 변하는지, 매 단계의 표 스냅샷으로 봅니다.
+    </p>
+
+    <div class="grid-2" style="margin-bottom:22px">
+      <div class="ve-card">
+        <div class="ve-card__label">무대: 국내주식 (조회구분: 주식)</div>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:13.5px">
+          <div><span class="tag tag--base">기본</span> 온라인 기본 · 축 한정 없음 · <span style="font-family:var(--font-mono)">1.5bp</span></div>
+          <div><span class="tag tag--nego">협의</span> 협의 1등급 · 축 한정 없음 · 신청·승인제 · <span style="font-family:var(--font-mono)">1.1bp</span></div>
+          <div><span class="tag tag--event">이벤트</span> <b>MTS 새싹 이벤트 (오늘 신규 승인!)</b> · <code>scope_channels=['MTS']</code> · 신청형 · <span style="font-family:var(--font-mono)">0.9bp</span></div>
+        </div>
+        <p style="font-size:12px;color:var(--text-dim);margin-top:8px">요율 숫자는 설명용으로 단순화(유관비용·세금은 세 정책에 똑같이 붙으므로 순서를 바꾸지 않음).</p>
+      </div>
+      <div class="ve-card">
+        <div class="ve-card__label">등장 계좌 3명</div>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:13.5px">
+          <div><b>A 나신청</b>: 우대 없음. 곧 이벤트를 신청할 예정</div>
+          <div><b>B 김협의</b>: 협의 1등급 편입 ACTIVE. 이벤트도 신청할 예정</div>
+          <div><b>C 박기본</b>: 아무것도 신청하지 않음 (대다수 계좌)</div>
+        </div>
+        <p style="font-size:12px;color:var(--text-dim);margin-top:8px">시작 시점의 배정판: B의 협의 한 행뿐. A·C는 행 없음(=기본).</p>
+      </div>
+    </div>
+
+    <div class="ladder">
+
+      <div class="ladder__step">
+        <div class="ladder__num">1</div>
+        <div class="ladder__body">
+          <div class="ladder__title">새 정책 승인: 순위값을 그 자리에서 한 번 계산</div>
+          <div class="ladder__desc">
+            MTS 새싹 이벤트가 승인되어 ACTIVE가 됩니다. 고객이 내는 몫을 합산한 <strong>순위값 0.9</strong>를
+            계산해 정책에 저장합니다. 요율표는 승인 후 바뀌지 않으므로 이 계산은 <strong>딱 한 번</strong>입니다.
+            아직 계좌는 한 명도 등장하지 않았습니다.
+          </div>
+        </div>
+      </div>
+
+      <div class="ladder__step">
+        <div class="ladder__num">2</div>
+        <div class="ladder__body">
+          <div class="ladder__title">겹치는 조합 찾기: 이 정책이 닿는 색인 칸만</div>
+          <div class="ladder__desc">
+            우선순위 판의 키는 (자산군 · 조회구분 · 거래소 · 품목)입니다. 새 정책의 범위가 닿는 조합은
+            <code>(국내주식 · 주식 · * · –)</code> <strong>단 1건</strong>입니다. 이 칸만 다시 경쟁시키면 됩니다.
+            (파생 정책이었다면 품목별로 여러 칸이 걸렸을 것.) 전체 재계산이 아니라 <strong>부분 갱신</strong>입니다.
+          </div>
+        </div>
+      </div>
+
+      <div class="ladder__step">
+        <div class="ladder__num">3</div>
+        <div class="ladder__body">
+          <div class="ladder__title">1차전: 그 조합에서 겹치는 정책 전원이 재경쟁</div>
+          <div class="ladder__desc">4단계 정렬(요율 → 계층 → 구체성 → ID)로 다시 줄을 세웁니다. 새 이벤트가 0.9로 맨 앞에 끼어듭니다.</div>
+          <p class="snapcap">우선순위 판 · 조합 (국내주식 · 주식 · * · –): <b>승인 전</b></p>
+          <div class="table-wrap"><div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>순위</th><th>정책</th><th class="num">순위값</th><th>구체성</th></tr></thead>
+              <tbody>
+                <tr><td class="num">1</td><td><span class="tag tag--nego">협의</span> 협의 1등급</td><td class="num">1.1</td><td>0 (전체)</td></tr>
+                <tr><td class="num">2</td><td><span class="tag tag--base">기본</span> 온라인 기본</td><td class="num">1.5</td><td>0 (전체)</td></tr>
+              </tbody>
+            </table>
+          </div></div>
+          <p class="snapcap">우선순위 판 · 같은 조합: <b>승인 후</b> (계좌 관여: 0명)</p>
+          <div class="table-wrap"><div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>순위</th><th>정책</th><th class="num">순위값</th><th>구체성</th></tr></thead>
+              <tbody>
+                <tr class="row--win"><td class="num">1</td><td><span class="tag tag--event">이벤트</span> MTS 새싹 <span class="tag tag--new">NEW</span></td><td class="num">0.9</td><td>1 (채널 한정)</td></tr>
+                <tr><td class="num">2</td><td><span class="tag tag--nego">협의</span> 협의 1등급</td><td class="num">1.1</td><td>0</td></tr>
+                <tr><td class="num">3</td><td><span class="tag tag--base">기본</span> 온라인 기본</td><td class="num">1.5</td><td>0</td></tr>
+              </tbody>
+            </table>
+          </div></div>
+          <div class="ladder__desc" style="margin-top:8px">
+            만약 어떤 후보 둘이 <strong>0.9로 동률</strong>이었다면? 계층(협의&gt;이벤트&gt;기본) → 그래도 같으면
+            구체성(채널 한정 1점 &gt; 전체 0점) → 그래도 같으면 정책 ID 순. 언제 계산해도 같은 줄이 나옵니다.
+          </div>
+        </div>
+      </div>
+
+      <div class="ladder__step">
+        <div class="ladder__num">4</div>
+        <div class="ladder__body">
+          <div class="ladder__title">승인 직후의 배정판: 변화 없음!</div>
+          <div class="ladder__desc">
+            이 이벤트는 <strong>신청형</strong>입니다. 아직 신청한 계좌가 없으니 자격 게이트를 통과할 계좌도 없고,
+            배정판은 <strong>한 행도 변하지 않습니다.</strong> 1차전(정책 순위)과 2차전(계좌 연결)이
+            완전히 분리되어 있다는 증거입니다.
+          </div>
+          <p class="snapcap">배정판 fee_binding: 승인 직후 (변화 없음)</p>
+          <div class="table-wrap"><div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>계좌</th><th>자산군</th><th>조회구분</th><th>세션</th><th>채널</th><th>요율표</th><th>정책구분</th></tr></thead>
+              <tbody>
+                <tr><td>B 김협의</td><td>국내주식</td><td>주식</td><td>*</td><td>*</td><td>협의 1등급 1.1bp</td><td><span class="tag tag--nego">협의</span></td></tr>
+              </tbody>
+            </table>
+          </div></div>
+          <div class="ladder__desc" style="margin-top:8px">A·C는 기본만 적용되므로 <strong>애초에 판에 없습니다.</strong></div>
+        </div>
+      </div>
+
+      <div class="ladder__step">
+        <div class="ladder__num">5</div>
+        <div class="ladder__body">
+          <div class="ladder__title">계좌 A가 신청: 수시 증분이 A만 다시 판정</div>
+          <div class="ladder__desc">
+            편입이 생기는 순간 <code>onEnrollment</code> 증분이 <strong>A의 셀만</strong> 재산출합니다.
+            새 정책이 채널 축을 한정했으므로 A의 국내주식 셀은 채널 {<code>*</code>, MTS} <strong>두 칸으로 갈라집니다.</strong>
+          </div>
+          <p class="snapcap">계좌 A의 셀별 2차전</p>
+          <div class="table-wrap"><div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>셀</th><th>후보 (순위 순)</th><th>판정</th><th>배정판 기록</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td>채널 = <code>*</code></td>
+                  <td>기본 1.5 <small>MTS 새싹은 채널 한정이라 * 셀 불참, 협의는 편입 없음</small></td>
+                  <td><span class="tag tag--base">기본</span> 승</td>
+                  <td><span class="status status--skip">행 없음</span></td>
+                </tr>
+                <tr class="row--win">
+                  <td>채널 = MTS</td>
+                  <td>이벤트 0.9 → 기본 1.5</td>
+                  <td>이벤트 0.9: 범위 ✓ 자격 ✓(신청) → <span class="tag tag--event">이벤트</span> 승</td>
+                  <td><span class="status status--win">INSERT 1행</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div></div>
+        </div>
+      </div>
+
+      <div class="ladder__step">
+        <div class="ladder__num">6</div>
+        <div class="ladder__body">
+          <div class="ladder__title">계좌 B(협의 보유)도 신청: 셀마다 승자가 다를 수 있다</div>
+          <div class="ladder__desc">
+            B의 셀도 {<code>*</code>, MTS} 두 칸으로 갈라집니다. <code>*</code> 셀에서는 협의 1.1이 그대로 승자(기존 행 유지),
+            MTS 셀에서는 이벤트 0.9가 협의 1.1보다 싸므로 <strong>이벤트가 협의를 이깁니다</strong>(고객 유리 원칙).
+          </div>
+          <p class="snapcap">계좌 B의 셀별 2차전</p>
+          <div class="table-wrap"><div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>셀</th><th>후보 (순위 순)</th><th>판정</th><th>배정판 기록</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td>채널 = <code>*</code></td>
+                  <td>협의 1.1 → 기본 1.5 <small>이벤트는 * 셀 불참</small></td>
+                  <td><span class="tag tag--nego">협의</span> 승</td>
+                  <td><span class="status status--skip">기존 행 유지</span></td>
+                </tr>
+                <tr class="row--win">
+                  <td>채널 = MTS</td>
+                  <td>이벤트 0.9 → 협의 1.1 → 기본 1.5</td>
+                  <td>이벤트 0.9: 범위 ✓ 자격 ✓ → <span class="tag tag--event">이벤트</span> 승</td>
+                  <td><span class="status status--win">INSERT 1행</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div></div>
+          <div class="ladder__desc" style="margin-top:8px">계좌 C는? 아무 편입도 생기지 않았으니 <strong>재판정 대상조차 아닙니다.</strong> 여전히 행 0.</div>
+        </div>
+      </div>
+
+      <div class="ladder__step">
+        <div class="ladder__num">7</div>
+        <div class="ladder__body">
+          <div class="ladder__title">최종 배정판: 그리고 체결 세 건으로 검산</div>
+          <p class="snapcap">배정판 fee_binding: 최종 (우대 행만 존재)</p>
+          <div class="table-wrap"><div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>계좌</th><th>자산군</th><th>조회구분</th><th>세션</th><th>채널</th><th>요율표</th><th>정책구분</th></tr></thead>
+              <tbody>
+                <tr class="row--win"><td>A 나신청</td><td>국내주식</td><td>주식</td><td>*</td><td>MTS</td><td>MTS 새싹 0.9bp</td><td><span class="tag tag--event">이벤트</span> <span class="tag tag--new">NEW</span></td></tr>
+                <tr><td>B 김협의</td><td>국내주식</td><td>주식</td><td>*</td><td>*</td><td>협의 1등급 1.1bp</td><td><span class="tag tag--nego">협의</span></td></tr>
+                <tr class="row--win"><td>B 김협의</td><td>국내주식</td><td>주식</td><td>*</td><td>MTS</td><td>MTS 새싹 0.9bp</td><td><span class="tag tag--event">이벤트</span> <span class="tag tag--new">NEW</span></td></tr>
+              </tbody>
+            </table>
+          </div></div>
+          <div class="ladder__desc" style="margin-top:6px"><strong>C 박기본은 이 표 어디에도 없습니다</strong>. 그게 "기본 적용"의 표현 방식입니다.</div>
+          <p class="snapcap">체결 검산: 원장의 한 줄 조회 (구체 행이 * 행보다 먼저 잡힘)</p>
+          <div class="table-wrap"><div class="table-scroll">
+            <table class="data-table">
+              <thead><tr><th>체결</th><th>배정판 조회 결과</th><th class="num">적용 요율</th></tr></thead>
+              <tbody>
+                <tr><td>C가 HTS로 매수</td><td><span class="status status--skip">미스 (행 없음)</span> → 기본 즉석 해석</td><td class="num">1.5bp</td></tr>
+                <tr><td>B가 HTS로 매수</td><td>채널 <code>*</code> 행 히트 <small>MTS 행은 채널 불일치로 후보 아님</small></td><td class="num">1.1bp (협의)</td></tr>
+                <tr class="row--win"><td>B가 MTS로 매수</td><td>채널 MTS 행 히트 <small>구체 행 우선 정렬로 * 행을 제침</small></td><td class="num">0.9bp (이벤트)</td></tr>
+              </tbody>
+            </table>
+          </div></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="callout callout--win">
+      <strong>이 실습이 보여준 것 세 가지.</strong>
+      ① 새 정책의 경쟁·순위 확정은 <strong>승인 순간, 계좌 없이</strong> 끝났다(3단계).
+      ② 배정판은 편입이라는 <strong>기록이 생긴 계좌만</strong>, 그 계좌의 셀만 바뀌었다(5·6단계).
+      ③ 기본만 적용되는 계좌(C)는 처음부터 끝까지 <strong>배정판에 단 한 행도 없다</strong>. 대다수 계좌가 이 상태라서 판의 규모가 억제된다.
+    </div>
+  </section>
+
+  <!-- ═══════════════ 6. 체결 순간 ═══════════════ -->
+  <section class="animate" style="--i:9">
+    <div class="sec-head"><span class="sec-num">6장</span><h2>체결 순간: 계산 없이 한 줄만 읽는다</h2></div>
+    <p class="sec-sub">
+      주문이 체결되면 원장은 시합을 다시 하지 않습니다. 체결의 주소 6칸으로 배정판을 <strong>한 번</strong> 조회할 뿐입니다.
+    </p>
+
+    <pre class="code-block"><span class="c">-- 체결 주소로 배정판 조회: 구체값 행이 * 행보다 먼저 오게 정렬, 한 줄만</span>
+<span class="k">SELECT</span> ... <span class="k">FROM</span> fee_binding
+<span class="k">WHERE</span>  account_id = ? <span class="k">AND</span> asset_class = ? <span class="k">AND</span> lookup_key = ?
+  <span class="k">AND</span>  exchange_code <span class="k">IN</span> (?, '*') <span class="k">AND</span> session_code <span class="k">IN</span> (?, '*')
+  <span class="k">AND</span>  product_code  <span class="k">IN</span> (?, '*') <span class="k">AND</span> channel_code <span class="k">IN</span> (?, '*')
+  <span class="k">AND</span>  valid_from &lt;= 오늘 <span class="k">AND</span> 오늘 &lt;= valid_to
+<span class="k">ORDER BY</span> (product_code = ?) <span class="k">DESC</span>, (channel_code = ?) <span class="k">DESC</span>,
+         (session_code = ?) <span class="k">DESC</span>, (exchange_code = ?) <span class="k">DESC</span>
+<span class="k">LIMIT</span> 1;</pre>
+
+    <div class="grid-2" style="margin-top:16px">
+      <div class="ve-card">
+        <div class="ve-card__label" style="color:var(--win)">행이 있으면 (히트)</div>
+        <p style="font-size:13.5px;color:var(--text-dim)">그 행의 요율표(<code>schedule_id</code>)로 수수료 계산 끝.
+        내 주소와 정확히 맞는 구체 행이 <code>*</code> 행보다 먼저 잡히도록 정렬되어 있습니다.</p>
+      </div>
+      <div class="ve-card">
+        <div class="ve-card__label" style="color:var(--base)">행이 없으면 (미스 = 정상)</div>
+        <p style="font-size:13.5px;color:var(--text-dim)">"우대 없음"이라는 뜻이므로, 그 자리에서 기본(BASE) 정책만으로
+        즉석 승자 확정을 돌려 기본요율을 적용합니다. 미스는 오류가 아니라 설계된 기본 경로입니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 요약 ═══════════════ -->
+  <section class="animate" style="--i:10">
+    <div class="sec-head"><span class="sec-num">요약</span><h2>딱 다섯 문장</h2></div>
+    <div class="ve-card ve-card--hero">
+      <ul class="summary-list">
+        <li>조회키는 거래의 <strong>6칸 주소</strong>이고, <code>*</code>는 "전체", 품목 칸은 <strong>파생에만</strong> 있다.</li>
+        <li>새 정책이 <strong>승인되는 순간(계좌 무관)</strong>, 범위가 겹치는 조회키 조합마다 기존 정책들과 1차전을 치러 순위를 확정하고, 그 결과를 <strong>조합별 후보 색인(전용 판)</strong>에 담는다. 우선순위 판단은 승인 시점 한 곳에만 있다.</li>
+        <li>기본·이벤트·협의가 <strong>한 판에서</strong> 싼 순서로 줄을 서고, 2차전(계좌 연결)에서 <strong>자격 게이트</strong>를 통과한 첫 번째가 계좌별 최종 승자다. 협의도 편입 없으면 탈락, 더 싼 이벤트가 협의를 이길 수 있다.</li>
+        <li>계좌별 셀은 배치가 만든다. 어떤 축을 한정한 정책이 있으면 그 축이 <code>*</code>와의 <strong>곱집합으로 갈라지고</strong>(교차 셀 포함), 최종 승자 중 <strong>우대만</strong> 배정판 <code>fee_binding</code>에 기록된다(기본 = 행 없음).</li>
+        <li>체결 순간에는 계산 없이 배정판을 <strong>한 줄 조회</strong>하고, 미스면 기본요율이다.</li>
+      </ul>
+    </div>
+    <p style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);margin-top:14px">
+      근거 코드: FeeKey · CellUniverse · PolicyRanking · WinnerResolver · EligibilityGate · ScopeMatcher · BindingWriter · BindingRepository (server/src/main/java/kr/fees) · V1__schema.sql
+    </p>
+  </section>
+
+</div>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  import elkLayouts from 'https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk/dist/mermaid-layout-elk.esm.min.mjs';
+
+  const config = {
+    fitPadding: 28, minHeight: 360, maxHeightPx: 960, maxHeightVh: 0.84,
+    maxInitialZoom: 1.6, minZoom: 0.08, maxZoom: 6.5, zoomStep: 0.14, readabilityFloor: 0.58
+  };
+  const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+  let activeDrag = null;
+  addEventListener('mousemove', (e) => activeDrag?.onMove(e));
+  addEventListener('mouseup', () => { activeDrag?.onEnd(); activeDrag = null; });
+
+  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+
+  mermaid.registerLayoutLoaders(elkLayouts);
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'base',
+    look: 'classic',
+    layout: 'elk',
+    themeVariables: {
+      fontFamily: "'Gowun Dodum', 'Apple SD Gothic Neo', sans-serif",
+      fontSize: '16px',
+      primaryColor: isDark ? '#3a2f26' : '#fdf3ec',
+      primaryBorderColor: isDark ? '#f97a3d' : '#c2410c',
+      primaryTextColor: isDark ? '#ede4da' : '#3d3229',
+      secondaryColor: isDark ? '#332b23' : '#f5efe9',
+      secondaryBorderColor: isDark ? '#c4b09a' : '#8a7a6b',
+      secondaryTextColor: isDark ? '#ede4da' : '#3d3229',
+      tertiaryColor: isDark ? '#2e3322' : '#f3f7e8',
+      tertiaryBorderColor: isDark ? '#a3e635' : '#4d7c0f',
+      tertiaryTextColor: isDark ? '#ede4da' : '#3d3229',
+      lineColor: isDark ? '#a99a8a' : '#8a7a6b',
+      noteBkgColor: isDark ? '#3a2f26' : '#fdf3ec',
+      noteTextColor: isDark ? '#ede4da' : '#3d3229',
+      noteBorderColor: isDark ? '#fbbf24' : '#b45309'
+    }
+  });
+
+  function initDiagram(shell) {
+    const wrap = shell.querySelector('.mermaid-wrap');
+    const viewport = shell.querySelector('.mermaid-viewport');
+    const canvas = shell.querySelector('.mermaid-canvas');
+    const source = shell.querySelector('.diagram-source');
+    const label = shell.querySelector('.zoom-label');
+    if (!wrap || !viewport || !canvas || !source || !label) return;
+
+    let zoom = 1, fitMode = 'contain', panX = 0, panY = 0, svgW = 0, svgH = 0;
+    let sx = 0, sy = 0, spx = 0, spy = 0;
+    let touchDist = 0, touchCx = 0, touchCy = 0;
+
+    function constrainPan() {
+      const vpW = viewport.clientWidth, vpH = viewport.clientHeight;
+      const rW = svgW * zoom, rH = svgH * zoom, pad = config.fitPadding;
+      panX = (rW + pad * 2 <= vpW) ? (vpW - rW) / 2 : clamp(panX, vpW - rW - pad, pad);
+      panY = (rH + pad * 2 <= vpH) ? (vpH - rH) / 2 : clamp(panY, vpH - rH - pad, pad);
+    }
+    function applyTransform() {
+      const svg = canvas.querySelector('svg');
+      if (!svg || !svgW) return;
+      constrainPan();
+      svg.style.width = (svgW * zoom) + 'px';
+      svg.style.height = (svgH * zoom) + 'px';
+      canvas.style.transform = `translate(${panX}px, ${panY}px)`;
+      label.textContent = Math.round(zoom * 100) + '% — ' + fitMode;
+    }
+    function canPan() {
+      return svgW * zoom + config.fitPadding * 2 > viewport.clientWidth
+          || svgH * zoom + config.fitPadding * 2 > viewport.clientHeight;
+    }
+    function computeSmartFit() {
+      const vpW = viewport.clientWidth, vpH = viewport.clientHeight;
+      const aW = Math.max(80, vpW - config.fitPadding * 2);
+      const aH = Math.max(80, vpH - config.fitPadding * 2);
+      const contain = Math.min(aW / svgW, aH / svgH);
+      let z = contain, mode = 'contain';
+      if (contain < config.readabilityFloor) {
+        const chartR = svgH / svgW, vpR = vpH / Math.max(vpW, 1);
+        if (chartR >= vpR) { z = aW / svgW; mode = 'width-priority'; }
+        else { z = aH / svgH; mode = 'height-priority'; }
+      }
+      return { zoom: clamp(z, config.minZoom, config.maxInitialZoom), mode };
+    }
+    function fitDiagram() {
+      if (!svgW) return;
+      const fit = computeSmartFit();
+      zoom = fit.zoom; fitMode = fit.mode;
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = (viewport.clientHeight - svgH * zoom) / 2;
+      applyTransform();
+    }
+    function setOneToOne() {
+      zoom = clamp(1, config.minZoom, config.maxZoom); fitMode = '1:1';
+      panX = (viewport.clientWidth - svgW * zoom) / 2;
+      panY = (viewport.clientHeight - svgH * zoom) / 2;
+      applyTransform();
+    }
+    function zoomAround(factor, cx, cy) {
+      const next = clamp(zoom * factor, config.minZoom, config.maxZoom);
+      const ratio = next / zoom;
+      panX = cx - ratio * (cx - panX);
+      panY = cy - ratio * (cy - panY);
+      zoom = next; fitMode = 'custom';
+      applyTransform();
+    }
+    function readSvgNaturalSize(svg) {
+      let w = 0, h = 0;
+      if (svg.viewBox?.baseVal?.width > 0) { w = svg.viewBox.baseVal.width; h = svg.viewBox.baseVal.height; }
+      if (!w) { w = parseFloat(svg.getAttribute('width')) || 0; h = parseFloat(svg.getAttribute('height')) || 0; }
+      if (!w) { const b = svg.getBBox(); w = b.width; h = b.height; }
+      if (!w) { const r = svg.getBoundingClientRect(); w = r.width || 1000; h = r.height || 700; }
+      if (!svg.getAttribute('viewBox')) svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      return { w, h };
+    }
+    function setAdaptiveHeight() {
+      if (!svgW) return;
+      const usableW = Math.max(280, wrap.getBoundingClientRect().width - 2);
+      const idealH = (svgH / svgW) * usableW + config.fitPadding * 2;
+      const maxVp = Math.floor(innerHeight * config.maxHeightVh);
+      const hardMax = Math.min(config.maxHeightPx, Math.max(config.minHeight + 40, maxVp));
+      wrap.style.height = Math.round(clamp(idealH, config.minHeight, hardMax)) + 'px';
+    }
+    function openInNewTab() {
+      const svg = canvas.querySelector('svg');
+      if (!svg) return;
+      const clone = svg.cloneNode(true);
+      clone.style.width = ''; clone.style.height = '';
+      const bg = isDark ? '#201a15' : '#faf7f5';
+      const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Diagram</title><style>
+      body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+      background:${bg};padding:40px;box-sizing:border-box}
+      svg{max-width:100%;max-height:90vh;height:auto}
+      </style></head><body>${clone.outerHTML}</body></html>`;
+      open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank');
+    }
+
+    async function render() {
+      try {
+        const code = source.textContent.trim();
+        if (!code) { label.textContent = 'Error: Empty source'; return; }
+        const id = 'diagram-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+        const { svg } = await mermaid.render(id, code);
+        canvas.innerHTML = svg;
+        const svgNode = canvas.querySelector('svg');
+        if (!svgNode) { label.textContent = 'Error: No SVG'; return; }
+        const size = readSvgNaturalSize(svgNode);
+        svgW = size.w; svgH = size.h;
+        svgNode.removeAttribute('width');
+        svgNode.removeAttribute('height');
+        svgNode.style.maxWidth = 'none';
+        svgNode.style.display = 'block';
+        setAdaptiveHeight();
+        fitDiagram();
+      } catch (err) {
+        console.error('Mermaid render failed:', err);
+        label.textContent = 'Error: ' + (err.message || 'Render failed');
+      }
+    }
+
+    const actions = {
+      'zoom-in': () => zoomAround(1 + config.zoomStep, viewport.clientWidth / 2, viewport.clientHeight / 2),
+      'zoom-out': () => zoomAround(1 / (1 + config.zoomStep), viewport.clientWidth / 2, viewport.clientHeight / 2),
+      'zoom-fit': fitDiagram,
+      'zoom-one': setOneToOne,
+      'zoom-expand': openInNewTab
+    };
+    Object.entries(actions).forEach(([action, handler]) => {
+      wrap.querySelector(`[data-action="${action}"]`)?.addEventListener('click', handler);
+    });
+    viewport.addEventListener('dblclick', fitDiagram);
+    viewport.addEventListener('wheel', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        const factor = e.deltaY < 0 ? 1 + config.zoomStep : 1 / (1 + config.zoomStep);
+        zoomAround(factor, e.clientX - rect.left, e.clientY - rect.top);
+        return;
+      }
+      if (canPan()) { e.preventDefault(); panX -= e.deltaX; panY -= e.deltaY; applyTransform(); }
+    }, { passive: false });
+    viewport.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.zoom-controls') || !canPan()) return;
+      wrap.classList.add('is-panning');
+      sx = e.clientX; sy = e.clientY; spx = panX; spy = panY;
+      e.preventDefault();
+      activeDrag = {
+        onMove: (ev) => { panX = spx + (ev.clientX - sx); panY = spy + (ev.clientY - sy); applyTransform(); },
+        onEnd: () => wrap.classList.remove('is-panning')
+      };
+    });
+    viewport.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        sx = e.touches[0].clientX; sy = e.touches[0].clientY; spx = panX; spy = panY;
+      } else if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        touchDist = Math.sqrt(dx * dx + dy * dy);
+        const r = viewport.getBoundingClientRect();
+        touchCx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
+        touchCy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+      }
+    }, { passive: true });
+    viewport.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && canPan()) {
+        if (touchDist > 0) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; spx = panX; spy = panY; touchDist = 0; }
+        e.preventDefault();
+        panX = spx + (e.touches[0].clientX - sx);
+        panY = spy + (e.touches[0].clientY - sy);
+        applyTransform();
+      } else if (e.touches.length === 2 && touchDist > 0) {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        zoomAround(d / touchDist, touchCx, touchCy);
+        touchDist = d;
+      }
+    }, { passive: false });
+
+    new ResizeObserver(() => { if (svgW) { setAdaptiveHeight(); fitDiagram(); } }).observe(wrap);
+    render();
+  }
+
+  document.querySelectorAll('.diagram-shell').forEach(initDiagram);
+</script>
+</body>
+</html>
