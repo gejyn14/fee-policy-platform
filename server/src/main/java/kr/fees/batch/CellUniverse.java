@@ -68,7 +68,7 @@ public final class CellUniverse {
         return cells;
     }
 
-    private static List<LookupKey> stockLookupKeys(AssetClass ac) {
+    static List<LookupKey> stockLookupKeys(AssetClass ac) {
         return switch (ac) {
             case OVERSEAS_STOCK -> List.of(LookupKey.STOCK, LookupKey.ETF);
             case DOMESTIC_STOCK -> List.of(LookupKey.STOCK);
