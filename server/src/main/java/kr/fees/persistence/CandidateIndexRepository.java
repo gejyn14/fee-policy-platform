@@ -23,8 +23,10 @@ public class CandidateIndexRepository {
         return jdbc.query("""
             SELECT rule_id FROM fee_rule_candidate_index
             WHERE asset_class = ? AND lookup_key = ? AND exchange_code = ? AND product_code = ?
-              AND start_date <= ?
-              AND (? <= end_date OR (rule_type = 'EVENT' AND benefit_kind = 'RELATIVE'))
+              AND (
+                (rule_type = 'EVENT' AND benefit_kind = 'RELATIVE')
+                OR (start_date <= ? AND ? <= end_date)
+              )
             ORDER BY rank_position""",
             (rs, i) -> rs.getString(1),
             assetClass.name(), lookupKey.name(),

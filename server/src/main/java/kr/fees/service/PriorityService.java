@@ -72,7 +72,9 @@ public class PriorityService {
             return new TopResponse(new Entry(r.id(), r.name(), r.type(), s.id(), s.name(),
                 ranks.getOrDefault(id, RankKey.of(s)), r.scope()));
         }
-        return new TopResponse(null);
+        // 색인 경로에서 승자를 찾지 못함(파생의 품목='*' 등 색인에 없는 조합 포함) — 즉석 계산으로 fallback.
+        // topByComputation 은 진짜 무해당이면 그 자체로 null 을 반환하므로 안전하다.
+        return topByComputation(assetClass, key, today);
     }
 
     private TopResponse topByComputation(AssetClass assetClass, FeeKey key, LocalDate today) {

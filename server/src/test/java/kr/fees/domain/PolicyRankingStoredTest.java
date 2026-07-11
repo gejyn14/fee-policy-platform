@@ -53,6 +53,24 @@ class PolicyRankingStoredTest {
     }
 
     @Test
+    void fromStored는_RankKey_재계산이_아닌_저장값을_사용한다() {
+        // RankKey.of 순서상 R-A(1.0bp)가 R-B(2.0bp)보다 항상 싸다.
+        // 하지만 storedRanks 에는 반대로(B 가 더 싸게) 박아넣어 fromStored 가
+        // 재계산이 아니라 저장값을 그대로 신뢰하는지 검증한다.
+        var ruleA = rule("R-A", RuleType.BASE, "S-A");
+        var ruleB = rule("R-B2", RuleType.BASE, "S-B2");
+        var schedules = Map.of("S-A", schedule("S-A", 1.0), "S-B2", schedule("S-B2", 2.0));
+        var storedDivergent = Map.of("R-A", new BigDecimal("9.9999"), "R-B2", new BigDecimal("0.0001"));
+
+        var fromBuild = PolicyRanking.build(List.of(ruleA, ruleB), schedules, TODAY);
+        assertThat(fromBuild.get(0).rule().id()).isEqualTo("R-A"); // 재계산 기준으로는 A 가 1위
+
+        var fromStored = PolicyRanking.fromStored(List.of(ruleA, ruleB), schedules, storedDivergent, TODAY);
+        assertThat(fromStored.get(0).rule().id()).isEqualTo("R-B2"); // 저장값 기준으로는 B 가 1위
+        assertThat(fromStored.get(0).rank()).isEqualByComparingTo("0.0001");
+    }
+
+    @Test
     void 기간_밖_룰은_저장값이_있어도_편입되지_않는다() {
         var expired = new RuleModel("R-X", "X", RuleType.EVENT, RuleStatus.ACTIVE, ApplyMode.AUTO_ENROLL,
             LocalDate.of(2025, 1, 1), LocalDate.of(2025, 12, 31), BenefitKind.CALENDAR, null, "S-B",
