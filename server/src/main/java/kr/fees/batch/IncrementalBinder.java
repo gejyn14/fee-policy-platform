@@ -16,16 +16,16 @@ import java.util.*;
 public class IncrementalBinder {
 
     private final RuleRepository rules;
-    private final ScheduleRepository schedules;
+    private final RankingRepository rankings;
     private final AccountRepository accounts;
     private final ProductRepository products;
     private final EnrollmentRepository enrollments;
     private final BindingWriter writer;
 
-    public IncrementalBinder(RuleRepository rules, ScheduleRepository schedules, AccountRepository accounts,
+    public IncrementalBinder(RuleRepository rules, RankingRepository rankings, AccountRepository accounts,
                              ProductRepository products, EnrollmentRepository enrollments, BindingWriter writer) {
         this.rules = rules;
-        this.schedules = schedules;
+        this.rankings = rankings;
         this.accounts = accounts;
         this.products = products;
         this.enrollments = enrollments;
@@ -36,8 +36,7 @@ public class IncrementalBinder {
     @Transactional
     public BatchResult rebuildAccounts(Collection<String> accountIds, LocalDate baseDate, String trigger) {
         List<RuleModel> active = rules.findActive(baseDate);
-        Map<String, FeeScheduleModel> schedMap = schedules.findAllAsMap();
-        List<RankedPolicy> ranking = PolicyRanking.build(active, schedMap, baseDate);
+        List<RankedPolicy> ranking = rankings.ranking(active, baseDate);
         List<ProductModel> allProducts = products.findAll();
 
         BatchResult total = BatchResult.zero();

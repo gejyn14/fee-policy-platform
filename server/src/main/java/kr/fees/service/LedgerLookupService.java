@@ -2,13 +2,13 @@ package kr.fees.service;
 
 import kr.fees.domain.*;
 import kr.fees.persistence.BindingRepository;
+import kr.fees.persistence.RankingRepository;
 import kr.fees.persistence.RuleRepository;
 import kr.fees.persistence.ScheduleRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -24,11 +24,14 @@ public class LedgerLookupService {
     private final BindingRepository bindings;
     private final RuleRepository rules;
     private final ScheduleRepository schedules;
+    private final RankingRepository rankings;
 
-    public LedgerLookupService(BindingRepository bindings, RuleRepository rules, ScheduleRepository schedules) {
+    public LedgerLookupService(BindingRepository bindings, RuleRepository rules, ScheduleRepository schedules,
+                               RankingRepository rankings) {
         this.bindings = bindings;
         this.rules = rules;
         this.schedules = schedules;
+        this.rankings = rankings;
     }
 
     public record LookupOutcome(String scheduleId, String sourceRuleId, RuleType sourceType, boolean fallbackToBase) {}
@@ -52,8 +55,7 @@ public class LedgerLookupService {
     private Optional<Winner> baseWinner(FeeKey key, LocalDate tradeDate) {
         List<RuleModel> baseRules = rules.findActive(tradeDate).stream()
             .filter(r -> r.type() == RuleType.BASE).toList();
-        Map<String, FeeScheduleModel> schedMap = schedules.findAllAsMap();
-        List<RankedPolicy> ranking = PolicyRanking.build(baseRules, schedMap, tradeDate);
+        List<RankedPolicy> ranking = rankings.ranking(baseRules, tradeDate);
         return WinnerResolver.winnerFor(key, BASE_PROBE, List.of(), ranking, tradeDate);
     }
 

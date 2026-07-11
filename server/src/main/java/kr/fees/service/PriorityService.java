@@ -1,6 +1,7 @@
 package kr.fees.service;
 
 import kr.fees.domain.*;
+import kr.fees.persistence.RankingRepository;
 import kr.fees.persistence.RuleRepository;
 import kr.fees.persistence.ScheduleRepository;
 import org.springframework.stereotype.Service;
@@ -19,10 +20,12 @@ public class PriorityService {
 
     private final RuleRepository rules;
     private final ScheduleRepository schedules;
+    private final RankingRepository rankings;
 
-    public PriorityService(RuleRepository rules, ScheduleRepository schedules) {
+    public PriorityService(RuleRepository rules, ScheduleRepository schedules, RankingRepository rankings) {
         this.rules = rules;
         this.schedules = schedules;
+        this.rankings = rankings;
     }
 
     public record Entry(String ruleId, String ruleName, RuleType ruleType, String scheduleId,
@@ -35,8 +38,7 @@ public class PriorityService {
         List<RuleModel> active = rules.findActive(today).stream()
             .filter(r -> assetClass == null || r.scope().assetClass() == assetClass)
             .toList();
-        Map<String, FeeScheduleModel> schedMap = schedules.findAllAsMap();
-        return PolicyRanking.build(active, schedMap, today).stream().map(PriorityService::toEntry).toList();
+        return rankings.ranking(active, today).stream().map(PriorityService::toEntry).toList();
     }
 
     /** 조회키의 이론상 최저(자격 무시) — 랭킹에서 범위가 맞는 첫 정책. 없으면 top=null. */

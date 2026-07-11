@@ -9,7 +9,6 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 배정판 전체 재산출 (기술설계서 v1.5 §10.1). 정합성 진본.
@@ -19,18 +18,18 @@ import java.util.Map;
 public class BindingRebuilder {
 
     private final RuleRepository rules;
-    private final ScheduleRepository schedules;
+    private final RankingRepository rankings;
     private final AccountRepository accounts;
     private final ProductRepository products;
     private final EnrollmentRepository enrollments;
     private final BindingWriter writer;
     private final BatchRunRepository batchRuns;
 
-    public BindingRebuilder(RuleRepository rules, ScheduleRepository schedules, AccountRepository accounts,
+    public BindingRebuilder(RuleRepository rules, RankingRepository rankings, AccountRepository accounts,
                             ProductRepository products, EnrollmentRepository enrollments,
                             BindingWriter writer, BatchRunRepository batchRuns) {
         this.rules = rules;
-        this.schedules = schedules;
+        this.rankings = rankings;
         this.accounts = accounts;
         this.products = products;
         this.enrollments = enrollments;
@@ -42,8 +41,7 @@ public class BindingRebuilder {
     public BatchResult fullRebuild(LocalDate baseDate) {
         OffsetDateTime start = OffsetDateTime.now(ZoneOffset.UTC);
         List<RuleModel> active = rules.findActive(baseDate);
-        Map<String, FeeScheduleModel> schedMap = schedules.findAllAsMap();
-        List<RankedPolicy> ranking = PolicyRanking.build(active, schedMap, baseDate);
+        List<RankedPolicy> ranking = rankings.ranking(active, baseDate);
         List<ProductModel> allProducts = products.findAll();
 
         BatchResult total = BatchResult.zero();

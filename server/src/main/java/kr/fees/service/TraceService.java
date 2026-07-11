@@ -3,15 +3,14 @@ package kr.fees.service;
 import kr.fees.domain.*;
 import kr.fees.persistence.AccountRepository;
 import kr.fees.persistence.EnrollmentRepository;
+import kr.fees.persistence.RankingRepository;
 import kr.fees.persistence.RuleRepository;
-import kr.fees.persistence.ScheduleRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 수수료 결정 추적 (FeeTrace 화면용). 도메인(PolicyRanking·ScopeMatcher·EligibilityGate)만 재사용.
@@ -21,15 +20,15 @@ import java.util.Map;
 public class TraceService {
 
     private final RuleRepository rules;
-    private final ScheduleRepository schedules;
+    private final RankingRepository rankings;
     private final AccountRepository accounts;
     private final EnrollmentRepository enrollments;
     private final LedgerLookupService ledger;
 
-    public TraceService(RuleRepository rules, ScheduleRepository schedules, AccountRepository accounts,
+    public TraceService(RuleRepository rules, RankingRepository rankings, AccountRepository accounts,
                         EnrollmentRepository enrollments, LedgerLookupService ledger) {
         this.rules = rules;
-        this.schedules = schedules;
+        this.rankings = rankings;
         this.accounts = accounts;
         this.enrollments = enrollments;
         this.ledger = ledger;
@@ -50,8 +49,7 @@ public class TraceService {
 
         List<RuleModel> active = rules.findActive(tradeDate).stream()
             .filter(r -> r.scope().assetClass() == assetClass).toList();
-        Map<String, FeeScheduleModel> schedMap = schedules.findAllAsMap();
-        List<RankedPolicy> ranking = PolicyRanking.build(active, schedMap, tradeDate);
+        List<RankedPolicy> ranking = rankings.ranking(active, tradeDate);
 
         List<Candidate> candidates = new ArrayList<>();
         boolean winnerFound = false;
