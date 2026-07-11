@@ -1,6 +1,7 @@
 package kr.fees.service;
 
 import kr.fees.domain.*;
+import kr.fees.persistence.CandidateIndexRepository;
 import kr.fees.persistence.RankingRepository;
 import kr.fees.persistence.RuleRepository;
 import kr.fees.persistence.ScheduleRepository;
@@ -21,11 +22,14 @@ public class PriorityService {
     private final RuleRepository rules;
     private final ScheduleRepository schedules;
     private final RankingRepository rankings;
+    private final CandidateIndexRepository candidateIndex;
 
-    public PriorityService(RuleRepository rules, ScheduleRepository schedules, RankingRepository rankings) {
+    public PriorityService(RuleRepository rules, ScheduleRepository schedules, RankingRepository rankings,
+                           CandidateIndexRepository candidateIndex) {
         this.rules = rules;
         this.schedules = schedules;
         this.rankings = rankings;
+        this.candidateIndex = candidateIndex;
     }
 
     public record Entry(String ruleId, String ruleName, RuleType ruleType, String scheduleId,
@@ -41,15 +45,41 @@ public class PriorityService {
         return rankings.ranking(active, today).stream().map(PriorityService::toEntry).toList();
     }
 
-    /** 조회키의 이론상 최저(자격 무시) — 랭킹에서 범위가 맞는 첫 정책. 없으면 top=null. */
+    /** 조회키의 이론상 최저(자격 무시) — 후보 색인에서 순위순으로 고른다. 색인 미구축 시 즉석 경로 fallback. */
     public TopResponse top(AssetClass assetClass, LookupKey lookupKey,
                            String exchange, String session, String product, String channel, LocalDate today) {
         FeeKey key = FeeKey.of(assetClass, exchange, lookupKey, session, channel, product);
+        if (candidateIndex.isEmpty()) {
+            return topByComputation(assetClass, key, today); // 콜드스타트 fallback
+        }
+        Map<String, RuleModel> active = rules.findActive(today).stream()
+            .collect(java.util.stream.Collectors.toMap(RuleModel::id, r -> r));
+        Map<String, FeeScheduleModel> schedMap = schedules.findAllAsMap();
+        Map<String, BigDecimal> ranks = rankings.storedRanks();
+
+        // 색인 조합 키: 주식형은 요청 exchange(없으면 '*'), 파생은 요청 exchange + 품목
+        List<String> ids = candidateIndex.candidates(assetClass, lookupKey, exchange, product, today);
+        if (ids.isEmpty() && exchange != null && !"*".equals(exchange) && !assetClass.isDerivative()) {
+            ids = candidateIndex.candidates(assetClass, lookupKey, "*", product, today);
+        }
+        for (String id : ids) {
+            RuleModel r = active.get(id);
+            if (r == null) continue;
+            if (!PolicyRanking.inRanking(r, today)) continue;
+            if (!ScopeMatcher.matches(r.scope(), key)) continue; // 세션·채널 축 최종 판정
+            FeeScheduleModel s = schedMap.get(r.scheduleId());
+            if (s == null) continue;
+            return new TopResponse(new Entry(r.id(), r.name(), r.type(), s.id(), s.name(),
+                ranks.getOrDefault(id, RankKey.of(s)), r.scope()));
+        }
+        return new TopResponse(null);
+    }
+
+    private TopResponse topByComputation(AssetClass assetClass, FeeKey key, LocalDate today) {
         List<RuleModel> active = rules.findActive(today).stream()
             .filter(r -> r.scope().assetClass() == assetClass)
             .toList();
-        Map<String, FeeScheduleModel> schedMap = schedules.findAllAsMap();
-        return PolicyRanking.build(active, schedMap, today).stream()
+        return rankings.ranking(active, today).stream()
             .filter(p -> ScopeMatcher.matches(p.rule().scope(), key))
             .findFirst()
             .map(p -> new TopResponse(toEntry(p)))
