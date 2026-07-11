@@ -2,6 +2,7 @@ package kr.fees.service;
 
 import kr.fees.batch.BatchResult;
 import kr.fees.batch.IncrementalBinder;
+import kr.fees.batch.RankIndexService;
 import kr.fees.domain.*;
 import kr.fees.persistence.RuleRepository;
 import kr.fees.persistence.ScheduleRepository;
@@ -22,11 +23,14 @@ public class RuleService {
     private final RuleRepository rules;
     private final ScheduleRepository schedules;
     private final IncrementalBinder binder;
+    private final RankIndexService rankIndex;
 
-    public RuleService(RuleRepository rules, ScheduleRepository schedules, IncrementalBinder binder) {
+    public RuleService(RuleRepository rules, ScheduleRepository schedules, IncrementalBinder binder,
+                       RankIndexService rankIndex) {
         this.rules = rules;
         this.schedules = schedules;
         this.binder = binder;
+        this.rankIndex = rankIndex;
     }
 
     public record ValidationReport(boolean dominanceOk, DominanceValidator.Failure dominanceFailure,
@@ -71,6 +75,7 @@ public class RuleService {
             throw new DominanceViolation(report);
         }
         rules.updateStatus(ruleId, RuleStatus.ACTIVE);
+        rankIndex.rebuildAll(baseDate);              // 순위 확정 — 승인 시점 한 곳 (§10.4)
         return binder.onRuleApproved(ruleId, baseDate);
     }
 
@@ -82,6 +87,7 @@ public class RuleService {
     @Transactional
     public BatchResult expire(String ruleId, LocalDate baseDate) {
         rules.updateStatus(ruleId, RuleStatus.EXPIRED);
+        rankIndex.rebuildAll(baseDate);              // 종료 반영 — 색인에서 제거
         return binder.onRuleExpired(ruleId, baseDate);
     }
 
