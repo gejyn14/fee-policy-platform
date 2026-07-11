@@ -24,6 +24,19 @@ public final class WinnerResolver {
         return Optional.empty();
     }
 
+    /**
+     * 사전 필터된 후보 목록(범위 매칭 완료 — CandidateMap/색인 경로)에서 자격 게이트만 걸어
+     * 첫 통과를 뽑는다. winnerFor 와 동일 의미론에서 ScopeMatcher 단계만 앞당겨진 형태.
+     */
+    public static Optional<Winner> winnerAmong(List<RankedPolicy> candidates, AccountModel acct,
+                                               List<Enrollment> enrollments, LocalDate today) {
+        for (RankedPolicy p : candidates) {
+            if (!EligibilityGate.passes(p.rule(), acct, enrollments, today)) continue;
+            return Optional.of(toWinner(p.rule(), acct, enrollments));
+        }
+        return Optional.empty();
+    }
+
     private static Winner toWinner(RuleModel rule, AccountModel acct, List<Enrollment> enrollments) {
         LocalDate from = rule.startDate();
         LocalDate to = rule.endDate();
