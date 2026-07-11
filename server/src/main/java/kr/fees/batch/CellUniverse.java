@@ -27,6 +27,8 @@ public final class CellUniverse {
     /**
      * 전 자산군의 계좌 무관 셀 유니버스 — 6축 색인(RankIndexService)과 계좌 전개(cellsFor)가
      * 같은 열거를 공유한다. 계좌가 기여하는 것은 개설 상품군 pruning 뿐이다.
+     * 규모: 축마다 '활성 룰이 한정한 값 ∪ '*''만 전개(전체 데카르트 아님) — 계좌 수와 무관한 정책-바운드.
+     * 교차 셀(예: 야간×MTS)은 어느 단일 룰도 겨냥하지 않아도 대각선 체결 완결을 위해 데카르트로 만들어진다.
      */
     public static List<FeeKey> universe(List<ProductModel> products, List<RuleModel> activeRules) {
         Set<FeeKey> cells = new LinkedHashSet<>();
@@ -55,6 +57,10 @@ public final class CellUniverse {
         return new ArrayList<>(cells);
     }
 
+    /**
+     * universe 를 개설 상품군으로 거른 계좌 셀. 계좌 산출 hot path의 공용 진입점은 이제
+     * CandidateMap(실행당 1회 빌드)이며, cellsFor 는 등가성 테스트(CellUniverseTest) 유지를 위한 얇은 필터다.
+     */
     public static List<FeeKey> cellsFor(String accountId, Set<AssetClass> openedGroups,
                                         List<ProductModel> products, List<RuleModel> activeRules) {
         List<FeeKey> out = new ArrayList<>();
