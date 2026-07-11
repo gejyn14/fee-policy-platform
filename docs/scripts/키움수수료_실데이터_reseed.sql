@@ -366,3 +366,9 @@ INSERT INTO fee_rule(rule_id, rule_name, rule_type, rule_status, apply_mode, sta
 COMMIT;
 
 -- 적용 후: POST /api/batch/rebuild 로 배정판 전체 재산출 (편입이 없으니 초기 판은 비어 있는 게 정상)
+
+-- ------------------------------------------------------------
+-- 적용 후 순위 보정: 이 스크립트는 룰을 ACTIVE 로 직접 삽입하므로(승인 경로 우회)
+-- rank_value·후보 색인이 비어 있다. 서버 재기동(기동 보정) 또는 아래 API 로 1회 재적재할 것.
+--   POST /api/batch/rank-index/rebuild
+-- ------------------------------------------------------------
