@@ -16,7 +16,7 @@ import java.util.*;
 
 /**
  * 순위 사전 산정 (§10.4 1단계). 승인·종료 트랜잭션에서 호출되어
- * ① 활성 룰 전건의 rank_value 를 확정 저장하고 ② 조합별 후보 색인을 전면 재생성한다.
+ * ① 활성 룰 전건의 rank_value 를 확정 저장하고 ② 6축(세션·채널 포함) 셀별 후보 색인을 전면 재생성한다.
  * 색인 전체가 MB 규모라 전면 재생성이 단순·결정적이다("걸리는 조합만 갱신"은 추후 최적화).
  * 색인에는 기간 필터를 적용하지 않는다 — 멤버십(기간)은 읽기 시점 판정, 순서만 저장.
  */
@@ -27,8 +27,9 @@ public class RankIndexService {
 
     private static final String INSERT_SQL = """
         INSERT INTO fee_rule_candidate_index(asset_class, lookup_key, exchange_code, product_code,
-            rank_position, rule_id, rank_value, rule_type, start_date, end_date, benefit_kind)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)""";
+            session_code, channel_code, rank_position, rule_id, rank_value, tie_order, specificity,
+            rule_type, start_date, end_date, benefit_kind)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""";
 
     private final RuleRepository rules;
     private final ScheduleRepository schedules;
@@ -69,29 +70,32 @@ public class RankIndexService {
             jdbc.batchUpdate("UPDATE fee_rule SET rank_value = ? WHERE rule_id = ?", rankArgs);
         }
 
-        // ② 조합별 후보 색인 전면 재생성 (키 정렬은 여기서 한 번만, 조합마다 순위 재부여)
+        // ② 6축 셀 유니버스 × 저장 순위 → 후보 지도 — 계좌 산출(BindingWriter)과 같은 빌더 공유(로직 한 벌)
         jdbc.update("DELETE FROM fee_rule_candidate_index");
         List<RankedPolicy> allRanked = preRanked.stream()
             .sorted(PolicyRanking.comparator())
             .toList();
 
-        List<ComboUniverse.Combo> combos = ComboUniverse.enumerate(products.findAll(), active);
+        List<FeeKey> universe = CellUniverse.universe(products.findAll(), active);
+        CandidateMap map = CandidateMap.build(universe, allRanked);
         List<Object[]> insertArgs = new ArrayList<>();
-        for (ComboUniverse.Combo combo : combos) {
+        for (FeeKey cell : map.cells()) {
             int pos = 0;
-            for (RankedPolicy p : allRanked) {
-                if (!ComboUniverse.isCandidate(p.rule().scope(), combo)) continue;
+            for (RankedPolicy p : map.candidates(cell)) {
                 insertArgs.add(new Object[]{
-                    combo.assetClass().name(), combo.lookupKey().name(), combo.exchange(),
-                    combo.product() == null ? "*" : combo.product(),
-                    ++pos, p.rule().id(), p.rank(), p.rule().type().name(),
-                    p.rule().startDate(), p.rule().endDate(), p.rule().benefitKind().name()
+                    cell.assetClass().name(), cell.lookupKey().name(), cell.exchange(),
+                    cell.product() == null ? "*" : cell.product(),
+                    cell.session(), cell.channel(),
+                    ++pos, p.rule().id(), p.rank(),
+                    p.rule().type().tieOrder(), p.rule().scope().specificity(),
+                    p.rule().type().name(), p.rule().startDate(), p.rule().endDate(),
+                    p.rule().benefitKind().name()
                 });
             }
         }
         if (!insertArgs.isEmpty()) {
             jdbc.batchUpdate(INSERT_SQL, insertArgs);
         }
-        return new RebuildSummary(rankArgs.size(), combos.size(), insertArgs.size());
+        return new RebuildSummary(rankArgs.size(), universe.size(), insertArgs.size());
     }
 }

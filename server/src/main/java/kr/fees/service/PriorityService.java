@@ -57,11 +57,8 @@ public class PriorityService {
         Map<String, FeeScheduleModel> schedMap = schedules.findAllAsMap();
         Map<String, BigDecimal> ranks = rankings.storedRanks();
 
-        // 색인 조합 키: 주식형은 요청 exchange(없으면 '*'), 파생은 요청 exchange + 품목
-        List<String> ids = candidateIndex.candidates(assetClass, lookupKey, exchange, product, today);
-        if (ids.isEmpty() && exchange != null && !"*".equals(exchange) && !assetClass.isDerivative()) {
-            ids = candidateIndex.candidates(assetClass, lookupKey, "*", product, today);
-        }
+        // 6축 프로브('*' 포함)라 재조회 특례 불필요 — IN (?, '*') 가 구체·전체 조합을 함께 모은다.
+        List<String> ids = candidateIndex.candidates(assetClass, lookupKey, exchange, product, session, channel, today);
         for (String id : ids) {
             RuleModel r = active.get(id);
             if (r == null) continue;

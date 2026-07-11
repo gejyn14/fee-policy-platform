@@ -41,23 +41,19 @@ class RankingRepositoryTest extends PgIntegrationTest {
     void 색인_후보_조회는_기간을_필터하고_순위순으로_돌려준다() {
         rankIndex.rebuildAll(BASE);
         assertThat(candidateIndex.isEmpty()).isFalse();
-        // 시드에 존재하는 임의 조합 하나에 대해: 후보가 있고, 전건 ACTIVE·기간 유효
-        var anyCombo = jdbcCombo();
-        List<String> ids = candidateIndex.candidates(anyCombo.assetClass(), anyCombo.lookupKey(),
-            anyCombo.exchange(), anyCombo.product(), BASE);
+        var row = jdbcTemplate.queryForMap("""
+            SELECT asset_class, lookup_key, exchange_code, product_code, session_code, channel_code
+            FROM fee_rule_candidate_index LIMIT 1""");
+        List<String> ids = candidateIndex.candidates(
+            kr.fees.domain.AssetClass.valueOf((String) row.get("asset_class")),
+            kr.fees.domain.LookupKey.valueOf((String) row.get("lookup_key")),
+            "*".equals(row.get("exchange_code")) ? null : (String) row.get("exchange_code"),
+            "*".equals(row.get("product_code")) ? null : (String) row.get("product_code"),
+            "*".equals(row.get("session_code")) ? null : (String) row.get("session_code"),
+            "*".equals(row.get("channel_code")) ? null : (String) row.get("channel_code"),
+            BASE);
         assertThat(ids).isNotEmpty();
     }
 
-    private kr.fees.batch.ComboUniverse.Combo jdbcCombo() {
-        var row = jdbc().queryForMap(
-            "SELECT asset_class, lookup_key, exchange_code, product_code FROM fee_rule_candidate_index LIMIT 1");
-        return new kr.fees.batch.ComboUniverse.Combo(
-            kr.fees.domain.AssetClass.valueOf((String) row.get("asset_class")),
-            kr.fees.domain.LookupKey.valueOf((String) row.get("lookup_key")),
-            (String) row.get("exchange_code"),
-            "*".equals(row.get("product_code")) ? null : (String) row.get("product_code"));
-    }
-
     @Autowired org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
-    private org.springframework.jdbc.core.JdbcTemplate jdbc() { return jdbcTemplate; }
 }

@@ -38,7 +38,7 @@ class PriorityTopIndexTest extends PgIntegrationTest {
     }
 
     /**
-     * Fix-1 회귀: 파생은 색인에 품목='*' 조합이 없다(ComboUniverse 가 구체 품목만 전개).
+     * Fix-1 회귀: 파생은 색인에 품목='*' 조합이 없다(CellUniverse 가 구체 품목만 전개).
      * product 생략(컨트롤러 기본값 "*" → 서비스에는 null)으로 조회하면 색인 경로는 무승자로
      * 끝나야 하고, top() 은 그 경우 topByComputation 으로 fallback 해 null 을 반환하면 안 된다.
      * 색인이 비어 있을 때(콜드스타트)도 동일한 topByComputation 경로를 타므로, 재구축 전후
@@ -76,7 +76,7 @@ class PriorityTopIndexTest extends PgIntegrationTest {
 
         rankIndex.rebuildAll(BASE);
 
-        List<String> ids = candidateIndex.candidates(AssetClass.DOMESTIC_STOCK, LookupKey.STOCK, "*", "*", BASE);
+        List<String> ids = candidateIndex.candidates(AssetClass.DOMESTIC_STOCK, LookupKey.STOCK, "*", "*", null, null, BASE);
         assertThat(ids).contains("R-TEST-REL-FUTURE");
     }
 }

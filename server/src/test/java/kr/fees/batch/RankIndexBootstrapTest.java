@@ -41,15 +41,18 @@ class RankIndexBootstrapTest extends PgIntegrationTest {
         // 실제 재적재라면 DELETE FROM fee_rule_candidate_index 로 지워질 sentinel 행을 심는다.
         // 기존 행 하나를 복제해 rank_position 만 충돌 없는 값(9999)으로 바꿔 삽입한다.
         Map<String, Object> row = jdbc.queryForMap(
-            "SELECT asset_class, lookup_key, exchange_code, product_code, rule_id, rank_value, " +
+            "SELECT asset_class, lookup_key, exchange_code, product_code, session_code, channel_code, " +
+            "rule_id, rank_value, tie_order, specificity, " +
             "rule_type, start_date, end_date, benefit_kind FROM fee_rule_candidate_index LIMIT 1");
         jdbc.update("""
             INSERT INTO fee_rule_candidate_index(asset_class, lookup_key, exchange_code, product_code,
-                rank_position, rule_id, rank_value, rule_type, start_date, end_date, benefit_kind)
-            VALUES (?,?,?,?,9999,?,?,?,?,?,?)""",
+                session_code, channel_code, rank_position, rule_id, rank_value, tie_order, specificity,
+                rule_type, start_date, end_date, benefit_kind)
+            VALUES (?,?,?,?,?,?,9999,?,?,?,?,?,?,?,?)""",
             row.get("asset_class"), row.get("lookup_key"), row.get("exchange_code"), row.get("product_code"),
-            row.get("rule_id"), row.get("rank_value"), row.get("rule_type"),
-            row.get("start_date"), row.get("end_date"), row.get("benefit_kind"));
+            row.get("session_code"), row.get("channel_code"),
+            row.get("rule_id"), row.get("rank_value"), row.get("tie_order"), row.get("specificity"),
+            row.get("rule_type"), row.get("start_date"), row.get("end_date"), row.get("benefit_kind"));
 
         // 전제 확인: ACTIVE 룰 전건 스탬프됨 + 색인 비어있지 않음 → 가드는 "건강함"으로 판정해야 한다
         Integer missing = jdbc.queryForObject(
