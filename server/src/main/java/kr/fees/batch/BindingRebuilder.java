@@ -42,14 +42,14 @@ public class BindingRebuilder {
         OffsetDateTime start = OffsetDateTime.now(ZoneOffset.UTC);
         List<RuleModel> active = rules.findActive(baseDate);
         List<RankedPolicy> ranking = rankings.ranking(active, baseDate);
-        List<ProductModel> allProducts = products.findAll();
+        CandidateMap candidates = CandidateMap.build(
+            CellUniverse.universe(products.findAll(), active), ranking);
 
         BatchResult total = BatchResult.zero();
         for (AccountModel acct : accounts.findAll()) {  // findAll 은 account_id 정렬
             var opened = accounts.openedGroups(acct.id());
             var enr = enrollments.findByAccount(acct.id());
-            total = total.plus(writer.rebuildAccount(acct, enr, opened, allProducts, active, ranking,
-                baseDate, "DAILY_REBUILD"));
+            total = total.plus(writer.rebuildAccount(acct, enr, opened, candidates, baseDate, "DAILY_REBUILD"));
         }
 
         OffsetDateTime finish = OffsetDateTime.now(ZoneOffset.UTC);

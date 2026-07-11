@@ -24,13 +24,13 @@ public class BindingWriter {
         this.history = history;
     }
 
-    /** 한 계좌의 배정판을 기대값과 대조해 반영한다. trigger = 이력 트리거 소스. */
+    /** 한 계좌의 배정판을 기대값과 대조해 반영한다. candidates = 실행당 1회 빌드된 셀별 후보 지도. */
     public BatchResult rebuildAccount(AccountModel acct, List<Enrollment> enr, Set<AssetClass> opened,
-                                      List<ProductModel> products, List<RuleModel> activeRules,
-                                      List<RankedPolicy> ranking, LocalDate baseDate, String trigger) {
+                                      CandidateMap candidates, LocalDate baseDate, String trigger) {
         Map<String, BindingRow> expected = new LinkedHashMap<>();
-        for (FeeKey cell : CellUniverse.cellsFor(acct.id(), opened, products, activeRules)) {
-            Optional<Winner> w = WinnerResolver.winnerFor(cell, acct, enr, ranking, baseDate);
+        for (FeeKey cell : candidates.cells()) {
+            if (!opened.contains(cell.assetClass())) continue;   // 계좌 pruning — 유일한 계좌 의존
+            Optional<Winner> w = WinnerResolver.winnerAmong(candidates.candidates(cell), acct, enr, baseDate);
             if (w.isEmpty() || w.get().sourceType() == RuleType.BASE) continue;  // 기본은 미저장
             if (w.get().validFrom() == null) continue;
             BindingRow row = toRow(acct.id(), cell, w.get());

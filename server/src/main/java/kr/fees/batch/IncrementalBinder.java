@@ -37,7 +37,8 @@ public class IncrementalBinder {
     public BatchResult rebuildAccounts(Collection<String> accountIds, LocalDate baseDate, String trigger) {
         List<RuleModel> active = rules.findActive(baseDate);
         List<RankedPolicy> ranking = rankings.ranking(active, baseDate);
-        List<ProductModel> allProducts = products.findAll();
+        CandidateMap candidates = CandidateMap.build(
+            CellUniverse.universe(products.findAll(), active), ranking);
 
         BatchResult total = BatchResult.zero();
         for (String id : new LinkedHashSet<>(accountIds)) {
@@ -45,7 +46,7 @@ public class IncrementalBinder {
             if (acct == null) continue;
             var opened = accounts.openedGroups(id);
             var enr = enrollments.findByAccount(id);
-            total = total.plus(writer.rebuildAccount(acct, enr, opened, allProducts, active, ranking, baseDate, trigger));
+            total = total.plus(writer.rebuildAccount(acct, enr, opened, candidates, baseDate, trigger));
         }
         return total;
     }
