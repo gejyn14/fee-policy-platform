@@ -16,6 +16,7 @@ import java.util.Set;
  * 곱집합이어야 서로 다른 축을 한정한 룰 둘이 겹치는 교차 셀(예: 야간×MTS)에도
  * 완결된 승자가 실린다 — 축별 독립 전개는 대각선 체결에서 고객 유리 원칙을 깬다.
  * 계좌가 개설한 상품군(openedGroups)만 전개 — pruning.
+ * universe = 색인·계좌 전개 공용 열거.
  */
 public final class CellUniverse {
 
@@ -23,10 +24,13 @@ public final class CellUniverse {
 
     private CellUniverse() {}
 
-    public static List<FeeKey> cellsFor(String accountId, Set<AssetClass> openedGroups,
-                                        List<ProductModel> products, List<RuleModel> activeRules) {
+    /**
+     * 전 자산군의 계좌 무관 셀 유니버스 — 6축 색인(RankIndexService)과 계좌 전개(cellsFor)가
+     * 같은 열거를 공유한다. 계좌가 기여하는 것은 개설 상품군 pruning 뿐이다.
+     */
+    public static List<FeeKey> universe(List<ProductModel> products, List<RuleModel> activeRules) {
         Set<FeeKey> cells = new LinkedHashSet<>();
-        for (AssetClass ac : openedGroups) {
+        for (AssetClass ac : AssetClass.values()) {
             boolean deriv = ac.isDerivative();
             for (FeeKey base : baseCells(ac, products)) {
                 Set<String> exchanges = new LinkedHashSet<>(List.of(base.exchange()));
@@ -49,6 +53,15 @@ public final class CellUniverse {
             }
         }
         return new ArrayList<>(cells);
+    }
+
+    public static List<FeeKey> cellsFor(String accountId, Set<AssetClass> openedGroups,
+                                        List<ProductModel> products, List<RuleModel> activeRules) {
+        List<FeeKey> out = new ArrayList<>();
+        for (FeeKey k : universe(products, activeRules)) {
+            if (openedGroups.contains(k.assetClass())) out.add(k);
+        }
+        return out;
     }
 
     private static List<FeeKey> baseCells(AssetClass ac, List<ProductModel> products) {
